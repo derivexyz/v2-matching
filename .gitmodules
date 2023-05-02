@@ -6,6 +6,7 @@
 	path = lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 	branch = v4.8.3
+
 [submodule "lib/v2-core"]
 	path = lib/v2-core
 	url = git@github.com:lyra-finance/v2-core.git
