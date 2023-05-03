@@ -3,12 +3,11 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import "v2-core/test/shared/mocks/MockERC20.sol";
-import "v2-core/test/shared/mocks/MockManager.sol";
+import "v2-core/../test/shared/mocks/MockERC20.sol";
+import "v2-core/../test/shared/mocks/MockManager.sol";
 
-import "v2-core/src/assets/CashAsset.sol";
-import "v2-core/src/Accounts.sol";
-import "v2-core/src/Matching.sol";
+import "v2-core//assets/CashAsset.sol";
+import "v2-core/Accounts.sol";
 
 /**
  * @dev we deploy actual Account contract in these tests to simplify verification process

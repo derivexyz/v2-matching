@@ -4,8 +4,8 @@ pragma solidity ^0.8.13;
 import "openzeppelin/utils/math/SafeCast.sol";
 import "openzeppelin/utils/cryptography/EIP712.sol";
 import "openzeppelin/utils/cryptography/SignatureChecker.sol";
-import "v2-core/lib/lyra-utils/ownership/Owned.sol";
-import "v2-core/lib/lyra-utils/decimals/DecimalMath.sol";
+import "v2-core/../lib/lyra-utils/src/ownership/Owned.sol";
+import "v2-core/../lib/lyra-utils/src/decimals/DecimalMath.sol";
 
 import "v2-core/interfaces/IAccounts.sol";
 import "v2-core/interfaces/AccountStructs.sol";
@@ -32,7 +32,7 @@ contract Matching is EIP712, Owned {
     uint accountId1; // todo rename to from Id <-> to Id ?
     uint accountId2;
     IAsset asset1;
-    IAsset asset2; // todo for perps this asset is actually the price?
+    IAsset asset2;
     uint subId1;
     uint subId2;
     uint asset1Amount;
@@ -52,6 +52,8 @@ contract Matching is EIP712, Owned {
     uint subId2;
     uint asset1Amount;
     uint asset2Amount;
+    uint asset1Fee;
+    uint asset2Fee;
   }
 
   ///@dev Accounts contract address
@@ -68,6 +70,9 @@ contract Matching is EIP712, Owned {
 
   ///@dev Mapping to track frozen accounts
   mapping(address => bool) public isFrozen;
+
+  ///@dev Base fee rate per IAsset 
+  mapping(IAsset => uint) public feeRates;
 
   ///@dev LimitOrder Typehash including fillAmount
   bytes32 public constant _LIMIT_ORDER_TYPEHASH =
@@ -88,6 +93,16 @@ contract Matching is EIP712, Owned {
     isWhitelisted[toAllow] = whitelisted;
 
     emit AddressWhitelisted(toAllow, whitelisted);
+  }
+
+  /**
+   * @notice set fee rate for an asset
+   * @param asset The IAsset's fee to be changed
+   * @param newFee The new fee to be set
+   */
+  function setFeeRate(IAsset asset, uint newFee) external onlyOwner {
+    feeRates[asset] = newFee; // 100000 = 100% ie 30 = 0.03% fee rate 
+    emit FeeRateUpdated(asset, newFee);
   }
 
   /////////////////////////////
@@ -211,6 +226,8 @@ contract Matching is EIP712, Owned {
     fillAmounts[orderHash1] += matchDetails.amount1;
     fillAmounts[orderHash2] += matchDetails.amount2;
 
+    (uint fee1, uint fee2) = _calculateFees(order1, order2);
+
     return VerifiedOrder({
       accountId1: order1.accountId1,
       accountId2: order1.accountId2,
@@ -219,8 +236,14 @@ contract Matching is EIP712, Owned {
       subId1: order1.subId1,
       subId2: order1.subId2,
       asset1Amount: matchDetails.amount1,
-      asset2Amount: matchDetails.amount2
+      asset2Amount: matchDetails.amount2,
+      asset1Fee: 0,
+      asset2Fee: 0
     });
+  }
+
+  function _calculateFees(LimitOrder memory order1, LimitOrder memory order2) internal returns (uint, uint){
+    return (order1.asset1Amount, order2.asset1Amount); // todo
   }
 
   function _verifyOrderParams(LimitOrder calldata order) internal view {
@@ -371,6 +394,11 @@ contract Matching is EIP712, Owned {
    * @dev Emitted when a user's account is frozen or unfrozen
    */
   event AccountFrozen(address account, bool isFrozen);
+
+  /**
+   * @dev Emitted when the base fee rate is updated for an asset
+   */
+  event FeeRateUpdated(IAsset asset, uint newFeeRate);
 
   ////////////
   // Errors //
