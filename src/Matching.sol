@@ -4,8 +4,8 @@ pragma solidity ^0.8.13;
 import "openzeppelin/utils/math/SafeCast.sol";
 import "openzeppelin/utils/cryptography/EIP712.sol";
 import "openzeppelin/utils/cryptography/SignatureChecker.sol";
-import "v2-core/../lib/lyra-utils/src/ownership/Owned.sol";
-import "v2-core/../lib/lyra-utils/src/decimals/DecimalMath.sol";
+import "lyra-utils/ownership/Owned.sol";
+import "lyra-utils/decimals/DecimalMath.sol";
 
 import "v2-core/interfaces/IAccounts.sol";
 import "v2-core/interfaces/AccountStructs.sol";
