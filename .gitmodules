@@ -11,5 +11,5 @@
 	url = git@github.com:lyra-finance/v2-core.git
 [submodule "lib/lyra-utils"]
 	path = lib/lyra-utils
-	url = https://github.com/lyra-finance/lyra-utils
-	branch = v0.2.1
+	url = git@github.com:lyra-finance/lyra-utils.git
+	branch = build/v2

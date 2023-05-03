@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/console2.sol";
-import "v2-core/../test/integration-tests/shared/IntegrationTestBase.sol";
-import "v2-core/interfaces/IManager.sol";
+import "v2-core/test/integration-tests/shared/IntegrationTestBase.sol";
+import "v2-core/src/interfaces/IManager.sol";
 
 /**
  * @dev testing charge of OI fee in a real setting
