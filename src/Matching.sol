@@ -8,7 +8,6 @@ import "lyra-utils/ownership/Owned.sol";
 import "lyra-utils/decimals/DecimalMath.sol";
 
 import "v2-core/src/interfaces/IAccounts.sol";
-import "v2-core/src/interfaces/AccountStructs.sol";
 import "forge-std/console2.sol";
 import "forge-std/Test.sol";
 
@@ -29,16 +28,17 @@ contract Matching is EIP712, Owned {
   }
 
   struct LimitOrder {
-    uint accountId1; // todo rename to from Id <-> to Id ?
+    bool isBid;
+    uint accountId1; 
     uint accountId2;
     IAsset asset1;
-    IAsset asset2;
+    IAsset asset2; // todo perp needs asset data for quote? 
     uint subId1;
     uint subId2;
     uint asset1Amount;
     uint minPrice;
     uint expirationTime;
-    uint orderId; // todo
+    uint salt; // todo
   }
 
   // todo think about fees
@@ -54,6 +54,19 @@ contract Matching is EIP712, Owned {
     uint asset2Amount;
     uint asset1Fee;
     uint asset2Fee;
+  }
+
+    struct OrderHash {
+    bool isBid;
+    uint maker;
+    IAsset asset1;
+    IAsset asset2; // todo perp needs asset data for quote? 
+    uint subId1;
+    uint subId2;
+    uint asset1Amount;
+    uint minPrice;
+    uint expirationTime;
+    uint salt; // todo
   }
 
   ///@dev Accounts contract address
@@ -338,7 +351,7 @@ contract Matching is EIP712, Owned {
         order.asset1Amount,
         order.minPrice,
         order.expirationTime,
-        order.orderId,
+        order.salt,
         fillAmount
       )
     );
