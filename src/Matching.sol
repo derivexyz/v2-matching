@@ -4,10 +4,11 @@ pragma solidity ^0.8.13;
 import "openzeppelin/utils/math/SafeCast.sol";
 import "openzeppelin/utils/cryptography/EIP712.sol";
 import "openzeppelin/utils/cryptography/SignatureChecker.sol";
-import "lyra-utils/ownership/Owned.sol";
+import "openzeppelin/access/Ownable2Step.sol";
 import "lyra-utils/decimals/DecimalMath.sol";
 
 import "v2-core/src/interfaces/IAccounts.sol";
+
 import "forge-std/console2.sol";
 import "forge-std/Test.sol";
 
@@ -16,7 +17,7 @@ import "forge-std/Test.sol";
  * @author Lyra
  * @notice Matching contract that allows whitelisted address to submit trades for accounts.
  */
-contract Matching is EIP712, Owned {
+contract Matching is EIP712, Ownable2Step {
   using DecimalMath for uint;
   using SafeCast for uint;
 
@@ -303,10 +304,10 @@ contract Matching is EIP712, Owned {
   }
 
   function _submitAssetTransfers(VerifiedOrder[] memory orders) internal {
-    AccountStructs.AssetTransfer[] memory transferBatch = new AccountStructs.AssetTransfer[](orders.length * 2);
+    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](orders.length * 2);
 
     for (uint i = 0; i < orders.length; i++) {
-      transferBatch[i] = AccountStructs.AssetTransfer({
+      transferBatch[i] = IAccounts.AssetTransfer({
         fromAcc: orders[i].accountId1,
         toAcc: orders[i].accountId2,
         asset: orders[i].asset1,
@@ -315,7 +316,7 @@ contract Matching is EIP712, Owned {
         assetData: bytes32(0)
       });
 
-      transferBatch[i + 1] = AccountStructs.AssetTransfer({
+      transferBatch[i + 1] = IAccounts.AssetTransfer({
         fromAcc: orders[i].accountId2,
         toAcc: orders[i].accountId1,
         asset: orders[i].asset2,

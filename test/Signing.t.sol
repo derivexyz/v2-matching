@@ -9,6 +9,8 @@ import "v2-core/test/shared/mocks/MockManager.sol";
 import "v2-core/src/assets/CashAsset.sol";
 import "v2-core/src/Accounts.sol";
 
+import {Matching} from "src/Matching.sol";
+
 /**
  * @dev we deploy actual Account contract in these tests to simplify verification process
  */
