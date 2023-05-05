@@ -240,18 +240,14 @@ contract Matching is EIP712, Owned {
       revert M_InvalidSignature(accountToOwner[order2.accountId1]);
     }
 
-    // Verify order details
-    _verifyOrderParams(order1);
-    _verifyOrderParams(order2);
-
-    // todo ensure the assets are being traded for each other
-
-    // Verify price and match details
+    // Verify both orders and the match
     _verifyOrderMatch(order1, order2, matchDetails);
 
-    // Get the order hashes
+    // Get asset hash to be passed into order hash
     bytes32 assetHash1 = _getAssetHash(order1.asset1, order1.asset2, order1.subId1, order1.subId2);
     bytes32 assetHash2 = _getAssetHash(order2.asset1, order2.asset2, order2.subId1, order2.subId2);
+    
+    // Get the order hashes
     bytes32 orderHash1 = _getOrderHash(
       OrderHash({
         isBid: order1.isBid,
@@ -281,6 +277,7 @@ contract Matching is EIP712, Owned {
         expirationTime: order2.expirationTime,
         salt: order2.salt
       }), assetHash2, matchDetails.amount2);
+      
     console.log("Order2: ", uint(orderHash2));
 
     // Ensure the orders have not been completely filled yet
@@ -338,6 +335,10 @@ contract Matching is EIP712, Owned {
     internal
     view
   {
+    // Verify individual order details
+    _verifyOrderParams(order1);
+    _verifyOrderParams(order2);
+
     if (matchDetails.amount1 == 0 && matchDetails.amount1 == matchDetails.amount2) revert M_ZeroAmountToTrade();
     if (order1.accountId1 != order2.accountId2 || order1.accountId2 != order2.accountId1) {
       revert M_AccountIdsDoNotMatch(order1.accountId1, order2.accountId2, order1.accountId2, order2.accountId1);
