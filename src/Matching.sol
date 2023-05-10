@@ -7,7 +7,7 @@ import "openzeppelin/utils/cryptography/SignatureChecker.sol";
 import "lyra-utils/ownership/Owned.sol";
 import "lyra-utils/decimals/DecimalMath.sol";
 
-import "v2-core/src/interfaces/IAccounts.sol";
+import "v2-core/src/Accounts.sol";
 import "forge-std/console2.sol";
 import "forge-std/Test.sol";
 

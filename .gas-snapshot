@@ -1,0 +1,4 @@
+UNIT_MatchingSigning:testDomainSeparator() (gas: 5561)
+UNIT_MatchingSigning:testInvalidFillAmountSignature() (gas: 31805)
+UNIT_MatchingSigning:testInvalidSignature() (gas: 31734)
+UNIT_MatchingSigning:testValidSignature() (gas: 27772)
