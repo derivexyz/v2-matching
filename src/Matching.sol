@@ -95,7 +95,7 @@ contract Matching is EIP712, Owned {
   ///@dev LimitOrder typehash including fillAmount
   bytes32 public constant _ORDER_TYPEHASH =
     keccak256("OrderHash(bool,uint256,address,address,uint256,uint256,uint256,uint256,uint256,uint256,uint256)");
-  
+
   ///@dev Order fill typehash containing the order hash and asset hash (exlcuding fill amount)
   bytes32 public constant _ORDER_FILL_TYPEHASH =
     keccak256("OrderHash(bool,uint256,address,address,uint256,uint256,uint256,uint256,uint256,uint256)");
@@ -188,7 +188,8 @@ contract Matching is EIP712, Owned {
    * @notice Allows sender to 'freeze' their account which blocks all trading actions.
    * @param freeze Boolean on whether to freeze or unfreeze your account
    */
-  function freezeAccount(bool freeze) external { // todo add signal for withdrawal with time delay
+  function freezeAccount(bool freeze) external {
+    // todo add signal for withdrawal with time delay
     isFrozen[msg.sender] = freeze;
     emit AccountFrozen(msg.sender, freeze);
   }
@@ -206,11 +207,12 @@ contract Matching is EIP712, Owned {
     returns (VerifiedOrder memory matchedOrder)
   {
     // Verify asset hashes
-    bytes32 assetHash = _getAssetHash(matchDetails.asset1, matchDetails.asset2, matchDetails.subId1, matchDetails.subId2);
+    bytes32 assetHash =
+      _getAssetHash(matchDetails.asset1, matchDetails.asset2, matchDetails.subId1, matchDetails.subId2);
     if (order1.assetHash != assetHash) revert M_InvalidAssetHash(order1.assetHash, assetHash);
     if (order2.assetHash != assetHash) revert M_InvalidAssetHash(order2.assetHash, assetHash);
-  
-   OrderHash memory order1Hash = OrderHash({
+
+    OrderHash memory order1Hash = OrderHash({
       isBid: order1.isBid,
       maker: order1.accountId1,
       asset1Amount: order1.asset1Amount,
@@ -259,8 +261,8 @@ contract Matching is EIP712, Owned {
     }
 
     // Update the filled amounts for the orders
-    fillAmounts[orderHash1] += matchDetails.amount1;
-    fillAmounts[orderHash2] += matchDetails.amount2;
+    fillAmounts[orderFillHash1] += matchDetails.amount1;
+    fillAmounts[orderFillHash2] += matchDetails.amount2;
 
     return VerifiedOrder({
       accountId1: order1.accountId1,
@@ -284,13 +286,13 @@ contract Matching is EIP712, Owned {
     _verifyOrderParams(order1);
     _verifyOrderParams(order2);
 
-    // Check trade fee < maxFee 
+    // Check trade fee < maxFee
     if (order1.tradeFee > order1.maxFee) revert M_TradeFeeExceedsMaxFee(order1.tradeFee, order1.maxFee);
     if (order2.tradeFee > order2.maxFee) revert M_TradeFeeExceedsMaxFee(order2.tradeFee, order2.maxFee);
 
     // Check for zero trade amount
     if (matchDetails.amount1 == 0 && matchDetails.amount1 == matchDetails.amount2) revert M_ZeroAmountToTrade();
-    
+
     // Ensure the trade is 1 to 1
     if (order1.accountId1 != order2.accountId2 || order1.accountId2 != order2.accountId1) {
       revert M_AccountIdsDoNotMatch(order1.accountId1, order2.accountId2, order1.accountId2, order2.accountId1);
@@ -303,9 +305,13 @@ contract Matching is EIP712, Owned {
 
     // Verify that the two assets are being traded for each other
     if (matchDetails.asset1 != matchDetails.asset2 || matchDetails.asset2 != matchDetails.asset1) {
-      revert M_TradingDifferentAssets(matchDetails.asset1, matchDetails.asset2, matchDetails.asset2, matchDetails.asset1);
+      revert M_TradingDifferentAssets(
+        matchDetails.asset1, matchDetails.asset2, matchDetails.asset2, matchDetails.asset1
+      );
     } else if (matchDetails.subId1 != matchDetails.subId2 || matchDetails.subId2 != matchDetails.subId1) {
-      revert M_TradingDifferentSubIds(matchDetails.subId1, matchDetails.subId2, matchDetails.subId2, matchDetails.subId1);
+      revert M_TradingDifferentSubIds(
+        matchDetails.subId1, matchDetails.subId2, matchDetails.subId2, matchDetails.subId1
+      );
     }
   }
 
@@ -363,7 +369,7 @@ contract Matching is EIP712, Owned {
         toAcc: feeAccountId,
         asset: cashAsset,
         subId: 0,
-        amount: orders[i].accountId1Fee,
+        amount: orders[i].accountId1Fee.toInt256(),
         assetData: bytes32(0)
       });
       transferBatch[i + 3] = IAccounts.AssetTransfer({
@@ -371,7 +377,7 @@ contract Matching is EIP712, Owned {
         toAcc: feeAccountId,
         asset: cashAsset,
         subId: 0,
-        amount: orders[i].accountId2Fee,
+        amount: orders[i].accountId2Fee.toInt256(),
         assetData: bytes32(0)
       });
     }
@@ -392,7 +398,11 @@ contract Matching is EIP712, Owned {
     return keccak256(abi.encode(_ASSET_TYPEHASH, asset1, asset2, subId1, subId2));
   }
 
-  function _getFullOrderHash(OrderHash memory order, bytes32 assetHash, uint fillAmount) internal pure returns (bytes32) {
+  function _getFullOrderHash(OrderHash memory order, bytes32 assetHash, uint fillAmount)
+    internal
+    pure
+    returns (bytes32)
+  {
     return keccak256(
       abi.encode(
         _ORDER_TYPEHASH,
@@ -436,14 +446,18 @@ contract Matching is EIP712, Owned {
     return _domainSeparatorV4();
   }
 
-  function getFullOrderHash(OrderHash calldata order, bytes32 assetHash, uint fillAmount) external pure returns (bytes32) {
+  function getFullOrderHash(OrderHash calldata order, bytes32 assetHash, uint fillAmount)
+    external
+    pure
+    returns (bytes32)
+  {
     return _getFullOrderHash(order, assetHash, fillAmount);
   }
-  
-  function getOrderFillHash(OrderHash calldata order, bytes32 assetHash, uint fillAmount) external pure returns (bytes32) {
-    return _getOrderFillHash(order, assetHash, fillAmount);
+
+  function getOrderFillHash(OrderHash calldata order, bytes32 assetHash) external pure returns (bytes32) {
+    return _getOrderFillHash(order, assetHash);
   }
-  
+
   function getAssetHash(IAsset asset1, IAsset asset2, uint subId1, uint subId2) external pure returns (bytes32) {
     return _getAssetHash(asset1, asset2, subId1, subId2);
   }
