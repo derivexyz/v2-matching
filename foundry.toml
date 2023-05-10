@@ -16,7 +16,4 @@ int_types = 'short'
 func_attrs_with_params_multiline = false
 quote_style = 'double'
 
-[profile.default.output_selection]
-viaIR = true # Add this line
-
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

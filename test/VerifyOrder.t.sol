@@ -73,12 +73,20 @@ contract UNIT_MatchingVerifyOrder is Test {
       _createSignedOrder(accountId, accountId2, 1e18, 1e18, 1e18, 0, 0, aliceKey);
     (Matching.LimitOrder memory order2, bytes memory signature2) =
       _createSignedOrder(accountId2, accountId, 1e18, 1e18, 1e18, 0, 0, bobKey);
-    
-    Matching.Match memory matchDetails =
-      Matching.Match({amount1: 1e18, amount2: 1e18, asset1: cashAsset, asset2: cashAsset, subId1: 0, subId2: 0, signature1: signature1, signature2: signature2});
+
+    Matching.Match memory matchDetails = Matching.Match({
+      amount1: 1e18,
+      amount2: 1e18,
+      asset1: cashAsset,
+      asset2: cashAsset,
+      subId1: 0,
+      subId2: 0,
+      signature1: signature1,
+      signature2: signature2
+    });
 
     console.log("Alice", alice);
-    
+
     // Revert since you cannot trade with 0 amount
     // vm.expectRevert(abi.encodeWithSelector(Matching.M_AccountFrozen.selector, alice));
     matching.submitTrade(matchDetails, order1, order2);
@@ -289,9 +297,9 @@ contract UNIT_MatchingVerifyOrder is Test {
     bytes32 fullOrderHash = matching.getFullOrderHash(orderHash, assetHash, fillAmount);
     bytes memory signature = _sign(fullOrderHash, pk);
 
-     // Verify the signature
-    console.log("Valid signature:", matching.verifySignature(orderHash, fillAmount, assetHash, signature));    
-    
+    // Verify the signature
+    console.log("Valid signature:", matching.verifySignature(orderHash, fillAmount, assetHash, signature));
+
     order = Matching.LimitOrder({
       isBid: orderHash.isBid,
       accountId1: orderHash.maker,

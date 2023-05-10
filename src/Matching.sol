@@ -428,14 +428,14 @@ contract Matching is EIP712, Owned {
 
   function _getOrderHashFromLimitOrder(LimitOrder memory order) internal pure returns (OrderHash memory) {
     return OrderHash({
-        isBid: order.isBid,
-        maker: order.accountId1,
-        asset1Amount: order.asset1Amount,
-        limitPrice: order.limitPrice,
-        expirationTime: order.expirationTime,
-        maxFee: order.maxFee,
-        salt: order.salt,
-        assetHash: order.assetHash
+      isBid: order.isBid,
+      maker: order.accountId1,
+      asset1Amount: order.asset1Amount,
+      limitPrice: order.limitPrice,
+      expirationTime: order.expirationTime,
+      maxFee: order.maxFee,
+      salt: order.salt,
+      assetHash: order.assetHash
     });
   }
 
