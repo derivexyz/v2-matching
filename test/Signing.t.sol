@@ -54,6 +54,7 @@ contract UNIT_MatchingSigning is Test {
     accountId = account.createAccount(pkOwner, manager);
 
     domainSeparator = matching.domainSeparator();
+    matching.setWhitelist(address(this), true);
 
     vm.startPrank(pkOwner);
     account.approve(address(matching), accountId);
@@ -78,7 +79,6 @@ contract UNIT_MatchingSigning is Test {
     // Sign the order
     uint fillAmount = 50 ether;
     bytes32 orderHash = matching.getFullOrderHash(order, assetHash, fillAmount);
-
     bytes memory signature = _sign(orderHash, privateKey);
 
     // Verify the signature

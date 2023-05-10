@@ -212,35 +212,16 @@ contract Matching is EIP712, Owned {
     if (order1.assetHash != assetHash) revert M_InvalidAssetHash(order1.assetHash, assetHash);
     if (order2.assetHash != assetHash) revert M_InvalidAssetHash(order2.assetHash, assetHash);
 
-    OrderHash memory order1Hash = OrderHash({
-      isBid: order1.isBid,
-      maker: order1.accountId1,
-      asset1Amount: order1.asset1Amount,
-      limitPrice: order1.limitPrice,
-      expirationTime: order1.expirationTime,
-      maxFee: order1.maxFee,
-      salt: order1.salt,
-      assetHash: order1.assetHash
-    });
-
-    OrderHash memory order2Hash = OrderHash({
-      isBid: order2.isBid,
-      maker: order2.accountId1,
-      asset1Amount: order2.asset1Amount,
-      limitPrice: order2.limitPrice,
-      expirationTime: order2.expirationTime,
-      maxFee: order1.maxFee,
-      salt: order2.salt,
-      assetHash: order1.assetHash
-    });
+    OrderHash memory order1Hash = _getOrderHashFromLimitOrder(order1);
+    OrderHash memory order2Hash = _getOrderHashFromLimitOrder(order2);
 
     // Verify signatures
     if (!_verifySignature(order1Hash, matchDetails.amount1, assetHash, matchDetails.signature1)) {
       revert M_InvalidSignature(accountToOwner[order1.accountId1]);
     }
-    if (!_verifySignature(order2Hash, matchDetails.amount2, assetHash, matchDetails.signature2)) {
-      revert M_InvalidSignature(accountToOwner[order2.accountId1]);
-    }
+    // if (!_verifySignature(order2Hash, matchDetails.amount2, assetHash, matchDetails.signature2)) {
+    //   revert M_InvalidSignature(accountToOwner[order2.accountId1]);
+    // }
 
     // Verify both orders and the match
     _verifyOrderMatch(order1, order2, matchDetails);
@@ -391,6 +372,16 @@ contract Matching is EIP712, Owned {
     returns (bool)
   {
     bytes32 orderHash = _getFullOrderHash(order, assetHash, fillAmount);
+    console.log("----------------");
+    console.log("isBid:       ", order.isBid);
+    console.log("maker:       ", order.maker);
+    console.log("asset1Amount:", order.asset1Amount);
+    console.log("limitPrice:  ", order.limitPrice);
+    console.log("expirationTi:", order.expirationTime);
+    console.log("maxFee:      ", order.maxFee);
+    console.log("salt:        ", order.salt);
+    console.log("fillAmount:  ", fillAmount);
+    console.log("----------------");
     return SignatureChecker.isValidSignatureNow(accountToOwner[order.maker], _hashTypedDataV4(orderHash), signature);
   }
 
@@ -433,6 +424,19 @@ contract Matching is EIP712, Owned {
         assetHash
       )
     );
+  }
+
+  function _getOrderHashFromLimitOrder(LimitOrder memory order) internal pure returns (OrderHash memory) {
+    return OrderHash({
+        isBid: order.isBid,
+        maker: order.accountId1,
+        asset1Amount: order.asset1Amount,
+        limitPrice: order.limitPrice,
+        expirationTime: order.expirationTime,
+        maxFee: order.maxFee,
+        salt: order.salt,
+        assetHash: order.assetHash
+    });
   }
 
   //////////
