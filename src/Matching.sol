@@ -12,7 +12,6 @@ import "forge-std/console2.sol";
 import "forge-std/Test.sol";
 
 // todo jit account, create new acount on trade and merge after
-// todo charge fees
 // todo sub signers
 /**
  * @title Matching
@@ -78,6 +77,9 @@ contract Matching is EIP712, Owned {
   ///@dev Accounts contract address
   IAccounts public immutable accounts;
 
+  ///@dev The cash asset used as quote and for paying fees
+  IAsset public cashAsset;
+
   ///@dev Mapping of (address => isWhitelistedModule)
   mapping(address => bool) public isWhitelisted;
 
@@ -90,13 +92,20 @@ contract Matching is EIP712, Owned {
   ///@dev Mapping to track frozen accounts
   mapping(address => bool) public isFrozen;
 
-  ///@dev LimitOrder Typehash including fillAmount
+  ///@dev LimitOrder typehash including fillAmount
   bytes32 public constant _ORDER_TYPEHASH =
     keccak256("OrderHash(bool,uint256,address,address,uint256,uint256,uint256,uint256,uint256,uint256,uint256)");
+  
+  ///@dev Order fill typehash containing the order hash and asset hash (exlcuding fill amount)
+  bytes32 public constant _ORDER_FILL_TYPEHASH =
+    keccak256("OrderHash(bool,uint256,address,address,uint256,uint256,uint256,uint256,uint256,uint256)");
+
+  ///@dev Asset typehash containing the two IAssets and subIds
   bytes32 public constant _ASSET_TYPEHASH = keccak256("address,address,uint256,uint256");
 
-  constructor(IAccounts _accounts, uint _feeAccountId) EIP712("Matching", "1.0") {
+  constructor(IAccounts _accounts, IAsset _cashAsset, uint _feeAccountId) EIP712("Matching", "1.0") {
     accounts = _accounts;
+    cashAsset = _cashAsset;
     feeAccountId = _feeAccountId;
   }
 
@@ -156,6 +165,7 @@ contract Matching is EIP712, Owned {
    * @dev User must approve contract first.
    * @param accountId The users' accountId
    */
+  // todo do we want to allow users to open account or only approval -> OB opens account flow?
   function openCLOBAccount(uint accountId) external {
     accounts.transferFrom(msg.sender, address(this), accountId);
     accountToOwner[accountId] = msg.sender;
@@ -234,15 +244,12 @@ contract Matching is EIP712, Owned {
     _verifyOrderMatch(order1, order2, matchDetails);
 
     // Get the order hashes
-    bytes32 orderHash1 = _getOrderHash(order1Hash, assetHash, matchDetails.amount1);
-    bytes32 orderHash2 = _getOrderHash(order2Hash, assetHash, matchDetails.amount2);
-
-    console.log("Order2: ", uint(orderHash2));
+    bytes32 orderFillHash1 = _getOrderFillHash(order1Hash, assetHash);
+    bytes32 orderFillHash2 = _getOrderFillHash(order2Hash, assetHash);
 
     // Ensure the orders have not been completely filled yet
-    uint remainingAmount1 = order1.asset1Amount - fillAmounts[orderHash1];
-    uint remainingAmount2 = order2.asset1Amount - fillAmounts[orderHash2];
-
+    uint remainingAmount1 = order1.asset1Amount - fillAmounts[orderFillHash1];
+    uint remainingAmount2 = order2.asset1Amount - fillAmounts[orderFillHash2];
 
     if (remainingAmount1 < matchDetails.amount1) {
       revert M_InsufficientFillAmount(1, remainingAmount1, matchDetails.amount1);
@@ -254,7 +261,6 @@ contract Matching is EIP712, Owned {
     // Update the filled amounts for the orders
     fillAmounts[orderHash1] += matchDetails.amount1;
     fillAmounts[orderHash2] += matchDetails.amount2;
-
 
     return VerifiedOrder({
       accountId1: order1.accountId1,
@@ -282,14 +288,17 @@ contract Matching is EIP712, Owned {
     if (order1.tradeFee > order1.maxFee) revert M_TradeFeeExceedsMaxFee(order1.tradeFee, order1.maxFee);
     if (order2.tradeFee > order2.maxFee) revert M_TradeFeeExceedsMaxFee(order2.tradeFee, order2.maxFee);
 
+    // Check for zero trade amount
     if (matchDetails.amount1 == 0 && matchDetails.amount1 == matchDetails.amount2) revert M_ZeroAmountToTrade();
+    
+    // Ensure the trade is 1 to 1
     if (order1.accountId1 != order2.accountId2 || order1.accountId2 != order2.accountId1) {
       revert M_AccountIdsDoNotMatch(order1.accountId1, order2.accountId2, order1.accountId2, order2.accountId1);
     }
-    uint calculatedPrice = matchDetails.amount1.divideDecimal(matchDetails.amount2);
 
     // Verify the calculated price is within the limit price
-    _checkLimitPrice(order1.isBid, order1.limitPrice, calculatedPrice); // todo include fees in the limit price
+    uint calculatedPrice = matchDetails.amount1.divideDecimal(matchDetails.amount2);
+    _checkLimitPrice(order1.isBid, order1.limitPrice, calculatedPrice);
     _checkLimitPrice(order2.isBid, order2.limitPrice, calculatedPrice);
 
     // Verify that the two assets are being traded for each other
@@ -326,9 +335,10 @@ contract Matching is EIP712, Owned {
   }
 
   function _submitAssetTransfers(VerifiedOrder[] memory orders) internal {
-    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](orders.length * 2);
+    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](orders.length * 4);
 
     for (uint i = 0; i < orders.length; i++) {
+      // Transfer assets between the two accounts
       transferBatch[i] = IAccounts.AssetTransfer({
         fromAcc: orders[i].accountId1,
         toAcc: orders[i].accountId2,
@@ -346,6 +356,24 @@ contract Matching is EIP712, Owned {
         amount: orders[i].asset2Amount.toInt256(),
         assetData: bytes32(0)
       });
+
+      // Charge fee from both accounts to the feeAccount
+      transferBatch[i + 2] = IAccounts.AssetTransfer({
+        fromAcc: orders[i].accountId1,
+        toAcc: feeAccountId,
+        asset: cashAsset,
+        subId: 0,
+        amount: orders[i].accountId1Fee,
+        assetData: bytes32(0)
+      });
+      transferBatch[i + 3] = IAccounts.AssetTransfer({
+        fromAcc: orders[i].accountId2,
+        toAcc: feeAccountId,
+        asset: cashAsset,
+        subId: 0,
+        amount: orders[i].accountId2Fee,
+        assetData: bytes32(0)
+      });
     }
 
     accounts.submitTransfers(transferBatch, ""); // todo fill with oracle data
@@ -356,7 +384,7 @@ contract Matching is EIP712, Owned {
     view
     returns (bool)
   {
-    bytes32 orderHash = _getOrderHash(order, assetHash, fillAmount);
+    bytes32 orderHash = _getFullOrderHash(order, assetHash, fillAmount);
     return SignatureChecker.isValidSignatureNow(accountToOwner[order.maker], _hashTypedDataV4(orderHash), signature);
   }
 
@@ -364,7 +392,7 @@ contract Matching is EIP712, Owned {
     return keccak256(abi.encode(_ASSET_TYPEHASH, asset1, asset2, subId1, subId2));
   }
 
-  function _getOrderHash(OrderHash memory order, bytes32 assetHash, uint fillAmount) internal pure returns (bytes32) {
+  function _getFullOrderHash(OrderHash memory order, bytes32 assetHash, uint fillAmount) internal pure returns (bytes32) {
     return keccak256(
       abi.encode(
         _ORDER_TYPEHASH,
@@ -381,6 +409,22 @@ contract Matching is EIP712, Owned {
     );
   }
 
+  function _getOrderFillHash(OrderHash memory order, bytes32 assetHash) internal pure returns (bytes32) {
+    return keccak256(
+      abi.encode(
+        _ORDER_FILL_TYPEHASH,
+        order.isBid,
+        order.maker,
+        order.asset1Amount,
+        order.limitPrice,
+        order.expirationTime,
+        order.maxFee,
+        order.salt,
+        assetHash
+      )
+    );
+  }
+
   //////////
   // View //
   //////////
@@ -392,8 +436,16 @@ contract Matching is EIP712, Owned {
     return _domainSeparatorV4();
   }
 
-  function getOrderHash(OrderHash calldata order, bytes32 assetHash, uint fillAmount) external pure returns (bytes32) {
-    return _getOrderHash(order, assetHash, fillAmount);
+  function getFullOrderHash(OrderHash calldata order, bytes32 assetHash, uint fillAmount) external pure returns (bytes32) {
+    return _getFullOrderHash(order, assetHash, fillAmount);
+  }
+  
+  function getOrderFillHash(OrderHash calldata order, bytes32 assetHash, uint fillAmount) external pure returns (bytes32) {
+    return _getOrderFillHash(order, assetHash, fillAmount);
+  }
+  
+  function getAssetHash(IAsset asset1, IAsset asset2, uint subId1, uint subId2) external pure returns (bytes32) {
+    return _getAssetHash(asset1, asset2, subId1, subId2);
   }
 
   function verifySignature(OrderHash calldata order, uint fillAmount, bytes32 assetHash, bytes calldata signature)
