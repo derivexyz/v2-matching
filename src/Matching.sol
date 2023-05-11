@@ -16,7 +16,7 @@ import "forge-std/Test.sol";
 /**
  * @title Matching
  * @author Lyra
- * @notice Matching contract that allows whitelisted address to submit trades for accounts.
+ * @notice Matching contract that allows whitelisted addresses to submit trades for accounts.
  */
 contract Matching is EIP712, Owned {
   using DecimalMath for uint;
@@ -251,10 +251,7 @@ contract Matching is EIP712, Owned {
     });
   }
 
-  function _verifyOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
-    internal
-    view
-  {
+  function _verifyOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails) internal {
     // Verify individual order details
     _verifyOrderParams(order1);
     _verifyOrderParams(order2);
@@ -271,21 +268,16 @@ contract Matching is EIP712, Owned {
       revert M_AccountIdsDoNotMatch(order1.accountId1, order2.accountId2, order1.accountId2, order2.accountId1);
     }
 
+    // Verify that the two assets are unique
+    if (order1.isBid == order2.isBid) revert M_TradingSameSide();
+    if (matchDetails.asset1 == matchDetails.asset2) {
+      revert M_CannotTradeSameAsset(matchDetails.asset1, matchDetails.asset2);
+    }
+
     // Verify the calculated price is within the limit price
     uint calculatedPrice = matchDetails.amount1.divideDecimal(matchDetails.amount2);
     _checkLimitPrice(order1.isBid, order1.limitPrice, calculatedPrice);
     _checkLimitPrice(order2.isBid, order2.limitPrice, calculatedPrice);
-
-    // Verify that the two assets are being traded for each other
-    if (matchDetails.asset1 != matchDetails.asset2 || matchDetails.asset2 != matchDetails.asset1) {
-      revert M_TradingDifferentAssets(
-        matchDetails.asset1, matchDetails.asset2, matchDetails.asset2, matchDetails.asset1
-      );
-    } else if (matchDetails.subId1 != matchDetails.subId2 || matchDetails.subId2 != matchDetails.subId1) {
-      revert M_TradingDifferentSubIds(
-        matchDetails.subId1, matchDetails.subId2, matchDetails.subId2, matchDetails.subId1
-      );
-    }
   }
 
   function _verifyOrderParams(LimitOrder memory order) internal view {
@@ -303,13 +295,13 @@ contract Matching is EIP712, Owned {
     if (block.timestamp > order.expirationTime) revert M_OrderExpired(block.timestamp, order.expirationTime);
   }
 
-  function _checkLimitPrice(bool isBid, uint limitPrice, uint calculatedPrice) internal pure {
+  function _checkLimitPrice(bool isBid, uint limitPrice, uint calculatedPrice) internal {
     // If you want to buy but the price is above your limit
     if (isBid && calculatedPrice > limitPrice) {
-      revert M_PriceAboveLimitPrice(limitPrice, calculatedPrice);
+      revert M_BidPriceAboveLimit(limitPrice, calculatedPrice);
     } else if (!isBid && calculatedPrice < limitPrice) {
       // If you are selling but the price is below your limit
-      revert M_PriceBelowLimitPrice(limitPrice, calculatedPrice);
+      revert M_AskPriceBelowLimit(limitPrice, calculatedPrice);
     }
   }
 
@@ -358,11 +350,7 @@ contract Matching is EIP712, Owned {
     accounts.submitTransfers(transferBatch, ""); // todo fill with oracle data
   }
 
-  function _verifySignature(uint accountId, bytes32 orderHash, bytes memory signature)
-    internal
-    view
-    returns (bool)
-  {
+  function _verifySignature(uint accountId, bytes32 orderHash, bytes memory signature) internal view returns (bool) {
     return SignatureChecker.isValidSignatureNow(accountToOwner[accountId], _hashTypedDataV4(orderHash), signature);
   }
 
@@ -370,11 +358,7 @@ contract Matching is EIP712, Owned {
     return keccak256(abi.encode(_ASSET_TYPEHASH, asset1, asset2, subId1, subId2));
   }
 
-  function _getOrderHash(OrderParams memory order)
-    internal
-    pure
-    returns (bytes32)
-  {
+  function _getOrderHash(OrderParams memory order) internal pure returns (bytes32) {
     return keccak256(
       abi.encode(
         _ORDER_TYPEHASH,
@@ -390,25 +374,21 @@ contract Matching is EIP712, Owned {
     );
   }
 
-  function _getOrderHashFromLimitOrder(LimitOrder memory order)
-    internal
-    pure
-    returns (bytes32)
-  {
+  function _getOrderHashFromLimitOrder(LimitOrder memory order) internal pure returns (bytes32) {
     return keccak256(
-        abi.encode(
-            _ORDER_TYPEHASH,
-            order.isBid,
-            order.accountId1,
-            order.asset1Amount,
-            order.limitPrice,
-            order.expirationTime,
-            order.maxFee,
-            order.salt,
-            order.assetHash
-        )
+      abi.encode(
+        _ORDER_TYPEHASH,
+        order.isBid,
+        order.accountId1,
+        order.asset1Amount,
+        order.limitPrice,
+        order.expirationTime,
+        order.maxFee,
+        order.salt,
+        order.assetHash
+      )
     );
-}
+  }
 
   //////////
   // View //
@@ -429,11 +409,7 @@ contract Matching is EIP712, Owned {
     return _getAssetHash(asset1, asset2, subId1, subId2);
   }
 
-  function verifySignature(uint accountId, bytes32 orderHash, bytes memory signature)
-    external
-    view
-    returns (bool)
-  {
+  function verifySignature(uint accountId, bytes32 orderHash, bytes memory signature) external view returns (bool) {
     return _verifySignature(accountId, orderHash, signature);
   }
 
@@ -483,11 +459,11 @@ contract Matching is EIP712, Owned {
   error M_InsufficientFillAmount(uint orderNumber, uint remainingFill, uint requestedFill);
   error M_OrderExpired(uint blockTimestamp, uint expirationTime);
   error M_ZeroAmountToTrade();
+  error M_TradingSameSide();
   error M_ArrayLengthMismatch(uint length1, uint length2, uint length3);
-  error M_PriceBelowLimitPrice(uint order1Price, uint order2Price);
-  error M_PriceAboveLimitPrice(uint order1Price, uint order2Price);
-  error M_TradingDifferentAssets(IAsset order1Asset1, IAsset order2Asset2, IAsset order1Asset2, IAsset order2Asset1);
-  error M_TradingDifferentSubIds(uint order1SubId1, uint order2SubId2, uint order1SubId2, uint order2SubId1);
+  error M_AskPriceBelowLimit(uint order1Price, uint order2Price);
+  error M_BidPriceAboveLimit(uint order1Price, uint order2Price);
+  error M_CannotTradeSameAsset(IAsset asset1, IAsset asset2);
   error M_AccountIdsDoNotMatch(uint order1fromId, uint order2toId, uint order1toId, uint order2fromId);
   error M_TradeFeeExceedsMaxFee(uint tradeFee, uint maxFee);
 }

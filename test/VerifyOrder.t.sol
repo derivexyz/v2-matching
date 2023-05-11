@@ -68,279 +68,378 @@ contract UNIT_MatchingVerifyOrder is Test {
     vm.startPrank(alice);
     matching.freezeAccount(true);
     vm.stopPrank();
-    (Matching.LimitOrder memory order1, bytes memory signature1) =
-      _createSignedOrder(accountId, accountId2, 1e18, 1e18, 1e18, 0, 0, aliceKey);
-    (Matching.LimitOrder memory order2, bytes memory signature2) =
-      _createSignedOrder(accountId2, accountId, 1e18, 1e18, 1e18, 0, 0, bobKey);
+
+    (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
+      _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, 0, block.timestamp + 1 days, aliceKey, true);
+    (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
+      _createSignedOrder(accountId2, accountId, 1e18, 1e18, 0, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
       amount1: 1e18,
       amount2: 1e18,
       asset1: cashAsset,
-      asset2: cashAsset,
+      asset2: IAsset(address(usdc)),
       subId1: 0,
       subId2: 0,
       signature1: signature1,
       signature2: signature2
     });
 
-    console.log("Alice", alice);
+    // Revert since you cannot trade with 0 amount
+    vm.expectRevert(abi.encodeWithSelector(Matching.M_AccountFrozen.selector, alice));
+    matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
+  }
+
+  function testCannotTradeWithFrozenAccount() public {
+    vm.startPrank(bob);
+    matching.freezeAccount(true);
+    vm.stopPrank();
+    (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
+      _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, 0, block.timestamp + 1 days, aliceKey, true);
+    (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
+      _createSignedOrder(accountId2, accountId, 1e18, 1e18, 0, 0, block.timestamp + 1 days, bobKey, false);
+
+    Matching.Match memory matchDetails = Matching.Match({
+      amount1: 1e18,
+      amount2: 1e18,
+      asset1: cashAsset,
+      asset2: IAsset(address(usdc)),
+      subId1: 0,
+      subId2: 0,
+      signature1: signature1,
+      signature2: signature2
+    });
 
     // Revert since you cannot trade with 0 amount
-    // vm.expectRevert(abi.encodeWithSelector(Matching.M_AccountFrozen.selector, alice));
+    vm.expectRevert(abi.encodeWithSelector(Matching.M_AccountFrozen.selector, bob));
+    matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
+  }
+
+  function testCannotTradeIfExpired() public {
+    uint expiry = block.timestamp + 1 days;
+    (Matching.LimitOrder memory order1, bytes memory signature1) =
+      _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, 0, expiry, aliceKey, true);
+    (Matching.LimitOrder memory order2, bytes memory signature2) =
+      _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, 0, expiry, aliceKey, false);
+
+    Matching.Match memory matchDetails = Matching.Match({
+      amount1: 1e18,
+      amount2: 1e18,
+      asset1: cashAsset,
+      asset2: IAsset(address(usdc)),
+      subId1: 0,
+      subId2: 0,
+      signature1: signature1,
+      signature2: signature2
+    });
+
+    // Revert since you order has expired by a day
+    vm.warp(block.timestamp + 2 days);
+    vm.expectRevert(abi.encodeWithSelector(Matching.M_OrderExpired.selector, block.timestamp, expiry));
     matching.submitTrade(matchDetails, order1, order2);
   }
 
-  // function testCannotTradeWithFrozenAccount() public {
-  //   vm.startPrank(bob);
-  //   matching.freezeAccount(true);
-  //   vm.stopPrank();
-  //   (Matching.LimitOrder memory order1, bytes memory signature1) =
-  //     _createSignedOrder(accountId, accountId2, 1e18, 1e18, 1e18, block.timestamp + 1 days, aliceKey);
-  //   (Matching.LimitOrder memory order2, bytes memory signature2) =
-  //     _createSignedOrder(accountId, accountId2, 1e18, 1e18, 1e18, block.timestamp + 1 days, aliceKey);
+  function testCannotTradeZeroAmountInOrder() public {
+    (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
+      _createSignedOrder(accountId, accountId2, 1e18, 0, 0, 0, block.timestamp + 1 days, aliceKey, true);
+    (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
+      _createSignedOrder(accountId2, accountId, 1e18, 1e18, 0, 0, block.timestamp + 1 days, bobKey, false);
 
-  //   Matching.Match memory matchDetails =
-  //     Matching.Match({amount1: 1e18, amount2: 1e18, signature1: signature1, signature2: signature2});
+    Matching.Match memory matchDetails = Matching.Match({
+      amount1: 1e18,
+      amount2: 1e18,
+      asset1: cashAsset,
+      asset2: IAsset(address(usdc)),
+      subId1: 0,
+      subId2: 0,
+      signature1: signature1,
+      signature2: signature2
+    });
 
-  //   // Revert since you cannot trade with 0 amount
-  //   vm.expectRevert(abi.encodeWithSelector(Matching.M_AccountFrozen.selector, bob));
-  //   matching.submitTrade(matchDetails, order1, order2);
-  // }
+    // Revert since you cannot trade with 0 amount
+    vm.expectRevert(Matching.M_ZeroAmountToTrade.selector);
+    matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
+  }
 
-  // function testCannotTradeIfExpired() public {
-  //   uint expiry = block.timestamp + 1 days;
-  //   (Matching.LimitOrder memory order1, bytes memory signature1) =
-  //     _createSignedOrder(accountId, accountId2, 1e18, 1e18, 1e18, expiry, aliceKey);
-  //   (Matching.LimitOrder memory order2, bytes memory signature2) =
-  //     _createSignedOrder(accountId, accountId2, 1e18, 1e18, 1e18, expiry, aliceKey);
+  function testCannotTradeZeroAmountInMatch() public {
+    (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
+      _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, 0, block.timestamp + 1 days, aliceKey, true);
+    (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
+      _createSignedOrder(accountId2, accountId, 1e18, 1e18, 0, 0, block.timestamp + 1 days, bobKey, false);
 
-  //   Matching.Match memory matchDetails =
-  //     Matching.Match({amount1: 1e18, amount2: 1e18, signature1: signature1, signature2: signature2});
+    Matching.Match memory matchDetails = Matching.Match({
+      amount1: 0,
+      amount2: 0,
+      asset1: cashAsset,
+      asset2: IAsset(address(usdc)),
+      subId1: 0,
+      subId2: 0,
+      signature1: signature1,
+      signature2: signature2
+    });
 
-  //   // Revert since you order has expired by a day
-  //   vm.warp(block.timestamp + 2 days);
-  //   vm.expectRevert(abi.encodeWithSelector(Matching.M_OrderExpired.selector, block.timestamp, expiry));
-  //   matching.submitTrade(matchDetails, order1, order2);
-  // }
+    // Revert since you cannot trade with 0 amount
+    vm.expectRevert(Matching.M_ZeroAmountToTrade.selector);
+    matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
+  }
 
-  // function testCannotTradeZeroAmountInOrder() public {
-  //   (Matching.LimitOrder memory order1, bytes memory signature1) =
-  //     _createSignedOrder(accountId, accountId2, 1e18, 0, 1e18, block.timestamp + 1 days, aliceKey);
-  //   (Matching.LimitOrder memory order2, bytes memory signature2) =
-  //     _createSignedOrder(accountId, accountId2, 1e18, 1e18, 1e18, block.timestamp + 1 days, aliceKey);
+  function testCannotTradeToYourself() public {
+    (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
+      _createSignedOrder(accountId, accountId, 1e18, 1e18, 0, 0, block.timestamp + 1 days, aliceKey, true);
+    (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
+      _createSignedOrder(accountId, accountId, 1e18, 1e18, 0, 0, block.timestamp + 1 days, aliceKey, false);
 
-  //   Matching.Match memory matchDetails =
-  //     Matching.Match({amount1: 1e18, amount2: 1e18, signature1: signature1, signature2: signature2});
+    Matching.Match memory matchDetails = Matching.Match({
+      amount1: 1e18,
+      amount2: 1e18,
+      asset1: cashAsset,
+      asset2: IAsset(address(usdc)),
+      subId1: 0,
+      subId2: 0,
+      signature1: signature1,
+      signature2: signature2
+    });
 
-  //   // Revert since you cannot trade with 0 amount
-  //   vm.expectRevert(Matching.M_ZeroAmountToTrade.selector);
-  //   matching.submitTrade(matchDetails, order1, order2);
-  // }
+    // Revert since you cannot trade with yourself through the Matching contract
+    vm.expectRevert(abi.encodeWithSelector(Matching.M_CannotTradeToSelf.selector, accountId));
+    matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
+  }
 
-  // function testCannotTradeZeroAmountInMatch() public {
-  //   (Matching.LimitOrder memory order1, bytes memory signature1) =
-  //     _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey);
-  //   (Matching.LimitOrder memory order2, bytes memory signature2) =
-  //     _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey);
+  function testCannotTradeFillAmount() public {
+    uint limitPriceOrder1 = 1e18;
+    uint fillAmount = 51 ether;
+    uint assetAmount = 50 ether;
 
-  //   Matching.Match memory matchDetails =
-  //     Matching.Match({amount1: 0, amount2: 0, signature1: signature1, signature2: signature2});
+    (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
+      _createSignedOrder(accountId, accountId2, 1e18, assetAmount, 0, 0, block.timestamp + 1 days, aliceKey, true);
+    (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
+      _createSignedOrder(accountId2, accountId, 1e18, assetAmount, 0, 0, block.timestamp + 1 days, bobKey, false);
 
-  //   // Revert since you cannot trade with 0 amount
-  //   vm.expectRevert(Matching.M_ZeroAmountToTrade.selector);
-  //   matching.submitTrade(matchDetails, order1, order2);
-  // }
+    Matching.Match memory matchDetails = Matching.Match({
+      amount1: fillAmount,
+      amount2: fillAmount,
+      asset1: cashAsset,
+      asset2: IAsset(address(usdc)),
+      subId1: 0,
+      subId2: 0,
+      signature1: signature1,
+      signature2: signature2
+    });
 
-  // function testCannotTradeToYourself() public {
-  //   (Matching.LimitOrder memory order1, bytes memory signature1) =
-  //     _createSignedOrder(accountId, accountId, 1e18, 1e18, 1e18, block.timestamp + 1 days, aliceKey);
-  //   (Matching.LimitOrder memory order2, bytes memory signature2) =
-  //     _createSignedOrder(accountId, accountId, 1e18, 1e18, 1e18, block.timestamp + 1 days, aliceKey);
+    // Revert since min price is 1.1 but fillAmounts are equal == 1
+    vm.expectRevert(abi.encodeWithSelector(Matching.M_InsufficientFillAmount.selector, 1, assetAmount, fillAmount));
+    matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
+  }
 
-  //   Matching.Match memory matchDetails =
-  //     Matching.Match({amount1: 1e18, amount2: 1e18, signature1: signature1, signature2: signature2});
+  function testOrderWithinLimitPrice() public {
+    uint limitPriceOrder1 = 6e18;
 
-  //   // Revert since you cannot trade with yourself through the Matching contract
-  //   vm.expectRevert(abi.encodeWithSelector(Matching.M_CannotTradeToSelf.selector, accountId));
-  //   matching.submitTrade(matchDetails, order1, order2);
-  // }
+    // Calculated price will be 50/9 = 5.56
+    uint fillAmount1 = 50 ether;
+    uint fillAmount2 = 9 ether;
 
-  // function testCannotTradeFillAmount() public {
-  //   uint limitPriceOrder1 = 1e18;
-  //   uint fillAmount1 = 51 ether;
-  //   uint fillAmount2 = 51 ether;
-  //   uint assetAmount1 = 50 ether;
-  //   uint assetAmount2 = 50 ether;
+    uint assetAmount1 = 100 ether;
+    uint assetAmount2 = 100 ether;
 
-  //   (Matching.LimitOrder memory order1, bytes memory signature1) = _createSignedOrder(
-  //     accountId, accountId2, limitPriceOrder1, assetAmount1, fillAmount1, block.timestamp + 1 days, aliceKey
-  //   );
-  //   (Matching.LimitOrder memory order2, bytes memory signature2) = _createSignedOrder(
-  //     accountId2, accountId, limitPriceOrder1, assetAmount2, fillAmount2, block.timestamp + 1 days, bobKey
-  //   );
+    (Matching.LimitOrder memory order1, bytes memory signature1) = _createSignedOrder(
+      accountId, accountId2, limitPriceOrder1, assetAmount1, 0, 0, block.timestamp + 1 days, aliceKey, true
+    );
+    (Matching.LimitOrder memory order2, bytes memory signature2) = _createSignedOrder(
+      accountId2, accountId, limitPriceOrder1 - 1e18, assetAmount2, 0, 0, block.timestamp + 1 days, bobKey, false
+    );
 
-  //   Matching.Match memory matchDetails =
-  //     Matching.Match({amount1: fillAmount1, amount2: fillAmount2, signature1: signature1, signature2: signature2});
+    Matching.Match memory matchDetails = Matching.Match({
+      amount1: fillAmount1,
+      amount2: fillAmount2,
+      asset1: cashAsset,
+      asset2: IAsset(address(usdc)),
+      subId1: 0,
+      subId2: 0,
+      signature1: signature1,
+      signature2: signature2
+    });
 
-  //   // Revert since min price is 1.1 but fillAmounts are equal == 1
-  //   vm.expectRevert(abi.encodeWithSelector(Matching.M_InsufficientFillAmount.selector, 1, assetAmount2, fillAmount1));
-  //   matching.submitTrade(matchDetails, order1, order2);
-  // }
+    Matching.VerifiedOrder memory order = matching.submitTrade(matchDetails, order1, order2);
+    assertEq(order.asset1Amount, fillAmount1);
+  }
 
-  // function testOrdersInsideAgreedRange() public {
-  //   uint limitPriceOrder1 = 1e18;
-  //   uint fillAmount1 = 50 ether;
-  //   uint fillAmount2 = 9 ether;
+  function testOrderAboveLimitPrice() public {
+    uint limitPriceOrder1 = 5e18;
 
-  //   uint assetAmount1 = 100 ether;
-  //   uint assetAmount2 = 100 ether;
+    // Calculated price will be 50/9 = 5.56
+    uint fillAmount1 = 50 ether;
+    uint fillAmount2 = 9 ether;
 
-  //   (Matching.LimitOrder memory order1, bytes memory signature1) = _createSignedOrder(
-  //     accountId, accountId2, limitPriceOrder1, assetAmount1, fillAmount1, block.timestamp + 1 days, aliceKey
-  //   );
-  //   (Matching.LimitOrder memory order2, bytes memory signature2) = _createSignedOrder(
-  //     accountId2, accountId, limitPriceOrder1, assetAmount2, fillAmount2, block.timestamp + 1 days, bobKey
-  //   );
+    uint assetAmount1 = 100 ether;
+    uint assetAmount2 = 100 ether;
 
-  //   Matching.Match memory matchDetails =
-  //     Matching.Match({amount1: fillAmount1, amount2: fillAmount2, signature1: signature1, signature2: signature2});
+    (Matching.LimitOrder memory order1, bytes memory signature1) = _createSignedOrder(
+      accountId, accountId2, limitPriceOrder1, assetAmount1, 0, 0, block.timestamp + 1 days, aliceKey, true
+    );
+    (Matching.LimitOrder memory order2, bytes memory signature2) = _createSignedOrder(
+      accountId2, accountId, limitPriceOrder1, assetAmount2, 0, 0, block.timestamp + 1 days, bobKey, false
+    );
 
-  //   Matching.VerifiedOrder memory order = matching.submitTrade(matchDetails, order1, order2);
-  //   assertEq(order.asset1Amount, fillAmount1);
-  // }
+    Matching.Match memory matchDetails = Matching.Match({
+      amount1: fillAmount1,
+      amount2: fillAmount2,
+      asset1: cashAsset,
+      asset2: IAsset(address(usdc)),
+      subId1: 0,
+      subId2: 0,
+      signature1: signature1,
+      signature2: signature2
+    });
 
-  // function testOrdersOutsideAgreedRange() public {
-  //   uint limitPriceOrder1 = 1.1e18;
-  //   uint fillAmount1 = 50 ether;
-  //   uint fillAmount2 = 50 ether;
-  //   uint assetAmount1 = 100 ether;
-  //   uint assetAmount2 = 100 ether;
+    // Revert since min price is 1.1 but fillAmounts are equal == 1
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        Matching.M_BidPriceAboveLimit.selector, limitPriceOrder1, fillAmount1.divideDecimal(fillAmount2)
+      )
+    );
+    matching.submitTrade(matchDetails, order1, order2);
+  }
 
-  //   (Matching.LimitOrder memory order1, bytes memory signature1) = _createSignedOrder(
-  //     accountId, accountId2, limitPriceOrder1, assetAmount1, fillAmount1, block.timestamp + 1 days, aliceKey
-  //   );
-  //   (Matching.LimitOrder memory order2, bytes memory signature2) = _createSignedOrder(
-  //     accountId2, accountId, limitPriceOrder1, assetAmount2, fillAmount2, block.timestamp + 1 days, bobKey
-  //   );
+  function testOrderBelowLimitPrice() public {
+    uint limitPriceOrder1 = 5e18;
 
-  //   Matching.Match memory matchDetails =
-  //     Matching.Match({amount1: fillAmount1, amount2: fillAmount2, signature1: signature1, signature2: signature2});
+    // Calculated price will be 40/10 = 4 which is less than the limit price 5
+    uint fillAmount1 = 40 ether;
+    uint fillAmount2 = 10 ether;
 
-  //   // Revert since min price is 1.1 but fillAmounts are equal == 1
-  //   vm.expectRevert(
-  //     abi.encodeWithSelector(
-  //       Matching.M_PriceBelowlimitPrice.selector, limitPriceOrder1, assetAmount1.divideDecimal(assetAmount2)
-  //     )
-  //   );
-  //   matching.submitTrade(matchDetails, order1, order2);
-  // }
+    uint assetAmount1 = 100 ether;
+    uint assetAmount2 = 100 ether;
 
-  // function testCannotTradeMismatchAssets() public {
-  //   MockERC20 lyra = new MockERC20("LYRA", "LYRA");
-  //   (Matching.LimitOrder memory order1, bytes memory signature1) =
-  //     _createSignedOrderAsset(accountId, accountId2, address(usdc), address(lyra), 1, 1, aliceKey);
-  //   (Matching.LimitOrder memory order2, bytes memory signature2) =
-  //     _createSignedOrderAsset(accountId2, accountId, address(usdc), address(usdc), 1, 1, bobKey);
+    (Matching.LimitOrder memory order1, bytes memory signature1) =
+      _createSignedOrder(accountId, accountId2, 10e18, assetAmount1, 10e18, 0, block.timestamp + 1 days, aliceKey, true);
+    (Matching.LimitOrder memory order2, bytes memory signature2) = _createSignedOrder(
+      accountId2, accountId, limitPriceOrder1, assetAmount2, 0, 0, block.timestamp + 1 days, bobKey, false
+    );
 
-  //   Matching.Match memory matchDetails =
-  //     Matching.Match({amount1: 1e18, amount2: 1e18, signature1: signature1, signature2: signature2});
+    Matching.Match memory matchDetails = Matching.Match({
+      amount1: fillAmount1,
+      amount2: fillAmount2,
+      asset1: cashAsset,
+      asset2: IAsset(address(usdc)),
+      subId1: 0,
+      subId2: 0,
+      signature1: signature1,
+      signature2: signature2
+    });
 
-  //   // Revert since you cannot trade with yourself through the Matching contract
-  //   vm.expectRevert(
-  //     abi.encodeWithSelector(
-  //       Matching.M_TradingDifferentAssets.selector, address(usdc), address(usdc), address(lyra), address(usdc)
-  //     )
-  //   );
-  //   matching.submitTrade(matchDetails, order1, order2);
-  // }
+    // Revert since the calculated price is below the limit price
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        Matching.M_AskPriceBelowLimit.selector, limitPriceOrder1, fillAmount1.divideDecimal(fillAmount2)
+      )
+    );
+    matching.submitTrade(matchDetails, order1, order2);
+  }
 
-  // function testCannotTradeMismatchSubId() public {
-  //   MockERC20 lyra = new MockERC20("LYRA", "LYRA");
-  //   (Matching.LimitOrder memory order1, bytes memory signature1) =
-  //     _createSignedOrderAsset(accountId, accountId2, address(usdc), address(lyra), 1, 1, aliceKey);
-  //   (Matching.LimitOrder memory order2, bytes memory signature2) =
-  //     _createSignedOrderAsset(accountId2, accountId, address(lyra), address(usdc), 1, 2, bobKey);
+  function testCannotTradeSameAssets() public {
+    MockERC20 lyra = new MockERC20("LYRA", "LYRA");
+    (Matching.LimitOrder memory order1, bytes memory signature1) =
+      _createSignedOrderAsset(accountId, accountId2, address(usdc), address(usdc), 1, 1, aliceKey, true);
+    (Matching.LimitOrder memory order2, bytes memory signature2) =
+      _createSignedOrderAsset(accountId2, accountId, address(usdc), address(usdc), 1, 1, bobKey, false);
 
-  //   Matching.Match memory matchDetails =
-  //     Matching.Match({amount1: 1e18, amount2: 1e18, signature1: signature1, signature2: signature2});
+    Matching.Match memory matchDetails = Matching.Match({
+      amount1: 1e19,
+      amount2: 1e18,
+      asset1: IAsset(address(usdc)),
+      asset2: IAsset(address(usdc)),
+      subId1: 1,
+      subId2: 1,
+      signature1: signature1,
+      signature2: signature2
+    });
 
-  //   // Revert since you cannot trade with yourself through the Matching contract
-  //   vm.expectRevert(abi.encodeWithSelector(Matching.M_TradingDifferentSubIds.selector, 1, 2, 1, 1));
-  //   matching.submitTrade(matchDetails, order1, order2);
-  // }
+    // Revert since you cannot trade with yourself through the Matching contract
+    vm.expectRevert(abi.encodeWithSelector(Matching.M_CannotTradeSameAsset.selector, address(usdc), address(usdc)));
+    matching.submitTrade(matchDetails, order1, order2);
+  }
 
   function _createSignedOrder(
     uint fromAcc,
     uint toAcc,
     uint limitPrice,
     uint assetAmount,
-    uint fillAmount,
     uint maxFee,
     uint tradeFee,
-    uint pk
+    uint expiry,
+    uint pk,
+    bool isBid
   ) internal view returns (Matching.LimitOrder memory limitOrder, bytes memory signature) {
-    bytes32 assetHash = matching.getAssetHash(cashAsset, cashAsset, 0, 0);
-    Matching.OrderParams memory order = Matching.OrderParams({
-      isBid: true,
+    bytes32 assetHash = matching.getAssetHash(cashAsset, IAsset(address(usdc)), 0, 0);
+    Matching.OrderParams memory order1 = Matching.OrderParams({
+      isBid: isBid,
       accountId: fromAcc,
       amount: assetAmount,
       limitPrice: limitPrice,
-      expirationTime: block.timestamp + 1 days,
+      expirationTime: expiry,
       maxFee: maxFee,
       salt: 0,
       assetHash: assetHash
     });
 
     // Sign the order
-    bytes32 orderHash = matching.getOrderHash(order);
-    bytes memory signature = _sign(orderHash, pk);
-
-    // Verify the signature
-    // console.log("Valid signature:", matching.verifySignature(fromAcc, orderHash, signature));
+    bytes32 orderHash1 = matching.getOrderHash(order1);
+    signature = _sign(orderHash1, pk);
 
     limitOrder = Matching.LimitOrder({
-      isBid: order.isBid,
-      accountId1: order.accountId,
+      isBid: order1.isBid,
+      accountId1: order1.accountId,
       accountId2: toAcc,
-      asset1Amount: order.amount,
-      limitPrice: order.limitPrice,
-      expirationTime: order.expirationTime,
-      maxFee: order.maxFee,
+      asset1Amount: order1.amount,
+      limitPrice: order1.limitPrice,
+      expirationTime: order1.expirationTime,
+      maxFee: order1.maxFee,
       tradeFee: tradeFee,
-      salt: order.salt,
-      assetHash: order.assetHash
+      salt: order1.salt,
+      assetHash: order1.assetHash
     });
   }
 
-  // function _createSignedOrderAsset(
-  //   uint fromAcc,
-  //   uint toAcc,
-  //   address asset1,
-  //   address asset2,
-  //   uint subId1,
-  //   uint subId2,
-  //   uint pk
-  // ) internal view returns (Matching.LimitOrder memory order, bytes memory signature) {
-  //   // Create LimitOrder
-  //   order = Matching.LimitOrder({
-  //     isBid: true,
-  //     accountId1: fromAcc,
-  //     accountId2: toAcc,
-  //     asset1: IAsset(address(asset1)),
-  //     subId1: subId1,
-  //     asset2: IAsset(address(asset2)),
-  //     subId2: subId2,
-  //     asset1Amount: 1e18,
-  //     limitPrice: 1e18,
-  //     expirationTime: block.timestamp + 1 days,
-  //     orderId: 1
-  //   });
+  function _createSignedOrderAsset(
+    uint fromAcc,
+    uint toAcc,
+    address asset1,
+    address asset2,
+    uint subId1,
+    uint subId2,
+    uint pk,
+    bool isBid
+  ) internal view returns (Matching.LimitOrder memory limitOrder, bytes memory signature) {
+    // Create LimitOrder
+    bytes32 assetHash = matching.getAssetHash(IAsset(address(asset1)), IAsset(address(asset2)), subId1, subId2);
+    Matching.OrderParams memory order1 = Matching.OrderParams({
+      isBid: isBid,
+      accountId: fromAcc,
+      amount: 1e18,
+      limitPrice: 1e18,
+      expirationTime: block.timestamp + 1 days,
+      maxFee: 0,
+      salt: 0,
+      assetHash: assetHash
+    });
 
-  //   // Sign the order
-  //   bytes32 OrderParams = matching.getOrderParams(order, 1e18);
-  //   signature = _sign(OrderParams, pk);
-  // }
+    // Sign the order
+    bytes32 orderHash1 = matching.getOrderHash(order1);
+    signature = _sign(orderHash1, pk);
+
+    limitOrder = Matching.LimitOrder({
+      isBid: order1.isBid,
+      accountId1: order1.accountId,
+      accountId2: toAcc,
+      asset1Amount: order1.amount,
+      limitPrice: order1.limitPrice,
+      expirationTime: order1.expirationTime,
+      maxFee: 0,
+      tradeFee: 0,
+      salt: order1.salt,
+      assetHash: order1.assetHash
+    });
+  }
 
   function _sign(bytes32 OrderParams, uint pk) internal view returns (bytes memory) {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ECDSA.toTypedDataHash(domainSeparator, OrderParams));
