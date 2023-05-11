@@ -10,7 +10,7 @@ import "v2-core/src/Accounts.sol";
 import {Matching} from "src/Matching.sol";
 
 /**
- * @dev we deploy actual Account contract in these tests to simplify verification process
+ * @dev Unit tests for verifying an order
  */
 contract UNIT_MatchingVerifyOrder is Test {
   using DecimalMath for uint;
@@ -64,6 +64,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     vm.stopPrank();
   }
 
+  // Attempt to trade with your frozen account
   function testCannotTradeIfYouFrozen() public {
     vm.startPrank(alice);
     matching.freezeAccount(true);
@@ -90,6 +91,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
   }
 
+  // Attempt to trade with another account that is frozen
   function testCannotTradeWithFrozenAccount() public {
     vm.startPrank(bob);
     matching.freezeAccount(true);
@@ -115,6 +117,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
   }
 
+  // Attempt to trade an order that has expired
   function testCannotTradeIfExpired() public {
     uint expiry = block.timestamp + 1 days;
     (Matching.LimitOrder memory order1, bytes memory signature1) =
@@ -139,6 +142,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     matching.submitTrade(matchDetails, order1, order2);
   }
 
+  // Attempt to trade 0 amount in order
   function testCannotTradeZeroAmountInOrder() public {
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
       _createSignedOrder(accountId, accountId2, 1e18, 0, 0, 0, block.timestamp + 1 days, aliceKey, true);
@@ -161,6 +165,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
   }
 
+  // Attemp to trade 0 fill amount
   function testCannotTradeZeroAmountInMatch() public {
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
       _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, 0, block.timestamp + 1 days, aliceKey, true);
@@ -183,6 +188,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
   }
 
+  // Attempt to trade with yourself
   function testCannotTradeToYourself() public {
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
       _createSignedOrder(accountId, accountId, 1e18, 1e18, 0, 0, block.timestamp + 1 days, aliceKey, true);
@@ -205,6 +211,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
   }
 
+  // Attempt to fill amount more than the order
   function testCannotTradeFillAmount() public {
     uint limitPriceOrder1 = 1e18;
     uint fillAmount = 51 ether;
@@ -231,6 +238,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     matching.submitTrade(matchDetails, limitOrder1, limitOrder2);
   }
 
+  // Attempt to trade within limit price for both sides
   function testOrderWithinLimitPrice() public {
     uint limitPriceOrder1 = 6e18;
 
@@ -263,6 +271,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     assertEq(order.asset1Amount, fillAmount1);
   }
 
+  // Attempt to trade at price above limit for bid
   function testOrderAboveLimitPrice() public {
     uint limitPriceOrder1 = 5e18;
 
@@ -300,6 +309,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     matching.submitTrade(matchDetails, order1, order2);
   }
 
+  // Attempt to trade at price below limit for ask
   function testOrderBelowLimitPrice() public {
     uint limitPriceOrder1 = 5e18;
 
@@ -336,8 +346,8 @@ contract UNIT_MatchingVerifyOrder is Test {
     matching.submitTrade(matchDetails, order1, order2);
   }
 
+  // Attempt to trade USDC for USDC
   function testCannotTradeSameAssets() public {
-    MockERC20 lyra = new MockERC20("LYRA", "LYRA");
     (Matching.LimitOrder memory order1, bytes memory signature1) =
       _createSignedOrderAsset(accountId, accountId2, address(usdc), address(usdc), 1, 1, aliceKey, true);
     (Matching.LimitOrder memory order2, bytes memory signature2) =

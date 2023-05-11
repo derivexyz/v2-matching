@@ -10,7 +10,7 @@ import "v2-core/src/Accounts.sol";
 import {Matching} from "src/Matching.sol";
 
 /**
- * @dev we deploy actual Account contract in these tests to simplify verification process
+ * @dev Tests that users can sign for their orders
  */
 contract UNIT_MatchingSigning is Test {
   IAsset cashAsset;
@@ -97,7 +97,7 @@ contract UNIT_MatchingSigning is Test {
       assetHash: assetHash
     });
 
-    // Sign the order
+    // Sign the order with wrong pk for the accountId
     uint fillAmount = 50 ether;
     bytes32 orderHash = matching.getOrderHash(order);
     bytes memory signature = _sign(orderHash, privateKey2);

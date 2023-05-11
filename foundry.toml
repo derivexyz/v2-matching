@@ -1,5 +1,5 @@
 [profile.default]
-contracts = 'contracts'
+src = 'src'
 out = 'out'
 
 optimizer = true
