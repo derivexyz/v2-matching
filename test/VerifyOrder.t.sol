@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 
 import "v2-core/test/shared/mocks/MockERC20.sol";
 import "v2-core/test/shared/mocks/MockManager.sol";
-
 import "v2-core/src/assets/CashAsset.sol";
 import "v2-core/src/Accounts.sol";
 import {Matching} from "src/Matching.sol";
@@ -280,12 +279,12 @@ contract UNIT_MatchingVerifyOrder is Test {
     uint maxFee,
     uint tradeFee,
     uint pk
-  ) internal view returns (Matching.LimitOrder memory order, bytes memory signature) {
+  ) internal view returns (Matching.LimitOrder memory limitOrder, bytes memory signature) {
     bytes32 assetHash = matching.getAssetHash(cashAsset, cashAsset, 0, 0);
-    Matching.OrderHash memory orderHash = Matching.OrderHash({
+    Matching.OrderParams memory order = Matching.OrderParams({
       isBid: true,
-      maker: fromAcc,
-      asset1Amount: assetAmount,
+      accountId: fromAcc,
+      amount: assetAmount,
       limitPrice: limitPrice,
       expirationTime: block.timestamp + 1 days,
       maxFee: maxFee,
@@ -294,23 +293,23 @@ contract UNIT_MatchingVerifyOrder is Test {
     });
 
     // Sign the order
-    bytes32 fullOrderHash = matching.getFullOrderHash(orderHash, assetHash, fillAmount);
-    bytes memory signature = _sign(fullOrderHash, pk);
+    bytes32 orderHash = matching.getOrderHash(order);
+    bytes memory signature = _sign(orderHash, pk);
 
     // Verify the signature
-    console.log("Valid signature:", matching.verifySignature(orderHash, fillAmount, assetHash, signature));
+    // console.log("Valid signature:", matching.verifySignature(fromAcc, orderHash, signature));
 
-    order = Matching.LimitOrder({
-      isBid: orderHash.isBid,
-      accountId1: orderHash.maker,
+    limitOrder = Matching.LimitOrder({
+      isBid: order.isBid,
+      accountId1: order.accountId,
       accountId2: toAcc,
-      asset1Amount: orderHash.asset1Amount,
-      limitPrice: orderHash.limitPrice,
-      expirationTime: orderHash.expirationTime,
-      maxFee: orderHash.maxFee,
+      asset1Amount: order.amount,
+      limitPrice: order.limitPrice,
+      expirationTime: order.expirationTime,
+      maxFee: order.maxFee,
       tradeFee: tradeFee,
-      salt: orderHash.salt,
-      assetHash: orderHash.assetHash
+      salt: order.salt,
+      assetHash: order.assetHash
     });
   }
 
@@ -339,12 +338,12 @@ contract UNIT_MatchingVerifyOrder is Test {
   //   });
 
   //   // Sign the order
-  //   bytes32 orderHash = matching.getOrderHash(order, 1e18);
-  //   signature = _sign(orderHash, pk);
+  //   bytes32 OrderParams = matching.getOrderParams(order, 1e18);
+  //   signature = _sign(OrderParams, pk);
   // }
 
-  function _sign(bytes32 orderHash, uint pk) internal view returns (bytes memory) {
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ECDSA.toTypedDataHash(domainSeparator, orderHash));
+  function _sign(bytes32 OrderParams, uint pk) internal view returns (bytes memory) {
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ECDSA.toTypedDataHash(domainSeparator, OrderParams));
     return bytes.concat(r, s, bytes1(v));
   }
 }

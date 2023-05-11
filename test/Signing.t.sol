@@ -5,11 +5,8 @@ import "forge-std/Test.sol";
 
 import "v2-core/test/shared/mocks/MockERC20.sol";
 import "v2-core/test/shared/mocks/MockManager.sol";
-
 import "v2-core/src/assets/CashAsset.sol";
-// import "v2-core/src/interfaces/IAccounts.sol";
 import "v2-core/src/Accounts.sol";
-
 import {Matching} from "src/Matching.sol";
 
 /**
@@ -65,10 +62,10 @@ contract UNIT_MatchingSigning is Test {
   function testValidSignature() public {
     // Create LimitOrder
     bytes32 assetHash = matching.getAssetHash(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
-    Matching.OrderHash memory order = Matching.OrderHash({
+    Matching.OrderParams memory order = Matching.OrderParams({
       isBid: true,
-      maker: accountId,
-      asset1Amount: 100 ether,
+      accountId: accountId,
+      amount: 100 ether,
       limitPrice: 1 ether,
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
@@ -78,21 +75,21 @@ contract UNIT_MatchingSigning is Test {
 
     // Sign the order
     uint fillAmount = 50 ether;
-    bytes32 orderHash = matching.getFullOrderHash(order, assetHash, fillAmount);
+    bytes32 orderHash = matching.getOrderHash(order);
     bytes memory signature = _sign(orderHash, privateKey);
 
     // Verify the signature
-    bool isValid = matching.verifySignature(order, fillAmount, assetHash, signature);
+    bool isValid = matching.verifySignature(accountId, orderHash, signature);
     assertEq(isValid, true);
   }
 
   function testInvalidSignature() public {
-    // Create LimitOrder
+ // Create LimitOrder
     bytes32 assetHash = matching.getAssetHash(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
-    Matching.OrderHash memory order = Matching.OrderHash({
+    Matching.OrderParams memory order = Matching.OrderParams({
       isBid: true,
-      maker: accountId,
-      asset1Amount: 100 ether,
+      accountId: accountId,
+      amount: 100 ether,
       limitPrice: 1 ether,
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
@@ -102,37 +99,11 @@ contract UNIT_MatchingSigning is Test {
 
     // Sign the order
     uint fillAmount = 50 ether;
-    bytes32 orderHash = matching.getFullOrderHash(order, assetHash, fillAmount);
-
+    bytes32 orderHash = matching.getOrderHash(order);
     bytes memory signature = _sign(orderHash, privateKey2);
 
     // Verify the signature
-    bool isValid = matching.verifySignature(order, fillAmount, assetHash, signature);
-    assertEq(isValid, false);
-  }
-
-  function testInvalidFillAmountSignature() public {
-    // Create LimitOrder
-    bytes32 assetHash = matching.getAssetHash(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
-    Matching.OrderHash memory order = Matching.OrderHash({
-      isBid: true,
-      maker: accountId,
-      asset1Amount: 100 ether,
-      limitPrice: 1 ether,
-      expirationTime: block.timestamp + 1 days,
-      maxFee: 0,
-      salt: 0,
-      assetHash: assetHash
-    });
-
-    // Sign the order
-    uint fillAmount = 50 ether;
-    bytes32 orderHash = matching.getFullOrderHash(order, assetHash, fillAmount + 1 ether);
-
-    bytes memory signature = _sign(orderHash, privateKey2);
-
-    // Verify the signature with different fill amount
-    bool isValid = matching.verifySignature(order, fillAmount, assetHash, signature);
+    bool isValid = matching.verifySignature(accountId, orderHash, signature);
     assertEq(isValid, false);
   }
 

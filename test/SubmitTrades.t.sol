@@ -349,12 +349,12 @@
 //     });
 
 //     // Sign the order
-//     bytes32 orderHash = matching.getOrderHash(order, fillAmount);
-//     signature = _sign(orderHash, pk);
+//     bytes32 OrderParams = matching.getOrderParams(order, fillAmount);
+//     signature = _sign(OrderParams, pk);
 //   }
 
-//   function _sign(bytes32 orderHash, uint pk) internal view returns (bytes memory) {
-//     (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ECDSA.toTypedDataHash(domainSeparator, orderHash));
+//   function _sign(bytes32 OrderParams, uint pk) internal view returns (bytes memory) {
+//     (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ECDSA.toTypedDataHash(domainSeparator, OrderParams));
 //     return bytes.concat(r, s, bytes1(v));
 //   }
 // }
