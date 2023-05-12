@@ -73,6 +73,9 @@ contract Matching is EIP712, Owned {
   ///@dev Account Id which receives all fees paid
   uint public feeAccountId;
 
+  ///@dev Cooldown a user must wait before withdrawing their account
+  uint public cooldownSeconds;
+
   ///@dev Accounts contract address
   IAccounts public immutable accounts;
 
@@ -91,6 +94,9 @@ contract Matching is EIP712, Owned {
   ///@dev Mapping to track frozen accounts
   mapping(address => bool) public isFrozen;
 
+  ///@dev Mapping of accountId to signal withdraw
+  mapping(address => uint) public withdrawCooldown;
+
   ///@dev Order fill typehash containing the order hash and asset hash (exlcuding fill amount)
   bytes32 public constant _ORDER_TYPEHASH =
     keccak256("OrderParams(bool,uint256,uint256,uint256,uint256,uint256,uint256,bytes32)");
@@ -98,10 +104,13 @@ contract Matching is EIP712, Owned {
   ///@dev Asset typehash containing the two IAssets and subIds
   bytes32 public constant _ASSET_TYPEHASH = keccak256("address,address,uint256,uint256");
 
-  constructor(IAccounts _accounts, IAsset _cashAsset, uint _feeAccountId) EIP712("Matching", "1.0") {
+  constructor(IAccounts _accounts, IAsset _cashAsset, uint _feeAccountId, uint _cooldownSeconds)
+    EIP712("Matching", "1.0")
+  {
     accounts = _accounts;
     cashAsset = _cashAsset;
     feeAccountId = _feeAccountId;
+    cooldownSeconds = _cooldownSeconds;
   }
 
   ////////////////////////////
@@ -194,12 +203,17 @@ contract Matching is EIP712, Owned {
 
   /**
    * @notice Allows user to close their account by transferring their account NFT back.
+   * @dev User must have previously called `requestWithdraw()` and waited for the cooldown to elapse.
    * @param accountId The users' accountId
    */
   function closeCLOBAccount(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
+    if (withdrawCooldown[msg.sender] + (cooldownSeconds) > block.timestamp) {
+      revert M_CooldownNotElapsed(withdrawCooldown[msg.sender] + (cooldownSeconds) - block.timestamp);
+    }
 
     accounts.transferFrom(address(this), msg.sender, accountId);
+    withdrawCooldown[msg.sender] = 0;
     delete accountToOwner[accountId];
   }
 
@@ -213,6 +227,15 @@ contract Matching is EIP712, Owned {
     // todo add signal for withdrawal with time delay
     isFrozen[msg.sender] = freeze;
     emit AccountFrozen(msg.sender, freeze);
+  }
+
+  /**
+   * @notice Activates the cooldown period to withdraw account
+   */
+  function requestWithdraw(uint accountId) external {
+    if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
+    withdrawCooldown[msg.sender] = block.timestamp;
+    emit Cooldown(msg.sender);
   }
 
   //////////////////////////
@@ -474,6 +497,11 @@ contract Matching is EIP712, Owned {
    */
   event FeeRateUpdated(IAsset asset, uint newFeeRate);
 
+  /**
+   * @dev Emitted when a user requests withdrawal and begins the cooldown
+   */
+  event Cooldown(address user);
+
   ////////////
   // Errors //
   ////////////
@@ -494,4 +522,5 @@ contract Matching is EIP712, Owned {
   error M_CannotTradeSameAsset(IAsset asset1, IAsset asset2);
   error M_AccountIdsDoNotMatch(uint order1fromId, uint order2toId, uint order1toId, uint order2fromId);
   error M_TradeFeeExceedsMaxFee(uint tradeFee, uint maxFee);
+  error M_CooldownNotElapsed(uint secondsLeft);
 }
