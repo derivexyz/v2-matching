@@ -143,12 +143,38 @@ contract Matching is EIP712, Owned {
     _submitAssetTransfers(matchedOrders);
   }
 
+  /**
+   * @notice Allows whitelisted addresses to submit one trade
+   */
   function submitTrade(Match calldata matchDetails, LimitOrder calldata order1, LimitOrder calldata order2)
     external
     onlyWhitelisted
     returns (VerifiedOrder memory matchedOrder)
   {
     return _trade(matchDetails, order1, order2);
+  }
+
+  /**
+   * @dev Transfers a specific amount of an asset from one account to another.
+   * Can only be called by an address that is currently whitelisted.
+   *
+   * @param fromAcc The ID of the account from which the asset is to be transferred.
+   * @param toAcc The ID of the account to which the asset is to be transferred.
+   * @param asset The asset to be transferred.
+   * @param subId The subId of the asset
+   * @param amount The amount of the asset to be transferred.
+   */
+  function transferAsset(uint fromAcc, uint toAcc, IAsset asset, uint subId, uint amount) external onlyWhitelisted {
+    IAccounts.AssetTransfer memory transferData = IAccounts.AssetTransfer({
+      fromAcc: fromAcc,
+      toAcc: toAcc,
+      asset: asset,
+      subId: subId,
+      amount: amount.toInt256(),
+      assetData: bytes32(0)
+    });
+
+    accounts.submitTransfer(transferData, "");
   }
 
   //////////////////////////
@@ -250,7 +276,10 @@ contract Matching is EIP712, Owned {
     });
   }
 
-  function _verifyOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails) internal view {
+  function _verifyOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
+    internal
+    view
+  {
     // Verify individual order details
     _verifyOrderParams(order1);
     _verifyOrderParams(order2);
