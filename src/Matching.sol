@@ -250,7 +250,10 @@ contract Matching is EIP712, Owned {
     });
   }
 
-  function _verifyOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails) internal view {
+  function _verifyOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
+    internal
+    view
+  {
     // Verify individual order details
     _verifyOrderParams(order1);
     _verifyOrderParams(order2);
