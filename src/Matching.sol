@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "openzeppelin/utils/math/SafeCast.sol";
 import "openzeppelin/utils/cryptography/EIP712.sol";
 import "openzeppelin/utils/cryptography/SignatureChecker.sol";
 import "lyra-utils/ownership/Owned.sol";
@@ -9,7 +8,6 @@ import "lyra-utils/decimals/DecimalMath.sol";
 
 import "v2-core/src/Accounts.sol";
 import "forge-std/console2.sol";
-import "forge-std/Test.sol";
 
 // todo jit account, create new acount on trade and merge after
 // todo sub signers
@@ -251,7 +249,10 @@ contract Matching is EIP712, Owned {
     });
   }
 
-  function _verifyOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails) internal {
+  function _verifyOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
+    internal
+    view
+  {
     // Verify individual order details
     _verifyOrderParams(order1);
     _verifyOrderParams(order2);
@@ -295,7 +296,7 @@ contract Matching is EIP712, Owned {
     if (block.timestamp > order.expirationTime) revert M_OrderExpired(block.timestamp, order.expirationTime);
   }
 
-  function _checkLimitPrice(bool isBid, uint limitPrice, uint calculatedPrice) internal {
+  function _checkLimitPrice(bool isBid, uint limitPrice, uint calculatedPrice) internal pure {
     // If you want to buy but the price is above your limit
     if (isBid && calculatedPrice > limitPrice) {
       revert M_BidPriceAboveLimit(limitPrice, calculatedPrice);

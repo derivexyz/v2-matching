@@ -213,7 +213,6 @@ contract UNIT_MatchingVerifyOrder is Test {
 
   // Attempt to fill amount more than the order
   function testCannotTradeFillAmount() public {
-    uint limitPriceOrder1 = 1e18;
     uint fillAmount = 51 ether;
     uint assetAmount = 50 ether;
 

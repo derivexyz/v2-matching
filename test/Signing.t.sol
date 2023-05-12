@@ -74,7 +74,6 @@ contract UNIT_MatchingSigning is Test {
     });
 
     // Sign the order
-    uint fillAmount = 50 ether;
     bytes32 orderHash = matching.getOrderHash(order);
     bytes memory signature = _sign(orderHash, privateKey);
 
@@ -98,7 +97,6 @@ contract UNIT_MatchingSigning is Test {
     });
 
     // Sign the order with wrong pk for the accountId
-    uint fillAmount = 50 ether;
     bytes32 orderHash = matching.getOrderHash(order);
     bytes memory signature = _sign(orderHash, privateKey2);
 
