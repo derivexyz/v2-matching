@@ -62,9 +62,10 @@ contract UNIT_MatchingSigning is Test {
   function testValidSignature() public {
     // Create LimitOrder
     bytes32 assetHash = matching.getAssetHash(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
-    Matching.OrderParams memory order = Matching.OrderParams({
+    Matching.LimitOrder memory order = Matching.LimitOrder({
       isBid: true,
-      accountId: accountId,
+      accountId1: accountId,
+      accountId2: 0,
       amount: 100 ether,
       limitPrice: 1 ether,
       expirationTime: block.timestamp + 1 days,
@@ -85,9 +86,10 @@ contract UNIT_MatchingSigning is Test {
   function testInvalidSignature() public {
     // Create LimitOrder
     bytes32 assetHash = matching.getAssetHash(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
-    Matching.OrderParams memory order = Matching.OrderParams({
+    Matching.LimitOrder memory order = Matching.LimitOrder({
       isBid: true,
-      accountId: accountId,
+      accountId1: accountId,
+      accountId2: 0,
       amount: 100 ether,
       limitPrice: 1 ether,
       expirationTime: block.timestamp + 1 days,
