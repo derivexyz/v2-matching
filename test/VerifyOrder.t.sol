@@ -121,7 +121,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       signature2: signature2
     });
 
- (
+    (
       Matching.LimitOrder[] memory order1Array,
       Matching.LimitOrder[] memory order2Array,
       Matching.Match[] memory matchDetailsArray
@@ -130,7 +130,6 @@ contract UNIT_MatchingVerifyOrder is Test {
     // Revert since you cannot trade with 0 amount
     vm.expectRevert(abi.encodeWithSelector(Matching.M_AccountFrozen.selector, bob));
     matching.submitTrades(matchDetailsArray, order1Array, order2Array);
-    
   }
 
   // Attempt to trade an order that has expired
@@ -153,7 +152,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       signature2: signature2
     });
 
-     (
+    (
       Matching.LimitOrder[] memory order1Array,
       Matching.LimitOrder[] memory order2Array,
       Matching.Match[] memory matchDetailsArray
@@ -184,7 +183,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       signature2: signature2
     });
 
-     (
+    (
       Matching.LimitOrder[] memory order1Array,
       Matching.LimitOrder[] memory order2Array,
       Matching.Match[] memory matchDetailsArray
@@ -214,7 +213,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       signature2: signature2
     });
 
- (
+    (
       Matching.LimitOrder[] memory order1Array,
       Matching.LimitOrder[] memory order2Array,
       Matching.Match[] memory matchDetailsArray
@@ -244,7 +243,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       signature2: signature2
     });
 
-     (
+    (
       Matching.LimitOrder[] memory order1Array,
       Matching.LimitOrder[] memory order2Array,
       Matching.Match[] memory matchDetailsArray
@@ -277,7 +276,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       signature2: signature2
     });
 
-     (
+    (
       Matching.LimitOrder[] memory order1Array,
       Matching.LimitOrder[] memory order2Array,
       Matching.Match[] memory matchDetailsArray
@@ -299,9 +298,8 @@ contract UNIT_MatchingVerifyOrder is Test {
     (Matching.LimitOrder memory order1, bytes memory signature1) = _createSignedOrder(
       accountId, accountId2, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, aliceKey, true
     );
-    (Matching.LimitOrder memory order2, bytes memory signature2) = _createSignedOrder(
-      accountId2, accountId, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, bobKey, false
-    );
+    (Matching.LimitOrder memory order2, bytes memory signature2) =
+      _createSignedOrder(accountId2, accountId, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
       baseAmount: fillAmount1,
@@ -315,7 +313,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       signature2: signature2
     });
 
-     (
+    (
       Matching.LimitOrder[] memory order1Array,
       Matching.LimitOrder[] memory order2Array,
       Matching.Match[] memory matchDetailsArray
@@ -339,9 +337,8 @@ contract UNIT_MatchingVerifyOrder is Test {
 
     (Matching.LimitOrder memory order1, bytes memory signature1) =
       _createSignedOrder(accountId, accountId2, 10e18, 100 ether, 10e18, block.timestamp + 1 days, aliceKey, true);
-    (Matching.LimitOrder memory order2, bytes memory signature2) = _createSignedOrder(
-      accountId2, accountId, 5e18, 100 ether, 0, block.timestamp + 1 days, bobKey, false
-    );
+    (Matching.LimitOrder memory order2, bytes memory signature2) =
+      _createSignedOrder(accountId2, accountId, 5e18, 100 ether, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
       baseAmount: fillAmount1,
@@ -355,7 +352,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       signature2: signature2
     });
 
-     (
+    (
       Matching.LimitOrder[] memory order1Array,
       Matching.LimitOrder[] memory order2Array,
       Matching.Match[] memory matchDetailsArray
@@ -363,9 +360,7 @@ contract UNIT_MatchingVerifyOrder is Test {
 
     // Revert since the calculated price is below the limit price
     vm.expectRevert(
-      abi.encodeWithSelector(
-        Matching.M_AskPriceBelowLimit.selector, 5e18, fillAmount1.divideDecimal(fillAmount2)
-      )
+      abi.encodeWithSelector(Matching.M_AskPriceBelowLimit.selector, 5e18, fillAmount1.divideDecimal(fillAmount2))
     );
     matching.submitTrades(matchDetailsArray, order1Array, order2Array);
   }
@@ -389,7 +384,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       signature2: signature2
     });
 
-     (
+    (
       Matching.LimitOrder[] memory order1Array,
       Matching.LimitOrder[] memory order2Array,
       Matching.Match[] memory matchDetailsArray
@@ -451,7 +446,8 @@ contract UNIT_MatchingVerifyOrder is Test {
     bool isBid
   ) internal view returns (Matching.LimitOrder memory limitOrder, bytes memory signature) {
     // Create LimitOrder
-    bytes32 tradingPair = matching.getTradingPair(IAsset(address(baseAsset)), IAsset(address(quoteAsset)), baseSubId, quoteSubId);
+    bytes32 tradingPair =
+      matching.getTradingPair(IAsset(address(baseAsset)), IAsset(address(quoteAsset)), baseSubId, quoteSubId);
     Matching.LimitOrder memory order1 = Matching.LimitOrder({
       isBid: isBid,
       accountId1: fromAcc,
@@ -491,7 +487,9 @@ contract UNIT_MatchingVerifyOrder is Test {
     Matching.LimitOrder memory order2,
     Matching.Match memory matchDetails
   )
-    internal pure returns (
+    internal
+    pure
+    returns (
       Matching.LimitOrder[] memory order1Arr,
       Matching.LimitOrder[] memory order2Arr,
       Matching.Match[] memory matchDetailsArr
