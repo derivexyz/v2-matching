@@ -82,6 +82,9 @@ contract Matching is EIP712, Owned {
   ///@dev Mapping to track frozen accounts
   mapping(address => bool) public isFrozen;
 
+  ///@dev Mapping of accountId to signal withdraw
+  mapping(address => uint) public withdrawCooldown;
+
   ///@dev Order fill typehash containing the limit order hash and trading pair hash, exluding the counterparty for the trade (accountId2)
   bytes32 public constant _LIMITORDER_TYPEHASH =
     keccak256("LimitOrder(bool,uint256,uint256,uint256,uint256,uint256,uint256,uint256,bytes32)");
@@ -135,6 +138,29 @@ contract Matching is EIP712, Owned {
     }
 
     _submitAssetTransfers(matchedOrders);
+  }
+
+  /**
+   * @dev Transfers a specific amount of an asset from one account to another.
+   * Can only be called by an address that is currently whitelisted.
+   *
+   * @param fromAcc The ID of the account from which the asset is to be transferred.
+   * @param toAcc The ID of the account to which the asset is to be transferred.
+   * @param asset The asset to be transferred.
+   * @param subId The subId of the asset
+   * @param amount The amount of the asset to be transferred.
+   */
+  function transferAsset(uint fromAcc, uint toAcc, IAsset asset, uint subId, uint amount) external onlyWhitelisted {
+    IAccounts.AssetTransfer memory transferData = IAccounts.AssetTransfer({
+      fromAcc: fromAcc,
+      toAcc: toAcc,
+      asset: asset,
+      subId: subId,
+      amount: amount.toInt256(),
+      assetData: bytes32(0)
+    });
+
+    accounts.submitTransfer(transferData, "");
   }
 
   //////////////////////////
