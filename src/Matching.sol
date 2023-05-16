@@ -79,9 +79,6 @@ contract Matching is EIP712, Owned {
   ///@dev Mapping to track fill amounts per order
   mapping(bytes32 => uint) public fillAmounts;
 
-  ///@dev Mapping to track frozen accounts
-  mapping(address => bool) public isFrozen;
-
   ///@dev Mapping of accountId to signal withdraw
   mapping(address => uint) public withdrawCooldown;
 
@@ -194,20 +191,8 @@ contract Matching is EIP712, Owned {
     delete accountToOwner[accountId];
   }
 
-  // todo withdrawals / key to give permission to trade for an address
-
   /**
-   * @notice Allows sender to 'freeze' their account which blocks all trading actions.
-   * @param freeze Boolean on whether to freeze or unfreeze your account
-   */
-  function freezeAccount(bool freeze) external {
-    // todo add signal for withdrawal with time delay
-    isFrozen[msg.sender] = freeze;
-    emit AccountFrozen(msg.sender, freeze);
-  }
-
-  /**
-   * @notice Activates the cooldown period to withdraw account
+   * @notice Activates the cooldown period to withdraw account and freezes account from trading
    */
   function requestWithdraw(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
@@ -324,8 +309,8 @@ contract Matching is EIP712, Owned {
     if (order.accountId1 == order.accountId2) revert M_CannotTradeToSelf(order.accountId1);
 
     // Ensure the accountId and taker accounts are not frozen
-    if (isFrozen[accountToOwner[order.accountId1]]) revert M_AccountFrozen(accountToOwner[order.accountId1]);
-    if (isFrozen[accountToOwner[order.accountId2]]) revert M_AccountFrozen(accountToOwner[order.accountId2]);
+    if (withdrawCooldown[accountToOwner[order.accountId1]] != 0) revert M_AccountFrozen(accountToOwner[order.accountId1]);
+    if (withdrawCooldown[accountToOwner[order.accountId2]] != 0) revert M_AccountFrozen(accountToOwner[order.accountId2]);
 
     // Ensure some amount is traded
     if (order.amount == 0) revert M_ZeroAmountToTrade();
