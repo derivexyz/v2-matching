@@ -220,7 +220,10 @@ contract Matching is EIP712, Owned {
     });
   }
 
-  function _verifySignatures(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails) internal view {
+  function _verifySignatures(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
+    internal
+    view
+  {
     // Verify trading pair
     bytes32 tradingPair = _getTradingPairHash(
       matchDetails.baseAsset, matchDetails.quoteAsset, matchDetails.baseSubId, matchDetails.quoteSubId
