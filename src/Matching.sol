@@ -8,6 +8,8 @@ import "lyra-utils/ownership/Owned.sol";
 import "lyra-utils/decimals/DecimalMath.sol";
 
 import "v2-core/src/Accounts.sol";
+import "v2-core/src/interfaces/IPerpAsset.sol";
+
 import "forge-std/console2.sol";
 
 // todo sub signers
@@ -18,12 +20,13 @@ import "forge-std/console2.sol";
  */
 contract Matching is EIP712, Owned {
   using DecimalMath for uint;
+  using DecimalMath for int;
   using SafeCast for uint;
 
   struct Match {
-    uint baseAmount;
-    uint quoteAmount;
-    IAsset baseAsset;
+    uint baseAmount; // position size for perp
+    uint quoteAmount; // market price for perp
+    IAsset baseAsset; // baseAsset == perpAsset and quote == empty for perp
     IAsset quoteAsset;
     uint baseSubId;
     uint quoteSubId;
@@ -32,9 +35,8 @@ contract Matching is EIP712, Owned {
     bytes signature2;
   }
 
-  // todo perp asset data
   struct LimitOrder {
-    bool isBid;
+    bool isBid; // is long or short for perp
     uint accountId1;
     uint accountId2;
     uint amount; // For bids, amount is baseAsset. For asks, amount is quoteAsset
@@ -52,8 +54,8 @@ contract Matching is EIP712, Owned {
     IAsset quoteAsset;
     uint baseSubId;
     uint quoteSubId;
-    uint asset1Amount;
-    uint asset2Amount;
+    uint asset1Amount; // Position size for perps
+    uint asset2Amount; // Delta paid for perps
     uint accountId1Fee;
     uint accountId2Fee;
   }
@@ -69,6 +71,9 @@ contract Matching is EIP712, Owned {
 
   ///@dev The cash asset used as quote and for paying fees
   IAsset public cashAsset;
+
+  ///@dev The perp asset 
+  IPerpAsset public perpAsset;
 
   ///@dev Mapping of (address => isWhitelistedModule)
   mapping(address => bool) public isWhitelisted;
@@ -109,6 +114,15 @@ contract Matching is EIP712, Owned {
     isWhitelisted[toAllow] = whitelisted;
 
     emit AddressWhitelisted(toAllow, whitelisted);
+  }
+
+  /**
+   * @notice set the PerpAsset that is compatible for trading
+   */
+  function setPerpAsset(IPerpAsset _perpAsset) external onlyOwner {
+    perpAsset = _perpAsset;
+
+    emit PerpAssetSet(_perpAsset);
   }
 
   /////////////////////////////
@@ -226,6 +240,20 @@ contract Matching is EIP712, Owned {
     // Validate order match details
     _validateOrderMatch(order1, order2, matchDetails);
 
+    // Check if it is a perp or option trade
+    bool isPerpTrade = _isPerpTrade(matchDetails.baseAsset, matchDetails.quoteAsset);
+
+    // todo if perp validateLimitPrice flow slightly different 
+    if (isPerpTrade) {
+    _validatePerpLimitPrice(order1.isBid, order1.limitPrice, matchDetails.quoteAmount);
+    _validatePerpLimitPrice(order2.isBid, order2.limitPrice, matchDetails.quoteAmount);
+    } else {
+    // Verify the calculated price is within the limit price
+    _validateOptionLimitPrice(order1.isBid, order1.limitPrice, matchDetails.baseAmount, matchDetails.quoteAmount);
+    _validateOptionLimitPrice(order2.isBid, order2.limitPrice, matchDetails.baseAmount, matchDetails.quoteAmount);
+
+    }
+
     // Verify and update fill amounts for both orders
     _verifyAndUpdateFillAllowance(
       order1.amount,
@@ -297,11 +325,6 @@ contract Matching is EIP712, Owned {
     if (matchDetails.baseAsset == matchDetails.quoteAsset) {
       revert M_CannotTradeSameAsset(matchDetails.baseAsset, matchDetails.quoteAsset);
     }
-
-    // Verify the calculated price is within the limit price
-    uint calculatedPrice = matchDetails.baseAmount.divideDecimal(matchDetails.quoteAmount);
-    _checkLimitPrice(order1.isBid, order1.limitPrice, calculatedPrice);
-    _checkLimitPrice(order2.isBid, order2.limitPrice, calculatedPrice);
   }
 
   function _validateOrderParams(LimitOrder memory order) internal view {
@@ -343,7 +366,8 @@ contract Matching is EIP712, Owned {
     fillAmounts[order2Hash] += quoteAmount;
   }
 
-  function _checkLimitPrice(bool isBid, uint limitPrice, uint calculatedPrice) internal pure {
+  function _validateOptionLimitPrice(bool isBid, uint limitPrice, uint baseAmount, uint quoteAmount) internal pure {
+    uint calculatedPrice = baseAmount.divideDecimal(quoteAmount);
     // If you want to buy but the price is above your limit
     if (isBid && calculatedPrice > limitPrice) {
       revert M_BidPriceAboveLimit(limitPrice, calculatedPrice);
@@ -351,6 +375,22 @@ contract Matching is EIP712, Owned {
       // If you are selling but the price is below your limit
       revert M_AskPriceBelowLimit(limitPrice, calculatedPrice);
     }
+  }
+
+  function _validatePerpLimitPrice(bool isLong, uint limitPrice, uint marketPrice) internal pure {
+    // If you want to long but the price is above your limit
+    if (isLong && marketPrice > limitPrice) {
+      revert M_BidPriceAboveLimit(limitPrice, marketPrice);
+    } else if (!isLong && marketPrice < limitPrice) {
+      // If you want to short but the price is below your limit
+      revert M_AskPriceBelowLimit(limitPrice, marketPrice);
+    }
+  }
+
+  function _calculatePerpDelta(uint marketPrice, uint positionSize) internal returns (int delta) {
+    int index = perpAsset.getSpot(); // function will be implemented soon
+    delta = (marketPrice.toInt256() - index).multiplyDecimal(positionSize);
+
   }
 
   function _submitAssetTransfers(VerifiedOrder[] memory orders) internal {
@@ -397,6 +437,11 @@ contract Matching is EIP712, Owned {
     }
 
     accounts.submitTransfers(transferBatch, ""); // todo fill with oracle data
+  }
+
+  function _isPerpTrade(address baseAsset, address quoteAsset) internal view returns (bool) {
+    if (baseAsset == address(perpAsset) && quoteAsset == address(0)) return true;
+    return false;
   }
 
   function _verifySignature(uint accountId, bytes32 orderHash, bytes memory signature) internal view returns (bool) {
@@ -472,6 +517,11 @@ contract Matching is EIP712, Owned {
    * @dev Emitted when an address is added to / remove from the whitelist
    */
   event AddressWhitelisted(address user, bool isWhitelisted);
+  
+  /**
+   * @dev Emitted when the perp asset is set
+   */
+  event PerpAssetSet(IPerpAsset perpAsset);
 
   /**
    * @dev Emitted when a trade is executed
