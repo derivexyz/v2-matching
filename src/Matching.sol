@@ -21,6 +21,8 @@ contract Matching is EIP712, Owned {
   using SafeCast for uint;
 
   struct Match {
+    uint accountId1;
+    uint accountId2;
     uint baseAmount;
     uint quoteAmount;
     IAsset baseAsset;
