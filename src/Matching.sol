@@ -75,6 +75,9 @@ contract Matching is EIP712, Owned {
 
   ///@dev Mapping of accountId to address
   mapping(uint => address) public accountToOwner;
+  
+  ///@dev Mapping of permissioned address to owner address
+  mapping(address => address) public permissionedAddress; // Allows other addresses to trade on behalf of others // todo functionality not implemented yet
 
   ///@dev Mapping to track fill amounts per order
   mapping(bytes32 => uint) public fillAmounts;
@@ -191,8 +194,6 @@ contract Matching is EIP712, Owned {
     delete accountToOwner[accountId];
   }
 
-  // todo withdrawals / key to give permission to trade for an address
-
   /**
    * @notice Activates the cooldown period to withdraw account and freezes account from trading
    */
@@ -200,6 +201,17 @@ contract Matching is EIP712, Owned {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
     withdrawCooldown[msg.sender] = block.timestamp;
     emit Cooldown(msg.sender);
+  }
+
+  /**
+   * @notice Allows owner to register the public address associated with their session key
+   * @dev Registered address gains owner address permission to the subAccount
+   */
+  function registerSessionKey(uint accountId, address toAllow, address owner) {
+    if (msg.sender != owner) revert M_NotOwnerAddress(msg.sender, owner);
+    if (accountToOwner[accountId] != owner) revert M_InvalidAccountOwner(accountToOwner[accountId], owner);
+
+    permissionedAddress[toAllow] = owner;
   }
 
   //////////////////////////
@@ -282,9 +294,13 @@ contract Matching is EIP712, Owned {
     // Ensure the accountId and taker are different accounts
     if (matchDetails.accountId1 == matchDetails.accountId2) revert M_CannotTradeToSelf(matchDetails.accountId1);
 
-// Ensure the accountId and taker accounts are not frozen
-    if (withdrawCooldown[accountToOwner[matchDetails.accountId1]] != 0) revert M_AccountFrozen(accountToOwner[matchDetails.accountId1]);
-    if (withdrawCooldown[accountToOwner[matchDetails.accountId2]] != 0) revert M_AccountFrozen(accountToOwner[matchDetails.accountId2]);
+    // Ensure the accountId and taker accounts are not frozen
+    if (withdrawCooldown[accountToOwner[matchDetails.accountId1]] != 0) {
+      revert M_AccountFrozen(accountToOwner[matchDetails.accountId1]);
+    }
+    if (withdrawCooldown[accountToOwner[matchDetails.accountId2]] != 0) {
+      revert M_AccountFrozen(accountToOwner[matchDetails.accountId2]);
+    }
 
     // Check trade fee < maxFee
     if (matchDetails.tradeFee > order1.maxFee) revert M_TradeFeeExceedsMaxFee(matchDetails.tradeFee, order1.maxFee);
@@ -496,6 +512,7 @@ contract Matching is EIP712, Owned {
   error M_InvalidTradingPair(bytes32 suppliedHash, bytes32 matchHash);
   error M_NotWhitelisted();
   error M_NotOwnerAddress(address sender, address owner);
+  error M_InvalidAccountOwner(address accountIdOwner, address inputOwner);
   error M_AccountFrozen(address owner);
   error M_CannotTradeToSelf(uint accountId);
   error M_InsufficientFillAmount(uint orderNumber, uint remainingFill, uint requestedFill);
