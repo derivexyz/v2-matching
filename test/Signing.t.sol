@@ -65,7 +65,6 @@ contract UNIT_MatchingSigning is Test {
     Matching.LimitOrder memory order = Matching.LimitOrder({
       isBid: true,
       accountId1: accountId,
-      accountId2: 0,
       amount: 100 ether,
       limitPrice: 1 ether,
       expirationTime: block.timestamp + 1 days,
@@ -89,7 +88,6 @@ contract UNIT_MatchingSigning is Test {
     Matching.LimitOrder memory order = Matching.LimitOrder({
       isBid: true,
       accountId1: accountId,
-      accountId2: 0,
       amount: 100 ether,
       limitPrice: 1 ether,
       expirationTime: block.timestamp + 1 days,
