@@ -4,59 +4,68 @@ pragma solidity ^0.8.13;
 import "openzeppelin/utils/math/SafeCast.sol";
 import "openzeppelin/utils/cryptography/EIP712.sol";
 import "openzeppelin/utils/cryptography/SignatureChecker.sol";
-import "v2-core/lib/lyra-utils/ownership/Owned.sol";
-import "v2-core/lib/lyra-utils/decimals/DecimalMath.sol";
+import "lyra-utils/ownership/Owned.sol";
+import "lyra-utils/decimals/DecimalMath.sol";
 
-
-import "v2-core/interfaces/IAccounts.sol";
-import "v2-core/interfaces/AccountStructs.sol";
+import "v2-core/src/Accounts.sol";
 import "forge-std/console2.sol";
-import "forge-std/Test.sol";
 
+// todo sub signers
 /**
  * @title Matching
  * @author Lyra
- * @notice Matching contract that allows whitelisted address to submit trades for accounts.
+ * @notice Matching contract that allows whitelisted addresses to submit trades for accounts.
  */
 contract Matching is EIP712, Owned {
   using DecimalMath for uint;
   using SafeCast for uint;
 
   struct Match {
-    uint amount1;
-    uint amount2;
+    uint accountId1;
+    uint accountId2;
+    uint baseAmount;
+    uint quoteAmount;
+    IAsset baseAsset;
+    IAsset quoteAsset;
+    uint baseSubId;
+    uint quoteSubId;
+    uint tradeFee;
     bytes signature1;
     bytes signature2;
   }
 
+  // todo perp asset data
   struct LimitOrder {
-    uint accountId1; // todo rename to from Id <-> to Id ?
-    uint accountId2;
-    IAsset asset1;
-    IAsset asset2; // todo for perps this asset is actually the price?
-    uint subId1;
-    uint subId2;
-    uint asset1Amount;
-    uint minPrice;
+    bool isBid;
+    uint accountId1;
+    uint amount; // For bids, amount is baseAsset. For asks, amount is quoteAsset
+    uint limitPrice;
     uint expirationTime;
-    uint orderId; // todo
+    uint maxFee;
+    uint salt; // todo optional for users with duplicate orders
+    bytes32 tradingPair;
   }
 
-  // todo think about fees
-
-  struct VerifiedOrder {
+  struct VerifiedTrade {
     uint accountId1;
     uint accountId2;
-    IAsset asset1;
-    IAsset asset2;
-    uint subId1;
-    uint subId2;
+    IAsset baseAsset;
+    IAsset quoteAsset;
+    uint baseSubId;
+    uint quoteSubId;
     uint asset1Amount;
     uint asset2Amount;
+    uint tradeFee;
   }
+
+  ///@dev Account Id which receives all fees paid
+  uint public feeAccountId;
 
   ///@dev Accounts contract address
   IAccounts public immutable accounts;
+
+  ///@dev The cash asset used as quote and for paying fees
+  IAsset public cashAsset;
 
   ///@dev Mapping of (address => isWhitelistedModule)
   mapping(address => bool) public isWhitelisted;
@@ -70,12 +79,17 @@ contract Matching is EIP712, Owned {
   ///@dev Mapping to track frozen accounts
   mapping(address => bool) public isFrozen;
 
-  ///@dev LimitOrder Typehash including fillAmount
-  bytes32 public constant _LIMIT_ORDER_TYPEHASH =
-    keccak256("LimitOrder(uint256,uint256,address,uint256,address,uint256,uint256,uint256,uint256,uint256,uint256)");
+  ///@dev Order fill typehash containing the limit order hash and trading pair hash, exluding the counterparty for the trade (accountId2)
+  bytes32 public constant _LIMITORDER_TYPEHASH =
+    keccak256("LimitOrder(bool,uint256,uint256,uint256,uint256,uint256,uint256,bytes32)");
 
-  constructor(IAccounts _accounts) EIP712("Matching", "1.0") {
+  ///@dev Trading pair typehash containing the two IAssets and subIds
+  bytes32 public constant _TRADING_PAIR_TYPEHASH = keccak256("address,address,uint256,uint256");
+
+  constructor(IAccounts _accounts, IAsset _cashAsset, uint _feeAccountId) EIP712("Matching", "1.0") {
     accounts = _accounts;
+    cashAsset = _cashAsset;
+    feeAccountId = _feeAccountId;
   }
 
   ////////////////////////////
@@ -109,21 +123,12 @@ contract Matching is EIP712, Owned {
       revert M_ArrayLengthMismatch(matches.length, orders1.length, orders2.length);
     }
 
-    VerifiedOrder[] memory matchedOrders = new VerifiedOrder[](matches.length);
+    VerifiedTrade[] memory matchedOrders = new VerifiedTrade[](matches.length);
     for (uint i = 0; i < matches.length; i++) {
-      matchedOrders[i] = _trade(matches[i], orders1[i], orders2[i]); // if one trade reverts everything reverts
+      matchedOrders[i] = _verifyTrade(matches[i], orders1[i], orders2[i]); // if one trade reverts everything reverts
     }
 
     _submitAssetTransfers(matchedOrders);
-  }
-
-
-  function submitTrade(Match calldata matchDetails, LimitOrder calldata order1, LimitOrder calldata order2)
-    external 
-    onlyWhitelisted
-    returns (VerifiedOrder memory matchedOrder)
-  {
-    return _trade(matchDetails, order1, order2);
   }
 
   //////////////////////////
@@ -135,6 +140,7 @@ contract Matching is EIP712, Owned {
    * @dev User must approve contract first.
    * @param accountId The users' accountId
    */
+  // todo do we want to allow users to open account or only approval -> OB opens account flow?
   function openCLOBAccount(uint accountId) external {
     accounts.transferFrom(msg.sender, address(this), accountId);
     accountToOwner[accountId] = msg.sender;
@@ -151,11 +157,14 @@ contract Matching is EIP712, Owned {
     delete accountToOwner[accountId];
   }
 
+  // todo withdrawals / key to give permission to trade for an address
+
   /**
    * @notice Allows sender to 'freeze' their account which blocks all trading actions.
    * @param freeze Boolean on whether to freeze or unfreeze your account
    */
   function freezeAccount(bool freeze) external {
+    // todo add signal for withdrawal with time delay
     isFrozen[msg.sender] = freeze;
     emit AccountFrozen(msg.sender, freeze);
   }
@@ -165,159 +174,222 @@ contract Matching is EIP712, Owned {
   //////////////////////////
 
   /**
-   * @notice Allows whitelisted addresses to submit trades
+   * @notice Allows whitelisted addresses to submit trades.
+   * @param matchDetails Contains the details of the order match.
+   * @param order1 Contains the details of one side of the order.
+   * @param order2 Contains the details of the other side of the order.
    *
+   * @return matchedOrder Returns details of the trade to be executed.
    */
-  function _trade(Match calldata matchDetails, LimitOrder calldata order1, LimitOrder calldata order2)
+  function _verifyTrade(Match memory matchDetails, LimitOrder memory order1, LimitOrder memory order2)
     internal
-    returns (VerifiedOrder memory matchedOrder)
+    returns (VerifiedTrade memory matchedOrder)
   {
-    // Verify signatures
-    if (!_verifySignature(order1, matchDetails.amount1, matchDetails.signature1)) {
-      revert M_InvalidSignature(accountToOwner[order1.accountId1]);
-    }
-    if (!_verifySignature(order2, matchDetails.amount2, matchDetails.signature2)) {
-      revert M_InvalidSignature(accountToOwner[order2.accountId1]);
-    }
+    // Verify trading pair and user signatures
+    _verifySignatures(order1, order2, matchDetails);
 
-    // Verify order details
-    _verifyOrderParams(order1);
-    _verifyOrderParams(order2);
+    // Validate parameters for both orders
+    _validateOrderParams(order1);
+    _validateOrderParams(order2);
 
-    // todo ensure the assets are being traded for each other
+    // Validate order match details
+    _validateOrderMatch(order1, order2, matchDetails);
 
-    // Verify price and match details
-    _verifyOrderMatch(order1, order2, matchDetails);
+    // Verify and update fill amounts for both orders
+    _verifyAndUpdateFillAllowance(
+      order1.amount,
+      order2.amount,
+      matchDetails.baseAmount,
+      matchDetails.quoteAmount,
+      _getOrderHash(order1),
+      _getOrderHash(order2)
+    );
 
-    // Get the order hashes
-    bytes32 orderHash1 = _getOrderHash(order1, matchDetails.amount1);
-    bytes32 orderHash2 = _getOrderHash(order2, matchDetails.amount2);
-    console.log("Order2: ", uint(orderHash2));
-
-    // Ensure the orders have not been completely filled yet
-    uint remainingAmount1 = order1.asset1Amount - fillAmounts[orderHash1];
-    uint remainingAmount2 = order2.asset1Amount - fillAmounts[orderHash2];
-    console.log("remainingAmount2", remainingAmount2);
-    console.log("matchdetailsAmot", matchDetails.amount2);
-    console.log("fillAmountOrder2", fillAmounts[orderHash2]);
-    // todo can update to fill as much as possible ?
-    if (remainingAmount1 < matchDetails.amount1) {
-      revert M_InsufficientFillAmount(1, remainingAmount1, matchDetails.amount1);
-    }
-    if (remainingAmount2 < matchDetails.amount2) {
-      revert M_InsufficientFillAmount(2, remainingAmount2, matchDetails.amount2);
-    }
-
-    // Update the filled amounts for the orders
-    fillAmounts[orderHash1] += matchDetails.amount1;
-    fillAmounts[orderHash2] += matchDetails.amount2;
-
-    return VerifiedOrder({
-      accountId1: order1.accountId1,
-      accountId2: order1.accountId2,
-      asset1: order1.asset1,
-      asset2: order1.asset2,
-      subId1: order1.subId1,
-      subId2: order1.subId2,
-      asset1Amount: matchDetails.amount1,
-      asset2Amount: matchDetails.amount2
+    // Once all parameters are verified and validated we return the order details to be executed
+    return VerifiedTrade({
+      accountId1: matchDetails.accountId1,
+      accountId2: matchDetails.accountId2,
+      baseAsset: matchDetails.baseAsset,
+      quoteAsset: matchDetails.quoteAsset,
+      baseSubId: matchDetails.baseSubId,
+      quoteSubId: matchDetails.quoteSubId,
+      asset1Amount: matchDetails.baseAmount,
+      asset2Amount: matchDetails.quoteAmount,
+      tradeFee: matchDetails.tradeFee
     });
   }
 
-  function _verifyOrderParams(LimitOrder calldata order) internal view {
-    // Ensure the maker and taker are different accounts
-    if (order.accountId1 == order.accountId2) revert M_CannotTradeToSelf(order.accountId1);
+  function _verifySignatures(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
+    internal
+    view
+  {
+    // Verify trading pair
+    bytes32 tradingPair = _getTradingPairHash(
+      matchDetails.baseAsset, matchDetails.quoteAsset, matchDetails.baseSubId, matchDetails.quoteSubId
+    );
+    if (order1.tradingPair != tradingPair) revert M_InvalidTradingPair(order1.tradingPair, tradingPair);
+    if (order2.tradingPair != tradingPair) revert M_InvalidTradingPair(order2.tradingPair, tradingPair);
 
-    // Ensure the maker and taker accounts are not frozen
-    if (isFrozen[accountToOwner[order.accountId1]]) revert M_AccountFrozen(accountToOwner[order.accountId1]);
-    if (isFrozen[accountToOwner[order.accountId2]]) revert M_AccountFrozen(accountToOwner[order.accountId2]);
+    bytes32 order1Hash = _getOrderHash(order1);
+    bytes32 order2Hash = _getOrderHash(order2);
 
+    // Verify signatures
+    if (!_verifySignature(order1.accountId1, order1Hash, matchDetails.signature1)) {
+      revert M_InvalidSignature(accountToOwner[order1.accountId1]);
+    }
+    if (!_verifySignature(order2.accountId1, order2Hash, matchDetails.signature2)) {
+      revert M_InvalidSignature(accountToOwner[order2.accountId1]);
+    }
+  }
+
+  function _validateOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
+    internal
+    view
+  {
+    // Ensure the accountId and taker are different accounts
+    if (matchDetails.accountId1 == matchDetails.accountId2) revert M_CannotTradeToSelf(matchDetails.accountId1);
+
+    // Ensure the accountId and taker accounts are not frozen
+    if (isFrozen[accountToOwner[matchDetails.accountId1]]) {
+      revert M_AccountFrozen(accountToOwner[matchDetails.accountId1]);
+    }
+    if (isFrozen[accountToOwner[matchDetails.accountId2]]) {
+      revert M_AccountFrozen(accountToOwner[matchDetails.accountId2]);
+    }
+
+    // Check trade fee < maxFee
+    if (matchDetails.tradeFee > order1.maxFee) revert M_TradeFeeExceedsMaxFee(matchDetails.tradeFee, order1.maxFee);
+    if (matchDetails.tradeFee > order2.maxFee) revert M_TradeFeeExceedsMaxFee(matchDetails.tradeFee, order2.maxFee);
+
+    // Check for zero trade amount
+    if (matchDetails.baseAmount == 0 && matchDetails.quoteAmount == 0) {
+      revert M_ZeroAmountToTrade();
+    }
+
+    // Verify that the two assets are unique
+    if (order1.isBid == order2.isBid) revert M_TradingSameSide();
+    if (matchDetails.baseAsset == matchDetails.quoteAsset) {
+      revert M_CannotTradeSameAsset(matchDetails.baseAsset, matchDetails.quoteAsset);
+    }
+
+    // Verify the calculated price is within the limit price
+    uint calculatedPrice = matchDetails.baseAmount.divideDecimal(matchDetails.quoteAmount);
+    _checkLimitPrice(order1.isBid, order1.limitPrice, calculatedPrice);
+    _checkLimitPrice(order2.isBid, order2.limitPrice, calculatedPrice);
+  }
+
+  function _validateOrderParams(LimitOrder memory order) internal view {
     // Ensure some amount is traded
-    if (order.asset1Amount == 0) revert M_ZeroAmountToTrade();
+    if (order.amount == 0) revert M_ZeroAmountToTrade();
 
     // Ensure order has not expired
     if (block.timestamp > order.expirationTime) revert M_OrderExpired(block.timestamp, order.expirationTime);
   }
 
-  function _verifyOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
-    internal
-    view
-  {
-    if (matchDetails.amount1 == 0 && matchDetails.amount1 == matchDetails.amount2) revert M_ZeroAmountToTrade();
-    if (order1.accountId1 != order2.accountId2 || order1.accountId2 != order2.accountId1) {
-      revert M_AccountIdsDoNotMatch(order1.accountId1, order2.accountId2, order1.accountId2, order2.accountId1);
+  function _verifyAndUpdateFillAllowance(
+    uint order1Amount,
+    uint order2Amount,
+    uint baseAmount,
+    uint quoteAmount,
+    bytes32 order1Hash,
+    bytes32 order2Hash
+  ) internal {
+    // Ensure the orders have not been completely filled yet
+    uint remainingAmount1 = order1Amount - fillAmounts[order1Hash];
+    uint remainingAmount2 = order2Amount - fillAmounts[order2Hash];
+
+    if (remainingAmount1 < baseAmount) {
+      revert M_InsufficientFillAmount(1, remainingAmount1, baseAmount);
     }
-    uint calculatedPrice = matchDetails.amount1.divideDecimal(matchDetails.amount2);
+    if (remainingAmount2 < quoteAmount) {
+      revert M_InsufficientFillAmount(2, remainingAmount2, quoteAmount);
+    }
 
-    console.log("Order 1 amount:", order1.asset1Amount);
-    console.log("Order 2 amount:", order2.asset1Amount);
-    console.log("Order 1 min price:", order1.minPrice);
-    console.log("Order 2 min price:", order2.minPrice);
-    console.log("Executed price   :", calculatedPrice);
+    // Update the filled amounts for the orders
+    fillAmounts[order1Hash] += baseAmount;
+    fillAmounts[order2Hash] += quoteAmount;
+  }
 
-    // Verify the calculated price is greater or equal to min price for both orders
-    if (calculatedPrice < order1.minPrice) revert M_PriceBelowMinPrice(order1.minPrice, calculatedPrice);
-    if (calculatedPrice < order2.minPrice) revert M_PriceBelowMinPrice(order2.minPrice, calculatedPrice);
-
-    // Verify that the two assets are being traded for each other
-    if (order1.asset1 != order2.asset2 || order1.asset2 != order2.asset1) {
-      revert M_TradingDifferentAssets(order1.asset1, order2.asset2, order1.asset2, order1.asset1);
-    } else if (order1.subId1 != order2.subId2 || order1.subId2 != order2.subId1) {
-      revert M_TradingDifferentSubIds(order1.subId1, order2.subId2, order1.subId2, order1.subId1);
+  function _checkLimitPrice(bool isBid, uint limitPrice, uint calculatedPrice) internal pure {
+    // If you want to buy but the price is above your limit
+    if (isBid && calculatedPrice > limitPrice) {
+      revert M_BidPriceAboveLimit(limitPrice, calculatedPrice);
+    } else if (!isBid && calculatedPrice < limitPrice) {
+      // If you are selling but the price is below your limit
+      revert M_AskPriceBelowLimit(limitPrice, calculatedPrice);
     }
   }
 
-  function _submitAssetTransfers(VerifiedOrder[] memory orders) internal {
-    AccountStructs.AssetTransfer[] memory transferBatch = new AccountStructs.AssetTransfer[](orders.length * 2);
+  function _submitAssetTransfers(VerifiedTrade[] memory orders) internal {
+    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](orders.length * 4);
 
     for (uint i = 0; i < orders.length; i++) {
-      transferBatch[i] = AccountStructs.AssetTransfer({
+      // Transfer assets between the two accounts
+      transferBatch[i] = IAccounts.AssetTransfer({
         fromAcc: orders[i].accountId1,
         toAcc: orders[i].accountId2,
-        asset: orders[i].asset1,
-        subId: orders[i].subId1,
+        asset: orders[i].baseAsset,
+        subId: orders[i].baseSubId,
         amount: orders[i].asset1Amount.toInt256(),
         assetData: bytes32(0)
       });
 
-      transferBatch[i + 1] = AccountStructs.AssetTransfer({
+      transferBatch[i + 1] = IAccounts.AssetTransfer({
         fromAcc: orders[i].accountId2,
         toAcc: orders[i].accountId1,
-        asset: orders[i].asset2,
-        subId: orders[i].subId2,
+        asset: orders[i].quoteAsset,
+        subId: orders[i].quoteSubId,
         amount: orders[i].asset2Amount.toInt256(),
+        assetData: bytes32(0)
+      });
+
+      // Charge fee from both accounts to the feeAccount
+      transferBatch[i + 2] = IAccounts.AssetTransfer({
+        fromAcc: orders[i].accountId1,
+        toAcc: feeAccountId,
+        asset: cashAsset,
+        subId: 0,
+        amount: orders[i].tradeFee.toInt256(),
+        assetData: bytes32(0)
+      });
+
+      transferBatch[i + 3] = IAccounts.AssetTransfer({
+        fromAcc: orders[i].accountId2,
+        toAcc: feeAccountId,
+        asset: cashAsset,
+        subId: 0,
+        amount: orders[i].tradeFee.toInt256(),
         assetData: bytes32(0)
       });
     }
 
-    accounts.submitTransfers(transferBatch, "");
+    accounts.submitTransfers(transferBatch, ""); // todo fill with oracle data
   }
 
-  function _verifySignature(LimitOrder calldata order, uint fillAmount, bytes calldata signature)
+  function _verifySignature(uint accountId, bytes32 orderHash, bytes memory signature) internal view returns (bool) {
+    return SignatureChecker.isValidSignatureNow(accountToOwner[accountId], _hashTypedDataV4(orderHash), signature);
+  }
+
+  function _getTradingPairHash(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
     internal
-    view
-    returns (bool)
+    pure
+    returns (bytes32)
   {
-    bytes32 orderHash = _getOrderHash(order, fillAmount);
-    return
-      SignatureChecker.isValidSignatureNow(accountToOwner[order.accountId1], _hashTypedDataV4(orderHash), signature);
+    return keccak256(abi.encode(_TRADING_PAIR_TYPEHASH, baseAsset, quoteAsset, baseSubId, quoteSubId));
   }
 
-  function _getOrderHash(LimitOrder calldata order, uint fillAmount) internal pure returns (bytes32) {
+  function _getOrderHash(LimitOrder memory order) internal pure returns (bytes32) {
     return keccak256(
       abi.encode(
-        _LIMIT_ORDER_TYPEHASH,
+        _LIMITORDER_TYPEHASH,
+        order.isBid,
         order.accountId1,
-        order.accountId2,
-        order.asset1,
-        order.subId1,
-        order.asset2,
-        order.subId2,
-        order.asset1Amount,
-        order.minPrice,
+        order.amount,
+        order.limitPrice,
         order.expirationTime,
-        order.orderId,
-        fillAmount
+        order.maxFee,
+        order.salt,
+        order.tradingPair
       )
     );
   }
@@ -333,16 +405,20 @@ contract Matching is EIP712, Owned {
     return _domainSeparatorV4();
   }
 
-  function getOrderHash(LimitOrder calldata order, uint fillAmount) external pure returns (bytes32) {
-    return _getOrderHash(order, fillAmount);
+  function getOrderHash(LimitOrder calldata order) external pure returns (bytes32) {
+    return _getOrderHash(order);
   }
 
-  function verifySignature(LimitOrder calldata order, uint fillAmount, bytes calldata signature)
+  function getTradingPair(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
     external
-    view
-    returns (bool)
+    pure
+    returns (bytes32)
   {
-    return _verifySignature(order, fillAmount, signature);
+    return _getTradingPairHash(baseAsset, quoteAsset, baseSubId, quoteSubId);
+  }
+
+  function verifySignature(uint accountId, bytes32 orderHash, bytes memory signature) external view returns (bool) {
+    return _verifySignature(accountId, orderHash, signature);
   }
 
   /////////////////
@@ -366,18 +442,24 @@ contract Matching is EIP712, Owned {
   /**
    * @dev Emitted when a trade is executed
    */
-  event Trade(bytes32 indexed orderHash, uint fillAmount);
+  event Trade(bytes32 indexed OrderParams, uint fillAmount);
 
   /**
    * @dev Emitted when a user's account is frozen or unfrozen
    */
   event AccountFrozen(address account, bool isFrozen);
 
+  /**
+   * @dev Emitted when the base fee rate is updated for an asset
+   */
+  event FeeRateUpdated(IAsset asset, uint newFeeRate);
+
   ////////////
   // Errors //
   ////////////
 
   error M_InvalidSignature(address signer);
+  error M_InvalidTradingPair(bytes32 suppliedHash, bytes32 matchHash);
   error M_NotWhitelisted();
   error M_NotOwnerAddress(address sender, address owner);
   error M_AccountFrozen(address owner);
@@ -385,9 +467,10 @@ contract Matching is EIP712, Owned {
   error M_InsufficientFillAmount(uint orderNumber, uint remainingFill, uint requestedFill);
   error M_OrderExpired(uint blockTimestamp, uint expirationTime);
   error M_ZeroAmountToTrade();
+  error M_TradingSameSide();
   error M_ArrayLengthMismatch(uint length1, uint length2, uint length3);
-  error M_PriceBelowMinPrice(uint order1Price, uint order2Price);
-  error M_TradingDifferentAssets(IAsset order1Asset1, IAsset order2Asset2, IAsset order1Asset2, IAsset order2Asset1);
-  error M_TradingDifferentSubIds(uint order1SubId1, uint order2SubId2, uint order1SubId2, uint order2SubId1);
-  error M_AccountIdsDoNotMatch(uint order1fromId, uint order2toId, uint order1toId, uint order2fromId);
+  error M_AskPriceBelowLimit(uint limitPrice, uint calculatedPrice);
+  error M_BidPriceAboveLimit(uint limitPrice, uint calculatedPrice);
+  error M_CannotTradeSameAsset(IAsset baseAsset, IAsset quoteAsset);
+  error M_TradeFeeExceedsMaxFee(uint tradeFee, uint maxFee);
 }

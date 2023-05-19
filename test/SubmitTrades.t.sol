@@ -1,14 +1,13 @@
-// // SPDX-License-Identifier: UNLICENSED
-// pragma solidity ^0.8.13;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
 
 // import "forge-std/console2.sol";
-// import "../../integration-tests/shared/IntegrationTestBase.sol";
-// import "v2-core/src/interfaces/IManager.sol";
-// import "v2-core/src/Matching.sol";
-
+// import "v2-core/test/integration-tests/shared/IntegrationTestBase.sol";
+// import {Matching} from "src/Matching.sol";
 // /**
 //  * @dev testing charge of OI fee in a real setting
 //  */
+
 // contract INTEGRATION_MatchingSubmitTrades is IntegrationTestBase {
 //   using DecimalMath for uint;
 
@@ -33,7 +32,7 @@
 
 //   function setUp() public {
 //     _setupIntegrationTestComplete();
-//     matching = new Matching(accounts);
+//     matching = new Matching(IAccounts(accounts));
 //     domainSeparator = matching.domainSeparator();
 //     matching.setWhitelist(address(this), true);
 
@@ -65,8 +64,8 @@
 //     uint callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
 
 //     // First give Charlie the call option
-//     AccountStructs.AssetTransfer[] memory transferBatch = new AccountStructs.AssetTransfer[](1);
-//     transferBatch[0] = AccountStructs.AssetTransfer({
+//     IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
+//     transferBatch[0] = IAccounts.AssetTransfer({
 //       fromAcc: aliceAcc,
 //       toAcc: charlieAcc,
 //       asset: option,
@@ -118,8 +117,8 @@
 //     uint callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
 
 //     // First give Charlie the call option
-//     AccountStructs.AssetTransfer[] memory transferBatch = new AccountStructs.AssetTransfer[](1);
-//     transferBatch[0] = AccountStructs.AssetTransfer({
+//     IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
+//     transferBatch[0] = IAccounts.AssetTransfer({
 //       fromAcc: aliceAcc,
 //       toAcc: charlieAcc,
 //       asset: option,
@@ -168,8 +167,8 @@
 //     uint callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
 
 //     // First give Charlie the call option
-//     AccountStructs.AssetTransfer[] memory transferBatch = new AccountStructs.AssetTransfer[](1);
-//     transferBatch[0] = AccountStructs.AssetTransfer({
+//     IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
+//     transferBatch[0] = IAccounts.AssetTransfer({
 //       fromAcc: aliceAcc,
 //       toAcc: charlieAcc,
 //       asset: option,
@@ -210,11 +209,11 @@
 //   }
 
 //   function testCannotSubmitMultipleTradesZeroAmount() public {
-//       uint callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
+//     uint callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
 
 //     // First give Charlie the call option
-//     AccountStructs.AssetTransfer[] memory transferBatch = new AccountStructs.AssetTransfer[](1);
-//     transferBatch[0] = AccountStructs.AssetTransfer({
+//     IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
+//     transferBatch[0] = IAccounts.AssetTransfer({
 //       fromAcc: aliceAcc,
 //       toAcc: charlieAcc,
 //       asset: option,
@@ -231,10 +230,8 @@
 //       _createSignedOrder(daveAcc, charlieAcc, cash, 0, option, callId, 1e18, 0, 0, daveKey, 2);
 
 //     Matching.Match[] memory matchDetailsArray = new Matching.Match[](2);
-//     matchDetailsArray[0] =
-//       Matching.Match({amount1: 0, amount2: 0, signature1: signature1, signature2: signature2});
-//     matchDetailsArray[1] =
-//       Matching.Match({amount1: 0, amount2: 0, signature1: signature2, signature2: signature1});
+//     matchDetailsArray[0] = Matching.Match({amount1: 0, amount2: 0, signature1: signature1, signature2: signature2});
+//     matchDetailsArray[1] = Matching.Match({amount1: 0, amount2: 0, signature1: signature2, signature2: signature1});
 
 //     Matching.LimitOrder[] memory order1Array = new Matching.LimitOrder[](2);
 //     order1Array[0] = order1;
@@ -252,8 +249,8 @@
 //     uint callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
 
 //     // First give Charlie the call option
-//     AccountStructs.AssetTransfer[] memory transferBatch = new AccountStructs.AssetTransfer[](1);
-//     transferBatch[0] = AccountStructs.AssetTransfer({
+//     IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
+//     transferBatch[0] = IAccounts.AssetTransfer({
 //       fromAcc: aliceAcc,
 //       toAcc: charlieAcc,
 //       asset: option,
@@ -296,8 +293,8 @@
 //     uint callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
 
 //     // First give Charlie the call option
-//     AccountStructs.AssetTransfer[] memory transferBatch = new AccountStructs.AssetTransfer[](1);
-//     transferBatch[0] = AccountStructs.AssetTransfer({
+//     IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
+//     transferBatch[0] = IAccounts.AssetTransfer({
 //       fromAcc: aliceAcc,
 //       toAcc: charlieAcc,
 //       asset: option,
@@ -311,14 +308,16 @@
 //     (Matching.LimitOrder memory order1, bytes memory signature1) =
 //       _createSignedOrder(charlieAcc, daveAcc, option, callId, cash, 0, 1e18, 2e18, 1e18, charlieKey, 1);
 //     (Matching.LimitOrder memory order2, bytes memory signature2) =
-//       _createSignedOrder(daveAcc, charlieAcc, cash, 0, option, callId, 1e18, 1e18, 1e18, daveKey, 2);   
-//     Matching.Match memory firstOrder = Matching.Match({amount1: 1e18, amount2: 1e18, signature1: signature1, signature2: signature2});
+//       _createSignedOrder(daveAcc, charlieAcc, cash, 0, option, callId, 1e18, 1e18, 1e18, daveKey, 2);
+//     Matching.Match memory firstOrder =
+//       Matching.Match({amount1: 1e18, amount2: 1e18, signature1: signature1, signature2: signature2});
 //     matching.submitTrade(firstOrder, order1, order2);
 
 //     // Second order fills the rest of charlies amount
-//      (Matching.LimitOrder memory order3, bytes memory signature3) =
+//     (Matching.LimitOrder memory order3, bytes memory signature3) =
 //       _createSignedOrder(daveAcc, charlieAcc, cash, 0, option, callId, 1e18, 1e18, 1e18, daveKey, 3);
-//     Matching.Match memory secondOrder = Matching.Match({amount1: 1e18, amount2: 1e18, signature1: signature1, signature2: signature3});
+//     Matching.Match memory secondOrder =
+//       Matching.Match({amount1: 1e18, amount2: 1e18, signature1: signature1, signature2: signature3});
 //     matching.submitTrade(secondOrder, order1, order3);
 //   }
 
@@ -329,7 +328,7 @@
 //     uint subId1,
 //     IAsset asset2,
 //     uint subId2,
-//     uint minPrice,
+//     uint limitPrice,
 //     uint assetAmount,
 //     uint fillAmount,
 //     uint pk,
@@ -344,18 +343,18 @@
 //       asset2: asset2,
 //       subId2: subId2,
 //       asset1Amount: assetAmount,
-//       minPrice: minPrice,
+//       limitPrice: limitPrice,
 //       expirationTime: block.timestamp + 1 days,
 //       orderId: orderId
 //     });
 
 //     // Sign the order
-//     bytes32 orderHash = matching.getOrderHash(order, fillAmount);
-//     signature = _sign(orderHash, pk);
+//     bytes32 OrderParams = matching.getOrderParams(order, fillAmount);
+//     signature = _sign(OrderParams, pk);
 //   }
 
-//   function _sign(bytes32 orderHash, uint pk) internal view returns (bytes memory) {
-//     (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ECDSA.toTypedDataHash(domainSeparator, orderHash));
+//   function _sign(bytes32 OrderParams, uint pk) internal view returns (bytes memory) {
+//     (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ECDSA.toTypedDataHash(domainSeparator, OrderParams));
 //     return bytes.concat(r, s, bytes1(v));
 //   }
 // }
