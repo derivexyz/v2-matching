@@ -309,9 +309,8 @@ contract UNIT_MatchingVerifyOrder is Test {
     uint fillAmount1 = 50 ether;
     uint fillAmount2 = 9 ether;
 
-    (Matching.LimitOrder memory order1, bytes memory signature1) = _createSignedOrder(
-      accountId, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, aliceKey, true
-    );
+    (Matching.LimitOrder memory order1, bytes memory signature1) =
+      _createSignedOrder(accountId, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, aliceKey, true);
     (Matching.LimitOrder memory order2, bytes memory signature2) =
       _createSignedOrder(accountId2, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, bobKey, false);
 
