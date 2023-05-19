@@ -58,6 +58,11 @@ contract Matching is EIP712, Owned {
     uint tradeFee;
   }
 
+  struct Permission {
+    address owner;
+    uint expiry;
+  }
+
   ///@dev Account Id which receives all fees paid
   uint public feeAccountId;
 
@@ -75,9 +80,9 @@ contract Matching is EIP712, Owned {
 
   ///@dev Mapping of accountId to address
   mapping(uint => address) public accountToOwner;
-  
+
   ///@dev Mapping of permissioned address to owner address
-  mapping(address => address) public permissionedAddress; // Allows other addresses to trade on behalf of others // todo functionality not implemented yet
+  mapping(address => Permission) public permissions; // Allows other addresses to trade on behalf of others // todo functionality not implemented yet
 
   ///@dev Mapping to track fill amounts per order
   mapping(bytes32 => uint) public fillAmounts;
@@ -163,6 +168,14 @@ contract Matching is EIP712, Owned {
     accounts.submitTransfer(transferData, "");
   }
 
+  /**
+   * @notice Allows whitelisted addresses to force close an account with no cooldown delay.
+   */
+  function forceCloseCLOBAccount(uint accountId) external onlyWhitelisted {
+    accounts.transferFrom(address(this), accountToOwner[accountId], accountId);
+    delete accountToOwner[accountId];
+  }
+
   //////////////////////////
   //  External Functions  //
   //////////////////////////
@@ -195,7 +208,7 @@ contract Matching is EIP712, Owned {
   }
 
   /**
-   * @notice Activates the cooldown period to withdraw account and freezes account from trading
+   * @notice Activates the cooldown period to withdraw account and freezes account from trading.
    */
   function requestWithdraw(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
@@ -204,14 +217,19 @@ contract Matching is EIP712, Owned {
   }
 
   /**
-   * @notice Allows owner to register the public address associated with their session key
-   * @dev Registered address gains owner address permission to the subAccount
+   * @notice Allows owner to register the public address associated with their session key.
+   * @dev Registered address gains owner address permission to the subAccount.
+   * @param duration The duration in seconds for which the permission should last.
    */
-  function registerSessionKey(uint accountId, address toAllow, address owner) {
+  function registerSessionKey(uint accountId, address toAllow, address owner, uint duration) public {
     if (msg.sender != owner) revert M_NotOwnerAddress(msg.sender, owner);
     if (accountToOwner[accountId] != owner) revert M_InvalidAccountOwner(accountToOwner[accountId], owner);
 
-    permissionedAddress[toAllow] = owner;
+    Permission memory newPermission;
+    newPermission.owner = owner;
+    newPermission.expiry = block.timestamp + duration;
+
+    permissions[toAllow] = newPermission;
   }
 
   //////////////////////////
