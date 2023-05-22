@@ -13,7 +13,7 @@ import {Matching} from "src/Matching.sol";
  * @dev Tests that users can sign for their orders
  */
 contract UNIT_MatchingSigning is Test {
-  IAsset cashAsset;
+  address cashAsset;
   MockERC20 usdc;
   MockManager manager;
   Accounts account;
@@ -39,7 +39,7 @@ contract UNIT_MatchingSigning is Test {
 
   function setUp() public {
     account = new Accounts("Lyra Margin Accounts", "LyraMarginNFTs");
-    cashAsset = IAsset(address(usdc));
+    cashAsset = address(usdc);
     matching = new Matching(account, cashAsset, 420,0);
 
     manager = new MockManager(address(account));

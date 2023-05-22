@@ -7,10 +7,10 @@ import "openzeppelin/utils/cryptography/SignatureChecker.sol";
 import "lyra-utils/ownership/Owned.sol";
 import "lyra-utils/decimals/DecimalMath.sol";
 
+import "v2-core/src/interfaces/ICashAsset.sol";
 import "v2-core/src/Accounts.sol";
 import "forge-std/console2.sol";
 
-// todo sub signers
 /**
  * @title Matching
  * @author Lyra
@@ -58,9 +58,12 @@ contract Matching is EIP712, Owned {
     uint tradeFee;
   }
 
-  struct Permission {
-    address owner;
-    uint expiry;
+  struct TransferAsset {
+    IAsset asset;
+    uint subId;
+    uint amount;
+    uint fromAcc;
+    uint toAcc;
   }
 
   ///@dev Account Id which receives all fees paid
@@ -73,7 +76,7 @@ contract Matching is EIP712, Owned {
   IAccounts public immutable accounts;
 
   ///@dev The cash asset used as quote and for paying fees
-  IAsset public cashAsset;
+  address public cashAsset;
 
   ///@dev Mapping of (address => isWhitelistedModule)
   mapping(address => bool) public isWhitelisted;
@@ -81,8 +84,8 @@ contract Matching is EIP712, Owned {
   ///@dev Mapping of accountId to address
   mapping(uint => address) public accountToOwner;
 
-  ///@dev Mapping of permissioned address to owner address
-  mapping(address => Permission) public permissions; // Allows other addresses to trade on behalf of others // todo functionality not implemented yet
+  ///@dev Mapping of signer address to account
+  mapping(address => mapping(uint => uint)) public permissions; // Allows other addresses to trade on behalf of others
 
   ///@dev Mapping to track fill amounts per order
   mapping(bytes32 => uint) public fillAmounts;
@@ -97,7 +100,10 @@ contract Matching is EIP712, Owned {
   ///@dev Trading pair typehash containing the two IAssets and subIds
   bytes32 public constant _TRADING_PAIR_TYPEHASH = keccak256("address,address,uint256,uint256");
 
-  constructor(IAccounts _accounts, IAsset _cashAsset, uint _feeAccountId, uint _cooldownSeconds)
+  ///@dev Transfer Asset typehash containing the asset and amount you want to transfer
+  bytes32 public constant _TRANSFER_ASSET_TYPEHASH = keccak256("TransferAsset(address,uint256,uint256,uint256,uint256");
+
+  constructor(IAccounts _accounts, address _cashAsset, uint _feeAccountId, uint _cooldownSeconds)
     EIP712("Matching", "1.0")
   {
     accounts = _accounts;
@@ -149,19 +155,29 @@ contract Matching is EIP712, Owned {
    * @dev Transfers a specific amount of an asset from one account to another.
    * Can only be called by an address that is currently whitelisted.
    *
-   * @param fromAcc The ID of the account from which the asset is to be transferred.
-   * @param toAcc The ID of the account to which the asset is to be transferred.
-   * @param asset The asset to be transferred.
-   * @param subId The subId of the asset
-   * @param amount The amount of the asset to be transferred.
+   * @param transfer The details of the asset transfer to be made.
+   * @param signature The signed message from the owner account.
    */
-  function transferAsset(uint fromAcc, uint toAcc, IAsset asset, uint subId, uint amount) external onlyWhitelisted {
+  function transferAsset(TransferAsset memory transfer, bytes memory signature) external onlyWhitelisted {
+    // Verify signature is signed by the account owner or permitted address
+    bytes32 transferHash = _getTransferHash(transfer);
+    if (!_verifySignature(transfer.fromAcc, transferHash, signature)) {
+      revert M_InvalidSignature(accountToOwner[transfer.fromAcc]);
+    }
+
+    // Ensure permission has not expired for the 'toAcc' and the signer is not the account owner
+    address sessionKeyAddress = _recoverAddress(transferHash, signature);
+    if (
+      permissions[sessionKeyAddress][transfer.fromAcc] < block.timestamp
+        && accountToOwner[transfer.toAcc] != sessionKeyAddress
+    ) revert M_SessionKeyInvalid(sessionKeyAddress);
+
     IAccounts.AssetTransfer memory transferData = IAccounts.AssetTransfer({
-      fromAcc: fromAcc,
-      toAcc: toAcc,
-      asset: asset,
-      subId: subId,
-      amount: amount.toInt256(),
+      fromAcc: transfer.fromAcc,
+      toAcc: transfer.toAcc,
+      asset: transfer.asset,
+      subId: transfer.subId,
+      amount: transfer.amount.toInt256(),
       assetData: bytes32(0)
     });
 
@@ -218,18 +234,24 @@ contract Matching is EIP712, Owned {
 
   /**
    * @notice Allows owner to register the public address associated with their session key.
-   * @dev Registered address gains owner address permission to the subAccount.
-   * @param duration The duration in seconds for which the permission should last.
+   * @dev Registered address gains owner address permission to the subAccount until expiry.
+   * @param expiry When the access to the owner address expires
    */
-  function registerSessionKey(uint accountId, address toAllow, address owner, uint duration) public {
+  function registerSessionKey(uint accountId, address toAllow, address owner, uint expiry) external {
     if (msg.sender != owner) revert M_NotOwnerAddress(msg.sender, owner);
     if (accountToOwner[accountId] != owner) revert M_InvalidAccountOwner(accountToOwner[accountId], owner);
 
-    Permission memory newPermission;
-    newPermission.owner = owner;
-    newPermission.expiry = block.timestamp + duration;
+    permissions[toAllow][accountId] = expiry;
+  }
 
-    permissions[toAllow] = newPermission;
+  function withdrawCash(TransferAsset memory transfer, bytes memory signature) external {
+    // Verify signatures
+    bytes32 transferHash = _getTransferHash(transfer);
+    if (!_verifySignature(transfer.fromAcc, transferHash, signature)) {
+      revert M_InvalidSignature(accountToOwner[transfer.fromAcc]);
+    }
+
+    ICashAsset(cashAsset).withdraw(transfer.fromAcc, transfer.amount, accountToOwner[transfer.fromAcc]);
   }
 
   //////////////////////////
@@ -249,7 +271,7 @@ contract Matching is EIP712, Owned {
     returns (VerifiedTrade memory matchedOrder)
   {
     // Verify trading pair and user signatures
-    _verifySignatures(order1, order2, matchDetails);
+    _verifyTradeSignatures(order1, order2, matchDetails);
 
     // Validate parameters for both orders
     _validateOrderParams(order1);
@@ -282,7 +304,7 @@ contract Matching is EIP712, Owned {
     });
   }
 
-  function _verifySignatures(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
+  function _verifyTradeSignatures(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
     internal
     view
   {
@@ -410,7 +432,7 @@ contract Matching is EIP712, Owned {
       transferBatch[i + 2] = IAccounts.AssetTransfer({
         fromAcc: orders[i].accountId1,
         toAcc: feeAccountId,
-        asset: cashAsset,
+        asset: IAsset(cashAsset),
         subId: 0,
         amount: orders[i].tradeFee.toInt256(),
         assetData: bytes32(0)
@@ -419,7 +441,7 @@ contract Matching is EIP712, Owned {
       transferBatch[i + 3] = IAccounts.AssetTransfer({
         fromAcc: orders[i].accountId2,
         toAcc: feeAccountId,
-        asset: cashAsset,
+        asset: IAsset(cashAsset),
         subId: 0,
         amount: orders[i].tradeFee.toInt256(),
         assetData: bytes32(0)
@@ -429,8 +451,19 @@ contract Matching is EIP712, Owned {
     accounts.submitTransfers(transferBatch, ""); // todo fill with oracle data
   }
 
-  function _verifySignature(uint accountId, bytes32 orderHash, bytes memory signature) internal view returns (bool) {
-    return SignatureChecker.isValidSignatureNow(accountToOwner[accountId], _hashTypedDataV4(orderHash), signature);
+  // Verify signature against owner address or permissioned address
+  function _verifySignature(uint accountId, bytes32 structuredHash, bytes memory signature) internal view returns (bool) {
+    if (SignatureChecker.isValidSignatureNow(accountToOwner[accountId], _hashTypedDataV4(structuredHash), signature) == true)
+    {
+      return true;
+    } else {
+      address signer = _recoverAddress(structuredHash, signature);
+      console2.log("Signer", signer);
+      if (permissions[signer][accountId] > block.timestamp) {
+        return true;
+      }
+      return false;
+    }
   }
 
   function _getTradingPairHash(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
@@ -457,6 +490,19 @@ contract Matching is EIP712, Owned {
     );
   }
 
+  function _getTransferHash(TransferAsset memory transfer) internal pure returns (bytes32) {
+    return keccak256(
+      abi.encode(
+        _TRANSFER_ASSET_TYPEHASH, transfer.asset, transfer.subId, transfer.amount, transfer.fromAcc, transfer.toAcc
+      )
+    );
+  }
+
+  function _recoverAddress(bytes32 hash, bytes memory signature) internal pure returns (address) {
+    (address recovered,) = ECDSA.tryRecover(hash, signature);
+    return recovered;
+  }
+
   //////////
   // View //
   //////////
@@ -470,6 +516,10 @@ contract Matching is EIP712, Owned {
 
   function getOrderHash(LimitOrder calldata order) external pure returns (bytes32) {
     return _getOrderHash(order);
+  }
+
+  function getTransferHash(TransferAsset calldata transfer) external pure returns (bytes32) {
+    return _getTransferHash(transfer);
   }
 
   function getTradingPair(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
@@ -543,4 +593,5 @@ contract Matching is EIP712, Owned {
   error M_CannotTradeSameAsset(IAsset baseAsset, IAsset quoteAsset);
   error M_TradeFeeExceedsMaxFee(uint tradeFee, uint maxFee);
   error M_CooldownNotElapsed(uint secondsLeft);
+  error M_SessionKeyInvalid(address sessionKeyPublicAddress);
 }
