@@ -84,8 +84,8 @@ contract Matching is EIP712, Owned {
   ///@dev Mapping of accountId to address
   mapping(uint => address) public accountToOwner;
 
-  ///@dev Mapping of signer address to account
-  mapping(address => mapping(uint => uint)) public permissions; // Allows other addresses to trade on behalf of others
+  ///@dev Mapping of signer address -> owner address -> expiry
+  mapping(address => mapping(address => uint)) public permissions; // Allows other addresses to trade on behalf of others
 
   ///@dev Mapping to track fill amounts per order
   mapping(bytes32 => uint) public fillAmounts;
@@ -168,7 +168,7 @@ contract Matching is EIP712, Owned {
     // Ensure permission has not expired for the 'toAcc' and the signer is not the account owner
     address sessionKeyAddress = _recoverAddress(transferHash, signature);
     if (
-      permissions[sessionKeyAddress][transfer.fromAcc] < block.timestamp
+      permissions[sessionKeyAddress][accountToOwner[transfer.fromAcc]] < block.timestamp
         && accountToOwner[transfer.toAcc] != sessionKeyAddress
     ) revert M_SessionKeyInvalid(sessionKeyAddress);
 
@@ -241,7 +241,7 @@ contract Matching is EIP712, Owned {
     if (msg.sender != owner) revert M_NotOwnerAddress(msg.sender, owner);
     if (accountToOwner[accountId] != owner) revert M_InvalidAccountOwner(accountToOwner[accountId], owner);
 
-    permissions[toAllow][accountId] = expiry;
+    permissions[toAllow][accountToOwner[accountId]] = expiry;
   }
 
   function withdrawCash(TransferAsset memory transfer, bytes memory signature) external {
@@ -459,7 +459,7 @@ contract Matching is EIP712, Owned {
     } else {
       address signer = _recoverAddress(structuredHash, signature);
       console2.log("Signer", signer);
-      if (permissions[signer][accountId] > block.timestamp) {
+      if (permissions[signer][accountToOwner[accountId]] > block.timestamp) {
         return true;
       }
       return false;
