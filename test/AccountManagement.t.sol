@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 import "v2-core/test/shared/mocks/MockManager.sol";
+import "v2-core/test/shared/mocks/MockFeed.sol";
 import "v2-core/test/integration-tests/shared/IntegrationTestBase.sol";
 import {Matching} from "src/Matching.sol";
 
@@ -16,8 +17,10 @@ contract UNIT_MatchingAccountManagement is Test {
   address cash;
   MockERC20 usdc;
   MockManager manager;
+  MockFeed feed;
   Accounts account;
   Matching matching;
+  Option option;
 
   uint private immutable aliceKey;
   uint private immutable bobKey;
@@ -30,6 +33,7 @@ contract UNIT_MatchingAccountManagement is Test {
 
   uint aliceAcc;
   uint bobAcc;
+  uint callId;
   uint positiveAmount = 1e18;
   uint negativeAmount = 2e18;
 
@@ -46,9 +50,10 @@ contract UNIT_MatchingAccountManagement is Test {
     matching = new Matching(account, cash, 420, COOLDOWN_SEC);
 
     manager = new MockManager(address(account));
-
+    feed = new MockFeed();
     usdc = new MockERC20("USDC", "USDC");
     // 10000 USDC with 18 decimals
+    
     usdc.mint(alice, 10000 ether);
     aliceAcc = account.createAccount(alice, manager);
     bobAcc = account.createAccount(bob, manager);
@@ -56,7 +61,24 @@ contract UNIT_MatchingAccountManagement is Test {
     domainSeparator = matching.domainSeparator();
     matching.setWhitelist(address(this), true);
 
-    vm.startPrank(alice);
+    option = new Option(account, address(feed));
+  option.setWhitelistManager(address(manager), true);
+   
+
+    callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
+
+    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
+    transferBatch[0] = IAccounts.AssetTransfer({
+      fromAcc: aliceAcc,
+      toAcc: bobAcc,
+      asset: option,
+      subId: callId,
+      amount: 10e18,
+      assetData: bytes32(0)
+    });
+    account.submitTransfers(transferBatch, "");
+
+     vm.startPrank(alice);
     account.approve(address(matching), aliceAcc);
     matching.openCLOBAccount(aliceAcc);
     vm.stopPrank();
@@ -65,19 +87,6 @@ contract UNIT_MatchingAccountManagement is Test {
     account.approve(address(matching), bobAcc);
     matching.openCLOBAccount(bobAcc);
     vm.stopPrank();
-
-    //   uint callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
-
-    // IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
-    // transferBatch[0] = IAccounts.AssetTransfer({
-    //   fromAcc: aliceAcc,
-    //   toAcc: bobAcc,
-    //   asset: option,
-    //   subId: callId,
-    //   amount: amountOfContracts,
-    //   assetData: bytes32(0)
-    // });
-    // accounts.submitTransfers(transferBatch, "");
   }
 
   function testCanWithdrawAccount() public {
@@ -105,10 +114,13 @@ contract UNIT_MatchingAccountManagement is Test {
 
   function testCanTransferAsset() public {
     uint transferAmount = 10e18;
-    int alicePrevious = getCashBalance(aliceAcc);
-    int bobPrevious = getCashBalance(bobAcc);
+    // int alicePrevious = getCashBalance(aliceAcc);
+    // int bobPrevious = getCashBalance(bobAcc);
     // assertEq(alicePrevious.toUint256(), DEFAULT_DEPOSIT);
     // assertEq(bobPrevious.toUint256(), DEFAULT_DEPOSIT);
+
+    int bal = account.getBalance(aliceAcc, option, callId);
+    console2.log("CallId:", bal);
 
     Matching.TransferAsset memory transfer =
       Matching.TransferAsset({asset: IAsset(cash), subId: 0, amount: transferAmount, fromAcc: aliceAcc, toAcc: aliceAcc});
