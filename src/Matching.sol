@@ -567,8 +567,8 @@ contract Matching is EIP712, Owned {
     return keccak256(abi.encode(_MINT_ACCOUNT_TYPEHASH, newAccount.owner, newAccount.manager, newAccount.keyExpiry));
   }
 
-  function _recoverAddress(bytes32 hash, bytes memory signature) internal pure returns (address) {
-    (address recovered) = ECDSA.recover(hash, signature);
+  function _recoverAddress(bytes32 hash, bytes memory signature) internal view returns (address) {
+    (address recovered,) = ECDSA.tryRecover(hash, signature);
     return recovered;
   }
 
