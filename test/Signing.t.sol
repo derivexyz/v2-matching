@@ -110,6 +110,20 @@ contract UNIT_MatchingSigning is Test {
     return bytes.concat(r, s, bytes1(v));
   }
 
+  function testTransferSignature() public {
+    // Create transfer request
+    Matching.TransferAsset memory transfer =
+      Matching.TransferAsset({asset: IAsset(cashAsset), subId: 0, amount: 1e18, fromAcc: accountId, toAcc: accountId});
+
+    bytes32 transferHash = matching.getTransferHash(transfer);
+    bytes memory signature = _sign(transferHash, privateKey);
+
+    // Verify the signature
+    bool isValid = matching.verifySignature(accountId, transferHash, signature);
+    assertEq(isValid, true);
+
+  }
+
   // just for coverage for now
   function testDomainSeparator() public view {
     matching.domainSeparator();

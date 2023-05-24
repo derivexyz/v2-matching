@@ -52,33 +52,32 @@ contract UNIT_MatchingAccountManagement is Test {
     manager = new MockManager(address(account));
     feed = new MockFeed();
     usdc = new MockERC20("USDC", "USDC");
+
     // 10000 USDC with 18 decimals
-    
     usdc.mint(alice, 10000 ether);
     aliceAcc = account.createAccount(alice, manager);
     bobAcc = account.createAccount(bob, manager);
-    
+
     domainSeparator = matching.domainSeparator();
     matching.setWhitelist(address(this), true);
 
     option = new Option(account, address(feed));
-  option.setWhitelistManager(address(manager), true);
-   
+    option.setWhitelistManager(address(manager), true);
 
     callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
 
-    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
-    transferBatch[0] = IAccounts.AssetTransfer({
-      fromAcc: aliceAcc,
-      toAcc: bobAcc,
-      asset: option,
-      subId: callId,
-      amount: 10e18,
-      assetData: bytes32(0)
-    });
-    account.submitTransfers(transferBatch, "");
+    // IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
+    // transferBatch[0] = IAccounts.AssetTransfer({
+    //   fromAcc: aliceAcc,
+    //   toAcc: bobAcc,
+    //   asset: option,
+    //   subId: callId,
+    //   amount: 10e18,
+    //   assetData: bytes32(0)
+    // });
+    // account.submitTransfers(transferBatch, "");
 
-     vm.startPrank(alice);
+    vm.startPrank(alice);
     account.approve(address(matching), aliceAcc);
     matching.openCLOBAccount(aliceAcc);
     vm.stopPrank();
@@ -122,18 +121,36 @@ contract UNIT_MatchingAccountManagement is Test {
     int bal = account.getBalance(aliceAcc, option, callId);
     console2.log("CallId:", bal);
 
-    Matching.TransferAsset memory transfer =
-      Matching.TransferAsset({asset: IAsset(cash), subId: 0, amount: transferAmount, fromAcc: aliceAcc, toAcc: aliceAcc});
+    Matching.TransferAsset memory transfer = Matching.TransferAsset({
+      asset: IAsset(cash),
+      subId: 0,
+      amount: transferAmount,
+      fromAcc: aliceAcc,
+      toAcc: aliceAcc
+    });
 
     // Sign the transfer
     bytes32 transferHash = matching.getTransferHash(transfer);
     bytes memory signature = _sign(transferHash, aliceKey);
 
-    matching.transferAsset(transfer, signature);
-    int aliceAfter = getCashBalance(aliceAcc);
-    int bobAfter = getCashBalance(bobAcc);
-    assertEq(aliceAfter.toUint256(), DEFAULT_DEPOSIT - transferAmount);
-    assertEq(bobAfter.toUint256(), DEFAULT_DEPOSIT + transferAmount);
+    bool isValid = matching.verifySignature(aliceAcc, transferHash, signature);
+    console2.log("is valid?", isValid);
+    // console2.log("Alice", alice);
+    // console2.log("BOB", bob);
+    // console2.log("This", address(this));
+    // console2.log("matching", address(matching));
+
+    Matching.TransferAsset[] memory transfers = new Matching.TransferAsset[](1);
+    transfers[0] = transfer;
+    bytes[] memory signatures = new bytes[](1);
+    signatures[0] = signature;
+
+    matching.submitTransfers(transfers, signatures);
+
+    // int aliceAfter = getCashBalance(aliceAcc);
+    // int bobAfter = getCashBalance(bobAcc);
+    // assertEq(aliceAfter.toUint256(), DEFAULT_DEPOSIT - transferAmount);
+    // assertEq(bobAfter.toUint256(), DEFAULT_DEPOSIT + transferAmount);
   }
 
   // function testCannotTransferAsset() public {

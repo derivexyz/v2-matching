@@ -66,6 +66,12 @@ contract Matching is EIP712, Owned {
     uint toAcc;
   }
 
+  struct MintAccount {
+    address owner;
+    address manager;
+    uint keyExpiry;
+  }
+
   ///@dev Account Id which receives all fees paid
   uint public feeAccountId;
 
@@ -102,6 +108,9 @@ contract Matching is EIP712, Owned {
 
   ///@dev Transfer Asset typehash containing the asset and amount you want to transfer
   bytes32 public constant _TRANSFER_ASSET_TYPEHASH = keccak256("TransferAsset(address,uint256,uint256,uint256,uint256");
+
+  ///@dev Mint account typehash containing desired owner address, manager and expiry of the signing address
+  bytes32 public constant _MINT_ACCOUNT_TYPEHASH = keccak256("MintAccount(address,address,uint256");
 
   constructor(IAccounts _accounts, address _cashAsset, uint _feeAccountId, uint _cooldownSeconds)
     EIP712("Matching", "1.0")
@@ -152,36 +161,23 @@ contract Matching is EIP712, Owned {
   }
 
   /**
-   * @dev Transfers a specific amount of an asset from one account to another.
+   * @dev Batch transfers assets from one account to another.
    * Can only be called by an address that is currently whitelisted.
    *
-   * @param transfer The details of the asset transfer to be made.
-   * @param signature The signed message from the owner account.
+   * @param transfer The details of the asset transfers to be made.
+   * @param signature The signed messages from the owner or permissioned accounts.
    */
-  function transferAsset(TransferAsset memory transfer, bytes memory signature) external onlyWhitelisted {
-    // Verify signature is signed by the account owner or permitted address
-    bytes32 transferHash = _getTransferHash(transfer);
-    if (!_verifySignature(transfer.fromAcc, transferHash, signature)) {
-      revert M_InvalidSignature(accountToOwner[transfer.fromAcc]);
+  function submitTransfers(TransferAsset[] memory transfer, bytes[] memory signature) external onlyWhitelisted {
+    if (transfer.length != signature.length) {
+      revert M_ArrayLengthMismatch(transfer.length, signature.length, 0);
     }
 
-    // Ensure permission has not expired for the 'toAcc' and the signer is not the account owner
-    address sessionKeyAddress = _recoverAddress(transferHash, signature);
-    if (
-      permissions[sessionKeyAddress][accountToOwner[transfer.fromAcc]] < block.timestamp
-        && accountToOwner[transfer.toAcc] != sessionKeyAddress
-    ) revert M_SessionKeyInvalid(sessionKeyAddress);
+    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](transfer.length);
+    for (uint i = 0; i < transfer.length; i++) {
+      transferBatch[i] = _verifyTransferAsset(transfer[i], signature[i]);
+    }
 
-    IAccounts.AssetTransfer memory transferData = IAccounts.AssetTransfer({
-      fromAcc: transfer.fromAcc,
-      toAcc: transfer.toAcc,
-      asset: transfer.asset,
-      subId: transfer.subId,
-      amount: transfer.amount.toInt256(),
-      assetData: bytes32(0)
-    });
-
-    accounts.submitTransfer(transferData, "");
+    accounts.submitTransfers(transferBatch, "");
   }
 
   /**
@@ -205,6 +201,18 @@ contract Matching is EIP712, Owned {
   function openCLOBAccount(uint accountId) external {
     accounts.transferFrom(msg.sender, address(this), accountId);
     accountToOwner[accountId] = msg.sender;
+  }
+
+  /**
+   * @notice Allows signature to create new subAccount and open a CLOB account.
+   * @dev Registers the public address associated with the signature to the new account.
+   */
+  function mintCLOBAccount(MintAccount memory newAccount, bytes memory signature) external {
+    uint newId = accounts.createAccount(newAccount.owner, IManager(newAccount.manager));
+    accountToOwner[newId] = newAccount.owner;
+
+    address toAllow = _recoverAddress(_getMintAccountHash(newAccount), signature);
+    permissions[toAllow][accountToOwner[newId]] = newAccount.keyExpiry;
   }
 
   /**
@@ -301,6 +309,48 @@ contract Matching is EIP712, Owned {
       asset1Amount: matchDetails.baseAmount,
       asset2Amount: matchDetails.quoteAmount,
       tradeFee: matchDetails.tradeFee
+    });
+  }
+
+  /**
+   * @dev Verifies the transfer of an asset from one account to another.
+   * Can only be called by an address that is currently whitelisted.
+   *
+   * @param transfer The details of the asset transfer to be made.
+   * @param signature The signed message from the owner account.
+   */
+  function _verifyTransferAsset(TransferAsset memory transfer, bytes memory signature)
+    internal
+    returns (IAccounts.AssetTransfer memory verifiedTransfer)
+  {
+    // Verify signature is signed by the account owner or permitted address
+    bytes32 transferHash = _getTransferHash(transfer);
+    if (!_verifySignature(transfer.fromAcc, transferHash, signature)) {
+      revert M_InvalidSignature(accountToOwner[transfer.fromAcc]);
+    }
+    // console2.logBytes32(transferHash);
+    // console2.logBytes(signature);
+
+    // If the address is not owner ensure permission has not expired for the 'toAcc'
+    address sessionKeyAddress = _recoverAddress(transferHash, signature);
+    console2.log("RECOVR", sessionKeyAddress);
+
+    // console2.logBytes32(transferHash);
+    // console2.logBytes(signature);
+
+    if (sessionKeyAddress != accountToOwner[transfer.toAcc]) {
+      if (permissions[sessionKeyAddress][accountToOwner[transfer.fromAcc]] < block.timestamp) {
+        revert M_SessionKeyInvalid(sessionKeyAddress);
+      }
+    }
+
+    return IAccounts.AssetTransfer({
+      fromAcc: transfer.fromAcc,
+      toAcc: transfer.toAcc,
+      asset: transfer.asset,
+      subId: transfer.subId,
+      amount: transfer.amount.toInt256(),
+      assetData: bytes32(0)
     });
   }
 
@@ -452,11 +502,21 @@ contract Matching is EIP712, Owned {
   }
 
   // Verify signature against owner address or permissioned address
-  function _verifySignature(uint accountId, bytes32 structuredHash, bytes memory signature) internal view returns (bool) {
-    if (SignatureChecker.isValidSignatureNow(accountToOwner[accountId], _hashTypedDataV4(structuredHash), signature) == true)
-    {
+  function _verifySignature(uint accountId, bytes32 structuredHash, bytes memory signature)
+    internal
+    view
+    returns (bool)
+  {
+    console2.log("inside verify");
+
+    if (
+      SignatureChecker.isValidSignatureNow(accountToOwner[accountId], _hashTypedDataV4(structuredHash), signature)
+        == true
+    ) {
+      console2.log("TRRUEUUEE");
       return true;
     } else {
+      console2.log("Trying to recover");
       address signer = _recoverAddress(structuredHash, signature);
       console2.log("Signer", signer);
       if (permissions[signer][accountToOwner[accountId]] > block.timestamp) {
@@ -493,13 +553,22 @@ contract Matching is EIP712, Owned {
   function _getTransferHash(TransferAsset memory transfer) internal pure returns (bytes32) {
     return keccak256(
       abi.encode(
-        _TRANSFER_ASSET_TYPEHASH, transfer.asset, transfer.subId, transfer.amount, transfer.fromAcc, transfer.toAcc
+        _TRANSFER_ASSET_TYPEHASH,
+        address(transfer.asset),
+        transfer.subId,
+        transfer.amount,
+        transfer.fromAcc,
+        transfer.toAcc
       )
     );
   }
 
+  function _getMintAccountHash(MintAccount memory newAccount) internal pure returns (bytes32) {
+    return keccak256(abi.encode(_MINT_ACCOUNT_TYPEHASH, newAccount.owner, newAccount.manager, newAccount.keyExpiry));
+  }
+
   function _recoverAddress(bytes32 hash, bytes memory signature) internal pure returns (address) {
-    (address recovered,) = ECDSA.tryRecover(hash, signature);
+    (address recovered) = ECDSA.recover(hash, signature);
     return recovered;
   }
 
@@ -520,6 +589,10 @@ contract Matching is EIP712, Owned {
 
   function getTransferHash(TransferAsset calldata transfer) external pure returns (bytes32) {
     return _getTransferHash(transfer);
+  }
+
+  function getMintAccountHash(MintAccount calldata newAccount) external pure returns (bytes32) {
+    return _getMintAccountHash(newAccount);
   }
 
   function getTradingPair(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
