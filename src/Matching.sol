@@ -167,6 +167,7 @@ contract Matching is EIP712, Owned {
    * @param transfer The details of the asset transfers to be made.
    * @param signature The signed messages from the owner or permissioned accounts.
    */
+  // NOTE: currently you need to sign every transfer, looking into TransferAsset containing transfer[] that only need to sign once
   function submitTransfers(TransferAsset[] memory transfer, bytes[] memory signature) external onlyWhitelisted {
     if (transfer.length != signature.length) {
       revert M_ArrayLengthMismatch(transfer.length, signature.length, 0);
