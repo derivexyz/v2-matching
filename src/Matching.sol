@@ -209,11 +209,21 @@ contract Matching is EIP712, Owned {
    * @dev Registers the public address associated with the signature to the new account.
    */
   function mintCLOBAccount(MintAccount memory newAccount, bytes memory signature) external returns (uint newId) {
-    newId = accounts.createAccount(newAccount.owner, IManager(newAccount.manager));
-    accountToOwner[newId] = newAccount.owner;
-
     address toAllow = _recoverAddress(_getMintAccountHash(newAccount), signature);
-    permissions[toAllow][accountToOwner[newId]] = newAccount.keyExpiry;
+    return _mintCLOBAccount(newAccount, toAllow);
+  }
+
+  /**
+   * @notice Allows signature to create new subAccount, open a CLOB account, and transfer asset.
+   * @dev Signature should have signed the transfer.
+   */
+  // todo signing a transfer to the new account which doesnt exist yet...
+  function mintAccountAndTransfer(MintAccount memory newAccount, TransferAsset memory transfer, bytes memory signature) external returns (uint newId) {
+    address toAllow = _recoverAddress(_getTransferHash(transfer), signature);
+    newId = _mintCLOBAccount(newAccount, toAllow);
+    
+    IAccounts.AssetTransfer memory assetTransfer = _verifyTransferAsset(transfer, signature);
+    accounts.submitTransfer(assetTransfer, "");
   }
 
   /**
@@ -513,6 +523,13 @@ contract Matching is EIP712, Owned {
       }
       return false;
     }
+  }
+
+  function _mintCLOBAccount(MintAccount memory newAccount, address toAllow) internal returns (uint newId) {
+     newId = accounts.createAccount(newAccount.owner, IManager(newAccount.manager));
+    accountToOwner[newId] = newAccount.owner;
+
+    permissions[toAllow][accountToOwner[newId]] = newAccount.keyExpiry;
   }
 
   function _getInstrumentHash(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
