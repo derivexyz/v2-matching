@@ -38,12 +38,12 @@ contract Matching is EIP712, Owned {
   struct LimitOrder {
     bool isBid;
     uint accountId1;
-    uint amount; // For bids, amount is baseAsset. For asks, amount is quoteAsset
+    uint amount;
     uint limitPrice;
     uint expirationTime;
     uint maxFee;
-    uint salt; // todo optional for users with duplicate orders
-    bytes32 tradingPair;
+    uint salt;
+    bytes32 instrument;
   }
 
   struct VerifiedTrade {
@@ -103,8 +103,8 @@ contract Matching is EIP712, Owned {
   bytes32 public constant _LIMITORDER_TYPEHASH =
     keccak256("LimitOrder(bool,uint256,uint256,uint256,uint256,uint256,uint256,bytes32)");
 
-  ///@dev Trading pair typehash containing the two IAssets and subIds
-  bytes32 public constant _TRADING_PAIR_TYPEHASH = keccak256("address,address,uint256,uint256");
+  ///@dev Instrument typehash containing the two IAssets and subIds
+  bytes32 public constant _INSTRUMENT_TYPEHASH = keccak256("address,address,uint256,uint256");
 
   ///@dev Transfer Asset typehash containing the asset and amount you want to transfer
   bytes32 public constant _TRANSFER_ASSET_TYPEHASH = keccak256("TransferAsset(address,uint256,uint256,uint256,uint256");
@@ -207,8 +207,8 @@ contract Matching is EIP712, Owned {
    * @notice Allows signature to create new subAccount and open a CLOB account.
    * @dev Registers the public address associated with the signature to the new account.
    */
-  function mintCLOBAccount(MintAccount memory newAccount, bytes memory signature) external {
-    uint newId = accounts.createAccount(newAccount.owner, IManager(newAccount.manager));
+  function mintCLOBAccount(MintAccount memory newAccount, bytes memory signature) external returns (uint newId) {
+    newId = accounts.createAccount(newAccount.owner, IManager(newAccount.manager));
     accountToOwner[newId] = newAccount.owner;
 
     address toAllow = _recoverAddress(_getMintAccountHash(newAccount), signature);
@@ -241,14 +241,12 @@ contract Matching is EIP712, Owned {
   }
 
   /**
-   * @notice Allows owner to register the public address associated with their session key.
+   * @notice Allows owner to register the public address associated with their session key to their accountId.
    * @dev Registered address gains owner address permission to the subAccount until expiry.
    * @param expiry When the access to the owner address expires
    */
-  function registerSessionKey(uint accountId, address toAllow, address owner, uint expiry) external {
-    if (msg.sender != owner) revert M_NotOwnerAddress(msg.sender, owner);
-    if (accountToOwner[accountId] != owner) revert M_InvalidAccountOwner(accountToOwner[accountId], owner);
-
+  function registerSessionKey(uint accountId, address toAllow, uint expiry) external {
+    if (msg.sender != accountToOwner[accountId]) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
     permissions[toAllow][accountToOwner[accountId]] = expiry;
   }
 
@@ -321,6 +319,7 @@ contract Matching is EIP712, Owned {
    */
   function _verifyTransferAsset(TransferAsset memory transfer, bytes memory signature)
     internal
+    view
     returns (IAccounts.AssetTransfer memory verifiedTransfer)
   {
     // Verify signature is signed by the account owner or permitted address
@@ -328,18 +327,12 @@ contract Matching is EIP712, Owned {
     if (!_verifySignature(transfer.fromAcc, transferHash, signature)) {
       revert M_InvalidSignature(accountToOwner[transfer.fromAcc]);
     }
-    // console2.logBytes32(transferHash);
-    // console2.logBytes(signature);
 
     // If the address is not owner ensure permission has not expired for the 'toAcc'
     address sessionKeyAddress = _recoverAddress(transferHash, signature);
-    console2.log("RECOVR", sessionKeyAddress);
-
-    // console2.logBytes32(transferHash);
-    // console2.logBytes(signature);
 
     if (sessionKeyAddress != accountToOwner[transfer.toAcc]) {
-      if (permissions[sessionKeyAddress][accountToOwner[transfer.fromAcc]] < block.timestamp) {
+      if (permissions[sessionKeyAddress][accountToOwner[transfer.toAcc]] < block.timestamp) {
         revert M_SessionKeyInvalid(sessionKeyAddress);
       }
     }
@@ -359,11 +352,11 @@ contract Matching is EIP712, Owned {
     view
   {
     // Verify trading pair
-    bytes32 tradingPair = _getTradingPairHash(
+    bytes32 instrument = _getInstrumentHash(
       matchDetails.baseAsset, matchDetails.quoteAsset, matchDetails.baseSubId, matchDetails.quoteSubId
     );
-    if (order1.tradingPair != tradingPair) revert M_InvalidTradingPair(order1.tradingPair, tradingPair);
-    if (order2.tradingPair != tradingPair) revert M_InvalidTradingPair(order2.tradingPair, tradingPair);
+    if (order1.instrument != instrument) revert M_InvalidTradingPair(order1.instrument, instrument);
+    if (order2.instrument != instrument) revert M_InvalidTradingPair(order2.instrument, instrument);
 
     bytes32 order1Hash = _getOrderHash(order1);
     bytes32 order2Hash = _getOrderHash(order2);
@@ -507,18 +500,13 @@ contract Matching is EIP712, Owned {
     view
     returns (bool)
   {
-    console2.log("inside verify");
-
     if (
       SignatureChecker.isValidSignatureNow(accountToOwner[accountId], _hashTypedDataV4(structuredHash), signature)
         == true
     ) {
-      console2.log("TRRUEUUEE");
       return true;
     } else {
-      console2.log("Trying to recover");
       address signer = _recoverAddress(structuredHash, signature);
-      console2.log("Signer", signer);
       if (permissions[signer][accountToOwner[accountId]] > block.timestamp) {
         return true;
       }
@@ -526,12 +514,12 @@ contract Matching is EIP712, Owned {
     }
   }
 
-  function _getTradingPairHash(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
+  function _getInstrumentHash(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
     internal
     pure
     returns (bytes32)
   {
-    return keccak256(abi.encode(_TRADING_PAIR_TYPEHASH, baseAsset, quoteAsset, baseSubId, quoteSubId));
+    return keccak256(abi.encode(_INSTRUMENT_TYPEHASH, baseAsset, quoteAsset, baseSubId, quoteSubId));
   }
 
   function _getOrderHash(LimitOrder memory order) internal pure returns (bytes32) {
@@ -545,7 +533,7 @@ contract Matching is EIP712, Owned {
         order.expirationTime,
         order.maxFee,
         order.salt,
-        order.tradingPair
+        order.instrument
       )
     );
   }
@@ -568,7 +556,7 @@ contract Matching is EIP712, Owned {
   }
 
   function _recoverAddress(bytes32 hash, bytes memory signature) internal view returns (address) {
-    (address recovered,) = ECDSA.tryRecover(hash, signature);
+    (address recovered,) = ECDSA.tryRecover(_hashTypedDataV4(hash), signature);
     return recovered;
   }
 
@@ -595,12 +583,12 @@ contract Matching is EIP712, Owned {
     return _getMintAccountHash(newAccount);
   }
 
-  function getTradingPair(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
+  function getInstrument(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
     external
     pure
     returns (bytes32)
   {
-    return _getTradingPairHash(baseAsset, quoteAsset, baseSubId, quoteSubId);
+    return _getInstrumentHash(baseAsset, quoteAsset, baseSubId, quoteSubId);
   }
 
   function verifySignature(uint accountId, bytes32 orderHash, bytes memory signature) external view returns (bool) {
