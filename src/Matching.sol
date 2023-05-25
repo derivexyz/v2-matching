@@ -218,10 +218,13 @@ contract Matching is EIP712, Owned {
    * @dev Signature should have signed the transfer.
    */
   // todo signing a transfer to the new account which doesnt exist yet...
-  function mintAccountAndTransfer(MintAccount memory newAccount, TransferAsset memory transfer, bytes memory signature) external returns (uint newId) {
+  function mintAccountAndTransfer(MintAccount memory newAccount, TransferAsset memory transfer, bytes memory signature)
+    external
+    returns (uint newId)
+  {
     address toAllow = _recoverAddress(_getTransferHash(transfer), signature);
     newId = _mintCLOBAccount(newAccount, toAllow);
-    
+
     IAccounts.AssetTransfer memory assetTransfer = _verifyTransferAsset(transfer, signature);
     accounts.submitTransfer(assetTransfer, "");
   }
@@ -526,7 +529,7 @@ contract Matching is EIP712, Owned {
   }
 
   function _mintCLOBAccount(MintAccount memory newAccount, address toAllow) internal returns (uint newId) {
-     newId = accounts.createAccount(newAccount.owner, IManager(newAccount.manager));
+    newId = accounts.createAccount(newAccount.owner, IManager(newAccount.manager));
     accountToOwner[newId] = newAccount.owner;
 
     permissions[toAllow][accountToOwner[newId]] = newAccount.keyExpiry;

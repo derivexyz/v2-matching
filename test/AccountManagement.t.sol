@@ -77,8 +77,6 @@ contract UNIT_MatchingAccountManagement is Test {
     });
 
     account.submitTransfers(transferBatch, "");
-    int balance = account.getBalance(aliceAcc, option, callId);
-    int balance2 = account.getBalance(bobAcc, option, callId);
     vm.stopPrank();
 
     vm.startPrank(alice);
