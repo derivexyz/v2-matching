@@ -40,7 +40,7 @@ contract UNIT_MatchingVerifyOrder is Test {
   function setUp() public {
     account = new Accounts("Lyra Margin Accounts", "LyraMarginNFTs");
     cashAsset = IAsset(address(usdc));
-    matching = new Matching(account, cashAsset, 420,0);
+    matching = new Matching(account, address(cashAsset), 420,0);
 
     manager = new MockManager(address(account));
 
@@ -71,11 +71,13 @@ contract UNIT_MatchingVerifyOrder is Test {
     vm.stopPrank();
 
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
-      _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, true);
+      _createSignedOrder(accountId, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, true);
     (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
-      _createSignedOrder(accountId2, accountId, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
+      _createSignedOrder(accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
+      accountId1: accountId,
+      accountId2: accountId2,
       baseAmount: 1e18,
       quoteAmount: 1e18,
       baseAsset: cashAsset,
@@ -105,11 +107,13 @@ contract UNIT_MatchingVerifyOrder is Test {
     matching.requestWithdraw(accountId2);
     vm.stopPrank();
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
-      _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, true);
+      _createSignedOrder(accountId, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, true);
     (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
-      _createSignedOrder(accountId2, accountId, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
+      _createSignedOrder(accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
+      accountId1: accountId,
+      accountId2: accountId2,
       baseAmount: 1e18,
       quoteAmount: 1e18,
       baseAsset: cashAsset,
@@ -136,11 +140,13 @@ contract UNIT_MatchingVerifyOrder is Test {
   function testCannotTradeIfExpired() public {
     uint expiry = block.timestamp + 1 days;
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
-      _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, expiry, aliceKey, true);
+      _createSignedOrder(accountId, 1e18, 1e18, 0, expiry, aliceKey, true);
     (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
-      _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, expiry, aliceKey, false);
+      _createSignedOrder(accountId, 1e18, 1e18, 0, expiry, aliceKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
+      accountId1: accountId,
+      accountId2: accountId2,
       baseAmount: 1e18,
       quoteAmount: 1e18,
       baseAsset: cashAsset,
@@ -167,11 +173,13 @@ contract UNIT_MatchingVerifyOrder is Test {
   // Attempt to trade 0 amount in order
   function testCannotTradeZeroAmountInOrder() public {
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
-      _createSignedOrder(accountId, accountId2, 1e18, 0, 0, block.timestamp + 1 days, aliceKey, true);
+      _createSignedOrder(accountId, 1e18, 0, 0, block.timestamp + 1 days, aliceKey, true);
     (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
-      _createSignedOrder(accountId2, accountId, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
+      _createSignedOrder(accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
+      accountId1: accountId,
+      accountId2: accountId2,
       baseAmount: 1e18,
       quoteAmount: 1e18,
       baseAsset: cashAsset,
@@ -197,11 +205,13 @@ contract UNIT_MatchingVerifyOrder is Test {
   // Attemp to trade 0 fill amount
   function testCannotTradeZeroAmountInMatch() public {
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
-      _createSignedOrder(accountId, accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, true);
+      _createSignedOrder(accountId, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, true);
     (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
-      _createSignedOrder(accountId2, accountId, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
+      _createSignedOrder(accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
+      accountId1: accountId,
+      accountId2: accountId2,
       baseAmount: 0,
       quoteAmount: 0,
       baseAsset: cashAsset,
@@ -227,11 +237,13 @@ contract UNIT_MatchingVerifyOrder is Test {
   // Attempt to trade with yourself
   function testCannotTradeToYourself() public {
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
-      _createSignedOrder(accountId, accountId, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, true);
+      _createSignedOrder(accountId, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, true);
     (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
-      _createSignedOrder(accountId, accountId, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, false);
+      _createSignedOrder(accountId, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
+      accountId1: accountId,
+      accountId2: accountId,
       baseAmount: 1e18,
       quoteAmount: 1e18,
       baseAsset: cashAsset,
@@ -260,11 +272,13 @@ contract UNIT_MatchingVerifyOrder is Test {
     uint assetAmount = 50 ether;
 
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
-      _createSignedOrder(accountId, accountId2, 1e18, assetAmount, 0, block.timestamp + 1 days, aliceKey, true);
+      _createSignedOrder(accountId, 1e18, assetAmount, 0, block.timestamp + 1 days, aliceKey, true);
     (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
-      _createSignedOrder(accountId2, accountId, 1e18, assetAmount, 0, block.timestamp + 1 days, bobKey, false);
+      _createSignedOrder(accountId2, 1e18, assetAmount, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
+      accountId1: accountId,
+      accountId2: accountId2,
       baseAmount: fillAmount,
       quoteAmount: fillAmount,
       baseAsset: cashAsset,
@@ -295,13 +309,14 @@ contract UNIT_MatchingVerifyOrder is Test {
     uint fillAmount1 = 50 ether;
     uint fillAmount2 = 9 ether;
 
-    (Matching.LimitOrder memory order1, bytes memory signature1) = _createSignedOrder(
-      accountId, accountId2, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, aliceKey, true
-    );
+    (Matching.LimitOrder memory order1, bytes memory signature1) =
+      _createSignedOrder(accountId, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, aliceKey, true);
     (Matching.LimitOrder memory order2, bytes memory signature2) =
-      _createSignedOrder(accountId2, accountId, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, bobKey, false);
+      _createSignedOrder(accountId2, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
+      accountId1: accountId,
+      accountId2: accountId2,
       baseAmount: fillAmount1,
       quoteAmount: fillAmount2,
       baseAsset: cashAsset,
@@ -336,11 +351,13 @@ contract UNIT_MatchingVerifyOrder is Test {
     uint fillAmount2 = 10 ether;
 
     (Matching.LimitOrder memory order1, bytes memory signature1) =
-      _createSignedOrder(accountId, accountId2, 10e18, 100 ether, 10e18, block.timestamp + 1 days, aliceKey, true);
+      _createSignedOrder(accountId, 10e18, 100 ether, 10e18, block.timestamp + 1 days, aliceKey, true);
     (Matching.LimitOrder memory order2, bytes memory signature2) =
-      _createSignedOrder(accountId2, accountId, 5e18, 100 ether, 0, block.timestamp + 1 days, bobKey, false);
+      _createSignedOrder(accountId2, 5e18, 100 ether, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
+      accountId1: accountId,
+      accountId2: accountId2,
       baseAmount: fillAmount1,
       quoteAmount: fillAmount2,
       baseAsset: cashAsset,
@@ -368,11 +385,13 @@ contract UNIT_MatchingVerifyOrder is Test {
   // Attempt to trade USDC for USDC
   function testCannotTradeSameAssets() public {
     (Matching.LimitOrder memory order1, bytes memory signature1) =
-      _createSignedOrderAsset(accountId, accountId2, address(usdc), address(usdc), 1, 1, aliceKey, true);
+      _createSignedOrderAsset(accountId, address(usdc), address(usdc), 1, 1, aliceKey, true);
     (Matching.LimitOrder memory order2, bytes memory signature2) =
-      _createSignedOrderAsset(accountId2, accountId, address(usdc), address(usdc), 1, 1, bobKey, false);
+      _createSignedOrderAsset(accountId2, address(usdc), address(usdc), 1, 1, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
+      accountId1: accountId,
+      accountId2: accountId2,
       baseAmount: 1e19,
       quoteAmount: 1e18,
       baseAsset: IAsset(address(usdc)),
@@ -397,7 +416,6 @@ contract UNIT_MatchingVerifyOrder is Test {
 
   function _createSignedOrder(
     uint fromAcc,
-    uint toAcc,
     uint limitPrice,
     uint assetAmount,
     uint maxFee,
@@ -405,17 +423,16 @@ contract UNIT_MatchingVerifyOrder is Test {
     uint pk,
     bool isBid
   ) internal view returns (Matching.LimitOrder memory limitOrder, bytes memory signature) {
-    bytes32 tradingPair = matching.getTradingPair(cashAsset, IAsset(address(usdc)), 0, 0);
+    bytes32 instrument = matching.getInstrument(cashAsset, IAsset(address(usdc)), 0, 0);
     Matching.LimitOrder memory order1 = Matching.LimitOrder({
       isBid: isBid,
       accountId1: fromAcc,
-      accountId2: 0,
       amount: assetAmount,
       limitPrice: limitPrice,
       expirationTime: expiry,
       maxFee: maxFee,
       salt: 0,
-      tradingPair: tradingPair
+      instrument: instrument
     });
 
     // Sign the order
@@ -425,19 +442,17 @@ contract UNIT_MatchingVerifyOrder is Test {
     limitOrder = Matching.LimitOrder({
       isBid: order1.isBid,
       accountId1: order1.accountId1,
-      accountId2: toAcc,
       amount: order1.amount,
       limitPrice: order1.limitPrice,
       expirationTime: order1.expirationTime,
       maxFee: order1.maxFee,
       salt: order1.salt,
-      tradingPair: order1.tradingPair
+      instrument: order1.instrument
     });
   }
 
   function _createSignedOrderAsset(
     uint fromAcc,
-    uint toAcc,
     address baseAsset,
     address quoteAsset,
     uint baseSubId,
@@ -446,18 +461,17 @@ contract UNIT_MatchingVerifyOrder is Test {
     bool isBid
   ) internal view returns (Matching.LimitOrder memory limitOrder, bytes memory signature) {
     // Create LimitOrder
-    bytes32 tradingPair =
-      matching.getTradingPair(IAsset(address(baseAsset)), IAsset(address(quoteAsset)), baseSubId, quoteSubId);
+    bytes32 instrument =
+      matching.getInstrument(IAsset(address(baseAsset)), IAsset(address(quoteAsset)), baseSubId, quoteSubId);
     Matching.LimitOrder memory order1 = Matching.LimitOrder({
       isBid: isBid,
       accountId1: fromAcc,
-      accountId2: 0,
       amount: 1e18,
       limitPrice: 1e18,
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
       salt: 0,
-      tradingPair: tradingPair
+      instrument: instrument
     });
 
     // Sign the order
@@ -467,13 +481,12 @@ contract UNIT_MatchingVerifyOrder is Test {
     limitOrder = Matching.LimitOrder({
       isBid: order1.isBid,
       accountId1: order1.accountId1,
-      accountId2: toAcc,
       amount: order1.amount,
       limitPrice: order1.limitPrice,
       expirationTime: order1.expirationTime,
       maxFee: 0,
       salt: order1.salt,
-      tradingPair: order1.tradingPair
+      instrument: order1.instrument
     });
   }
 
