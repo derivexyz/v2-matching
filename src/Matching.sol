@@ -529,6 +529,7 @@ contract Matching is EIP712, Owned {
   }
 
   function _mintCLOBAccount(MintAccount memory newAccount, address toAllow) internal returns (uint newId) {
+    if (permissions[toAllow][newAccount.owner] < block.timestamp) revert M_SessionKeyInvalid(toAllow);
     newId = accounts.createAccount(newAccount.owner, IManager(newAccount.manager));
     accountToOwner[newId] = newAccount.owner;
 

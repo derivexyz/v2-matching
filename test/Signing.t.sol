@@ -207,7 +207,24 @@ contract UNIT_MatchingSigning is Test {
   }
 
   // Mint new account with owner as alice but session key from bob
+  function testCannotMintAccountSignature() public {
+    Matching.MintAccount memory newAccount =
+      Matching.MintAccount({owner: alice, manager: address(manager), keyExpiry: block.timestamp + 1 weeks});
+    bytes32 newAccountHash = matching.getMintAccountHash(newAccount);
+    bytes memory signature = _sign(newAccountHash, bobKey);
+
+    // New account is minted
+    vm.expectRevert(abi.encodeWithSelector(Matching.M_SessionKeyInvalid.selector, bob));
+    uint newId = matching.mintCLOBAccount(newAccount, signature);
+  }
+
+  // Mint new account with owner as alice but session key from bob
   function testMintAccountSignature() public {
+    // First register bob session key to alice address
+    vm.startPrank(alice);
+    matching.registerSessionKey(aliceAcc, bob, block.timestamp + 1 days);
+    vm.stopPrank();
+
     Matching.MintAccount memory newAccount =
       Matching.MintAccount({owner: alice, manager: address(manager), keyExpiry: block.timestamp + 1 weeks});
     bytes32 newAccountHash = matching.getMintAccountHash(newAccount);
