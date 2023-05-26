@@ -215,7 +215,7 @@ contract UNIT_MatchingSigning is Test {
 
     // New account is minted
     vm.expectRevert(abi.encodeWithSelector(Matching.M_SessionKeyInvalid.selector, bob));
-    uint newId = matching.mintCLOBAccount(newAccount, signature);
+    matching.mintCLOBAccount(newAccount, signature);
   }
 
   // Mint new account with owner as alice but session key from bob
