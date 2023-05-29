@@ -43,7 +43,7 @@ contract Matching is EIP712, Owned {
     uint expirationTime;
     uint maxFee;
     uint salt;
-    bytes32 instrument;
+    bytes32 instrumentHash;
   }
 
   struct VerifiedTrade {
@@ -366,11 +366,11 @@ contract Matching is EIP712, Owned {
     view
   {
     // Verify trading pair
-    bytes32 instrument = _getInstrumentHash(
+    bytes32 instrumentHash = _getInstrumentHash(
       matchDetails.baseAsset, matchDetails.quoteAsset, matchDetails.baseSubId, matchDetails.quoteSubId
     );
-    if (order1.instrument != instrument) revert M_InvalidTradingPair(order1.instrument, instrument);
-    if (order2.instrument != instrument) revert M_InvalidTradingPair(order2.instrument, instrument);
+    if (order1.instrumentHash != instrumentHash) revert M_InvalidTradingPair(order1.instrumentHash, instrumentHash);
+    if (order2.instrumentHash != instrumentHash) revert M_InvalidTradingPair(order2.instrumentHash, instrumentHash);
 
     bytes32 order1Hash = _getOrderHash(order1);
     bytes32 order2Hash = _getOrderHash(order2);
@@ -555,7 +555,7 @@ contract Matching is EIP712, Owned {
         order.expirationTime,
         order.maxFee,
         order.salt,
-        order.instrument
+        order.instrumentHash
       )
     );
   }

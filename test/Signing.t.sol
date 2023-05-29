@@ -61,7 +61,7 @@ contract UNIT_MatchingSigning is Test {
 
   function testValidSignature() public {
     // Create LimitOrder
-    bytes32 instrument = matching.getInstrument(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
+    bytes32 instrumentHash = matching.getInstrument(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
     Matching.LimitOrder memory order = Matching.LimitOrder({
       isBid: true,
       accountId1: aliceAcc,
@@ -70,7 +70,7 @@ contract UNIT_MatchingSigning is Test {
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
       salt: 0,
-      instrument: instrument
+      instrumentHash: instrumentHash
     });
 
     // Sign the order
@@ -84,7 +84,7 @@ contract UNIT_MatchingSigning is Test {
 
   function testInvalidSignature() public {
     // Create LimitOrder
-    bytes32 instrument = matching.getInstrument(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
+    bytes32 instrumentHash = matching.getInstrument(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
     Matching.LimitOrder memory order = Matching.LimitOrder({
       isBid: true,
       accountId1: aliceAcc,
@@ -93,7 +93,7 @@ contract UNIT_MatchingSigning is Test {
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
       salt: 0,
-      instrument: instrument
+      instrumentHash: instrumentHash
     });
 
     // Sign the order with wrong pk for the aliceAcc

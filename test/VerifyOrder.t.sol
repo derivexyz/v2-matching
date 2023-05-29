@@ -423,7 +423,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     uint pk,
     bool isBid
   ) internal view returns (Matching.LimitOrder memory limitOrder, bytes memory signature) {
-    bytes32 instrument = matching.getInstrument(cashAsset, IAsset(address(usdc)), 0, 0);
+    bytes32 instrumentHash = matching.getInstrument(cashAsset, IAsset(address(usdc)), 0, 0);
     Matching.LimitOrder memory order1 = Matching.LimitOrder({
       isBid: isBid,
       accountId1: fromAcc,
@@ -432,7 +432,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       expirationTime: expiry,
       maxFee: maxFee,
       salt: 0,
-      instrument: instrument
+      instrumentHash: instrumentHash
     });
 
     // Sign the order
@@ -447,7 +447,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       expirationTime: order1.expirationTime,
       maxFee: order1.maxFee,
       salt: order1.salt,
-      instrument: order1.instrument
+      instrumentHash: order1.instrumentHash
     });
   }
 
@@ -461,7 +461,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     bool isBid
   ) internal view returns (Matching.LimitOrder memory limitOrder, bytes memory signature) {
     // Create LimitOrder
-    bytes32 instrument =
+    bytes32 instrumentHash =
       matching.getInstrument(IAsset(address(baseAsset)), IAsset(address(quoteAsset)), baseSubId, quoteSubId);
     Matching.LimitOrder memory order1 = Matching.LimitOrder({
       isBid: isBid,
@@ -471,7 +471,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
       salt: 0,
-      instrument: instrument
+      instrumentHash: instrumentHash
     });
 
     // Sign the order
@@ -486,7 +486,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       expirationTime: order1.expirationTime,
       maxFee: 0,
       salt: order1.salt,
-      instrument: order1.instrument
+      instrumentHash: order1.instrumentHash
     });
   }
 
