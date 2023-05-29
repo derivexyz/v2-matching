@@ -59,11 +59,10 @@ contract Matching is EIP712, Owned {
   }
 
   struct TransferAsset {
-    IAsset asset;
-    uint subId;
     uint amount;
     uint fromAcc;
     uint toAcc;
+    bytes32 assetHash;
   }
 
   struct MintAccount {
@@ -103,15 +102,18 @@ contract Matching is EIP712, Owned {
   bytes32 public constant _LIMITORDER_TYPEHASH =
     keccak256("LimitOrder(bool,uint256,uint256,uint256,uint256,uint256,uint256,bytes32)");
 
-  ///@dev Instrument typehash containing the two IAssets and subIds
-  bytes32 public constant _INSTRUMENT_TYPEHASH = keccak256("address,address,uint256,uint256");
-
   ///@dev Transfer Asset typehash containing the asset and amount you want to transfer
-  bytes32 public constant _TRANSFER_ASSET_TYPEHASH = keccak256("TransferAsset(address,uint256,uint256,uint256,uint256");
+  bytes32 public constant _TRANSFER_ASSET_TYPEHASH = keccak256("TransferAsset(uint256,uint256,uint256,bytes32");
 
   ///@dev Mint account typehash containing desired owner address, manager and expiry of the signing address
   bytes32 public constant _MINT_ACCOUNT_TYPEHASH = keccak256("MintAccount(address,address,uint256");
 
+  ///@dev Instrument typehash containing the two IAssets and subIds
+  bytes32 public constant _INSTRUMENT_TYPEHASH = keccak256("address,address,uint256,uint256");
+  
+  ///@dev Asset typehash containing the IAsset and subId
+  bytes32 public constant _ASSET_TYPEHASH = keccak256("address,uint256");
+  
   constructor(IAccounts _accounts, address _cashAsset, uint _feeAccountId, uint _cooldownSeconds)
     EIP712("Matching", "1.0")
   {
@@ -198,7 +200,6 @@ contract Matching is EIP712, Owned {
    * @dev User must approve contract first.
    * @param accountId The users' accountId
    */
-  // todo do we want to allow users to open account or only approval -> OB opens account flow?
   function openCLOBAccount(uint accountId) external {
     accounts.transferFrom(msg.sender, address(this), accountId);
     accountToOwner[accountId] = msg.sender;
@@ -259,10 +260,12 @@ contract Matching is EIP712, Owned {
    * @dev Registered address gains owner address permission to the subAccount until expiry.
    * @param expiry When the access to the owner address expires
    */
-  function registerSessionKey(uint accountId, address toAllow, uint expiry) external {
-    if (msg.sender != accountToOwner[accountId]) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
-    permissions[toAllow][accountToOwner[accountId]] = expiry;
+  function registerSessionKey(uint ownerAddress, address toAllow, uint expiry) external {
+    if (msg.sender != ownerAddress) revert M_NotOwnerAddress(msg.sender, ownerAddress);
+    permissions[toAllow][ownerAddress] = expiry;
   }
+
+  // todo requestDeleteSessionKey -> completeDeleteSessionKey
 
   function withdrawCash(TransferAsset memory transfer, bytes memory signature) external {
     // Verify signatures
@@ -277,6 +280,24 @@ contract Matching is EIP712, Owned {
   //////////////////////////
   //  Internal Functions  //
   //////////////////////////
+
+  /**
+   * @dev Mints a new CLOB Account by creating a subAccount
+   * @param newAccount the details of the new account to be minted. The MintAccount struct contains the owner of the new account and the manager of the new account.
+   * @param toAllow is the address to be allowed for executing functions on behalf of the account owner
+   * @return newId returns the newly created account ID
+   */
+  function _mintCLOBAccount(MintAccount memory newAccount, address toAllow) internal returns (uint newId) {
+    if (permissions[toAllow][newAccount.owner] < block.timestamp) revert M_SessionKeyInvalid(toAllow);
+    newId = accounts.createAccount(address(this), IManager(newAccount.manager));
+    accountToOwner[newId] = newAccount.owner;
+
+    permissions[toAllow][accountToOwner[newId]] = newAccount.keyExpiry;
+  }
+
+  ////////////////////////////
+  //  Verify trade details  //
+  ////////////////////////////
 
   /**
    * @notice Allows whitelisted addresses to submit trades.
@@ -325,7 +346,7 @@ contract Matching is EIP712, Owned {
   }
 
   /**
-   * @dev Verifies the transfer of an asset from one account to another.
+   * @notice Verifies the transfer of an asset from one account to another.
    * Can only be called by an address that is currently whitelisted.
    *
    * @param transfer The details of the asset transfer to be made.
@@ -336,6 +357,12 @@ contract Matching is EIP712, Owned {
     view
     returns (IAccounts.AssetTransfer memory verifiedTransfer)
   {
+    // todo Verify the asset hash
+  // bytes32 assetHash = _getInstrumentHash(
+  //     matchDetails.baseAsset, matchDetails.quoteAsset, matchDetails.baseSubId, matchDetails.quoteSubId
+  //   );
+  //   if (order1.instrumentHash != instrumentHash) revert M_InvalidTradingPair(order1.instrumentHash, instrumentHash);
+
     // Verify signature is signed by the account owner or permitted address
     bytes32 transferHash = _getTransferHash(transfer);
     if (!_verifySignature(transfer.fromAcc, transferHash, signature)) {
@@ -361,6 +388,9 @@ contract Matching is EIP712, Owned {
     });
   }
 
+  /**
+   * @notice Verifies the instrument hash and trade against the signatures provided in the match details.
+   */
   function _verifyTradeSignatures(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
     internal
     view
@@ -384,20 +414,15 @@ contract Matching is EIP712, Owned {
     }
   }
 
+  /**
+   * @notice Validates the order details including accounts, trade amount, assets and price.
+   */
   function _validateOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
     internal
     view
   {
     // Ensure the accountId and taker are different accounts
     if (matchDetails.accountId1 == matchDetails.accountId2) revert M_CannotTradeToSelf(matchDetails.accountId1);
-
-    // Ensure the accountId and taker accounts are not frozen
-    if (withdrawCooldown[accountToOwner[matchDetails.accountId1]] != 0) {
-      revert M_AccountFrozen(accountToOwner[matchDetails.accountId1]);
-    }
-    if (withdrawCooldown[accountToOwner[matchDetails.accountId2]] != 0) {
-      revert M_AccountFrozen(accountToOwner[matchDetails.accountId2]);
-    }
 
     // Check trade fee < maxFee
     if (matchDetails.tradeFee > order1.maxFee) revert M_TradeFeeExceedsMaxFee(matchDetails.tradeFee, order1.maxFee);
@@ -428,6 +453,9 @@ contract Matching is EIP712, Owned {
     if (block.timestamp > order.expirationTime) revert M_OrderExpired(block.timestamp, order.expirationTime);
   }
 
+  /**
+   * @notice Updates fill and fee allowances for a trade if the amounts are valid.
+   */
   function _verifyAndUpdateFillAllowance(
     uint order1Amount,
     uint order2Amount,
@@ -452,6 +480,9 @@ contract Matching is EIP712, Owned {
     fillAmounts[order2Hash] += quoteAmount;
   }
 
+  /**
+   * @notice Calculates the execution price is within the limit price.
+   */
   function _checkLimitPrice(bool isBid, uint limitPrice, uint calculatedPrice) internal pure {
     // If you want to buy but the price is above your limit
     if (isBid && calculatedPrice > limitPrice) {
@@ -462,6 +493,9 @@ contract Matching is EIP712, Owned {
     }
   }
 
+  /**
+   * @notice Submits the asset transfers from an array of verified orders.
+   */
   function _submitAssetTransfers(VerifiedTrade[] memory orders) internal {
     IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](orders.length * 4);
 
@@ -508,7 +542,9 @@ contract Matching is EIP712, Owned {
     accounts.submitTransfers(transferBatch, ""); // todo fill with oracle data
   }
 
-  // Verify signature against owner address or permissioned address
+  /**
+   * @notice Verify signature against owner address or permissioned address.
+   */
   function _verifySignature(uint accountId, bytes32 structuredHash, bytes memory signature)
     internal
     view
@@ -528,13 +564,9 @@ contract Matching is EIP712, Owned {
     }
   }
 
-  function _mintCLOBAccount(MintAccount memory newAccount, address toAllow) internal returns (uint newId) {
-    if (permissions[toAllow][newAccount.owner] < block.timestamp) revert M_SessionKeyInvalid(toAllow);
-    newId = accounts.createAccount(newAccount.owner, IManager(newAccount.manager));
-    accountToOwner[newId] = newAccount.owner;
-
-    permissions[toAllow][accountToOwner[newId]] = newAccount.keyExpiry;
-  }
+  /////////////////////////
+  //  Hashing Functions  //
+  /////////////////////////
 
   function _getInstrumentHash(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
     internal
@@ -664,7 +696,6 @@ contract Matching is EIP712, Owned {
   error M_NotWhitelisted();
   error M_NotOwnerAddress(address sender, address owner);
   error M_InvalidAccountOwner(address accountIdOwner, address inputOwner);
-  error M_AccountFrozen(address owner);
   error M_CannotTradeToSelf(uint accountId);
   error M_InsufficientFillAmount(uint orderNumber, uint remainingFill, uint requestedFill);
   error M_OrderExpired(uint blockTimestamp, uint expirationTime);
