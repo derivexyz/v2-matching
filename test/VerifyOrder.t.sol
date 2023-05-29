@@ -67,7 +67,7 @@ contract UNIT_MatchingVerifyOrder is Test {
   // Attempt to trade with your frozen account
   function testCannotTradeIfYouFrozen() public {
     vm.startPrank(alice);
-    matching.requestWithdraw(accountId);
+    matching.requestCloseCLOBAccount(accountId);
     vm.stopPrank();
 
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
@@ -104,7 +104,7 @@ contract UNIT_MatchingVerifyOrder is Test {
   // Attempt to trade with another account that is frozen
   function testCannotTradeWithFrozenAccount() public {
     vm.startPrank(bob);
-    matching.requestWithdraw(accountId2);
+    matching.requestCloseCLOBAccount(accountId2);
     vm.stopPrank();
     (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
       _createSignedOrder(accountId, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, true);

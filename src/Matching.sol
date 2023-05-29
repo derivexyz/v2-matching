@@ -231,7 +231,7 @@ contract Matching is EIP712, Owned {
 
   /**
    * @notice Allows user to close their account by transferring their account NFT back.
-   * @dev User must have previously called `requestWithdraw()` and waited for the cooldown to elapse.
+   * @dev User must have previously called `requestCloseCLOBAccount()` and waited for the cooldown to elapse.
    * @param accountId The users' accountId
    */
   function closeCLOBAccount(uint accountId) external {
@@ -248,7 +248,7 @@ contract Matching is EIP712, Owned {
   /**
    * @notice Activates the cooldown period to withdraw account and freezes account from trading.
    */
-  function requestWithdraw(uint accountId) external {
+  function requestCloseCLOBAccount(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
     withdrawCooldown[msg.sender] = block.timestamp;
     emit Cooldown(msg.sender);

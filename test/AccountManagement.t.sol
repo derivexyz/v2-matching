@@ -92,7 +92,7 @@ contract UNIT_MatchingAccountManagement is Test {
 
   function testCanWithdrawAccount() public {
     vm.startPrank(alice);
-    matching.requestWithdraw(aliceAcc);
+    matching.requestCloseCLOBAccount(aliceAcc);
 
     assertEq(account.ownerOf(aliceAcc), address(matching));
 
@@ -110,7 +110,7 @@ contract UNIT_MatchingAccountManagement is Test {
 
     // Should revert since bob is not owner
     vm.expectRevert(abi.encodeWithSelector(Matching.M_NotOwnerAddress.selector, address(bob), address(alice)));
-    matching.requestWithdraw(aliceAcc);
+    matching.requestCloseCLOBAccount(aliceAcc);
   }
 
   function testCanTransferAsset() public {
