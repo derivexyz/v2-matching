@@ -74,6 +74,11 @@ contract Matching is EIP712, Owned {
     uint keyExpiry;
   }
 
+  struct OrderFills {
+    uint filledAmount;
+    uint totalFees;
+  }
+
   ///@dev Account Id which receives all fees paid
   uint public feeAccountId;
 
@@ -98,8 +103,8 @@ contract Matching is EIP712, Owned {
   ///@dev Mapping of signer address -> owner address -> expiry
   mapping(address => mapping(address => uint)) public permissions; // Allows other addresses to trade on behalf of others
 
-  ///@dev Mapping to track fill amounts per order
-  mapping(bytes32 => uint) public fillAmounts;
+  ///@dev Mapping to track fill amounts and fee total per order
+  mapping(bytes32 => OrderFills) public fillAmounts;
 
   ///@dev Mapping of accountId to signal withdraw
   mapping(address => uint) public withdrawCooldown;
@@ -328,7 +333,7 @@ contract Matching is EIP712, Owned {
 
     }
 
-    // Verify and update fill amounts for both orders
+    // Verify and update fill/fee amounts for both orders
     _verifyAndUpdateFillAllowance(
       order1.amount,
       order2.amount,
@@ -427,10 +432,6 @@ contract Matching is EIP712, Owned {
       revert M_AccountFrozen(accountToOwner[matchDetails.accountId2]);
     }
 
-    // Check trade fee < maxFee
-    if (matchDetails.tradeFee > order1.maxFee) revert M_TradeFeeExceedsMaxFee(matchDetails.tradeFee, order1.maxFee);
-    if (matchDetails.tradeFee > order2.maxFee) revert M_TradeFeeExceedsMaxFee(matchDetails.tradeFee, order2.maxFee);
-
     // Check for zero trade amount
     if (matchDetails.baseAmount == 0 && matchDetails.quoteAmount == 0) {
       revert M_ZeroAmountToTrade();
@@ -470,9 +471,19 @@ contract Matching is EIP712, Owned {
       revert M_InsufficientFillAmount(2, remainingAmount2, quoteAmount);
     }
 
+    // Ensure trade fee < maxFee (cumulative paid)
+    uint remainingFee1 = order1.maxFee - fillAmounts[order1Hash].totalFees;
+    uint remainingFee2 = order2.maxFee - fillAmounts[order1Hash].totalFees;
+    if (matchDetails.tradeFee > remainingFee1) revert M_TradeFeeExceedsMaxFee(matchDetails.tradeFee, remainingFee1);
+    if (matchDetails.tradeFee > remainingFee2) revert M_TradeFeeExceedsMaxFee(matchDetails.tradeFee, remainingFee2);
+
     // Update the filled amounts for the orders
-    fillAmounts[order1Hash] += baseAmount;
-    fillAmounts[order2Hash] += quoteAmount;
+    fillAmounts[order1Hash].filledAmount += baseAmount;
+    fillAmounts[order2Hash].filledAmount += quoteAmount;
+
+    fillAmounts[order1Hash].totalFees += matchDetails.tradeFee;
+    fillAmounts[order2Hash].totalFees += matchDetails.tradeFee;
+    
   }
 
   function _validateOptionLimitPrice(bool isBid, uint limitPrice, uint baseAmount, uint quoteAmount) internal pure {
