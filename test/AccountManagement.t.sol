@@ -98,10 +98,10 @@ contract UNIT_MatchingAccountManagement is Test {
 
     // Should revert since cooldown has no elapsed
     vm.expectRevert(abi.encodeWithSelector(Matching.M_CooldownNotElapsed.selector, COOLDOWN_SEC));
-    matching.closeCLOBAccount(aliceAcc);
+    matching.completeCloseCLOBAccount(aliceAcc);
 
     vm.warp(block.timestamp + COOLDOWN_SEC);
-    matching.closeCLOBAccount(aliceAcc);
+    matching.completeCloseCLOBAccount(aliceAcc);
     assertEq(account.ownerOf(aliceAcc), address(alice));
   }
 
