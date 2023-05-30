@@ -115,7 +115,7 @@ contract UNIT_MatchingAccountManagement is Test {
 
   function testCanTransferAsset() public {
     vm.startPrank(bob);
-    matching.registerSessionKey(bobAcc, alice, block.timestamp + 1 days);
+    matching.registerSessionKey(bob, alice, block.timestamp + 1 days);
     vm.stopPrank();
 
     int aliceBefore = account.getBalance(aliceAcc, option, callId);
@@ -123,8 +123,9 @@ contract UNIT_MatchingAccountManagement is Test {
     assertEq(aliceBefore, 1e18);
     assertEq(bobBefore, -1e18);
 
+    bytes32 assetHash = matching.getAssetHash(option, callId);
     Matching.TransferAsset memory transfer =
-      Matching.TransferAsset({asset: option, subId: callId, amount: 1e18, fromAcc: aliceAcc, toAcc: bobAcc});
+      Matching.TransferAsset({amount: 1e18, fromAcc: aliceAcc, toAcc: bobAcc, assetHash: assetHash});
 
     // Sign the transfer
     bytes32 transferHash = matching.getTransferHash(transfer);
@@ -134,8 +135,12 @@ contract UNIT_MatchingAccountManagement is Test {
     transfers[0] = transfer;
     bytes[] memory signatures = new bytes[](1);
     signatures[0] = signature;
+    IAsset[] memory assets = new IAsset[](1);
+    assets[0] = option;
+    uint[] memory subIds = new uint[](1);
+    subIds[0] = callId;
 
-    matching.submitTransfers(transfers, signatures);
+    matching.submitTransfers(transfers, assets, subIds, signatures);
 
     int aliceAfter = account.getBalance(aliceAcc, option, callId);
     int bobAfter = account.getBalance(bobAcc, option, callId);

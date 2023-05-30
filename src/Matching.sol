@@ -110,10 +110,10 @@ contract Matching is EIP712, Owned {
 
   ///@dev Instrument typehash containing the two IAssets and subIds
   bytes32 public constant _INSTRUMENT_TYPEHASH = keccak256("address,address,uint256,uint256");
-  
+
   ///@dev Asset typehash containing the IAsset and subId
   bytes32 public constant _ASSET_TYPEHASH = keccak256("address,uint256");
-  
+
   constructor(IAccounts _accounts, address _cashAsset, uint _feeAccountId, uint _cooldownSeconds)
     EIP712("Matching", "1.0")
   {
@@ -170,14 +170,19 @@ contract Matching is EIP712, Owned {
    * @param signature The signed messages from the owner or permissioned accounts.
    */
   // NOTE: currently you need to sign every transfer, looking into TransferAsset containing transfer[] that only need to sign once
-  function submitTransfers(TransferAsset[] memory transfer, bytes[] memory signature) external onlyWhitelisted {
-    if (transfer.length != signature.length) {
-      revert M_ArrayLengthMismatch(transfer.length, signature.length, 0);
+  function submitTransfers(
+    TransferAsset[] memory transfer,
+    IAsset[] memory assets,
+    uint[] memory subIds,
+    bytes[] memory signature
+  ) external onlyWhitelisted {
+    if (transfer.length != signature.length || transfer.length != assets.length || transfer.length != subIds.length) {
+      revert M_TransferArrayLengthMismatch(transfer.length, assets.length, subIds.length, signature.length);
     }
 
     IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](transfer.length);
     for (uint i = 0; i < transfer.length; i++) {
-      transferBatch[i] = _verifyTransferAsset(transfer[i], signature[i]);
+      transferBatch[i] = _verifyTransferAsset(transfer[i], assets[i], subIds[i], signature[i]);
     }
 
     accounts.submitTransfers(transferBatch, "");
@@ -219,14 +224,17 @@ contract Matching is EIP712, Owned {
    * @dev Signature should have signed the transfer.
    */
   // todo signing a transfer to the new account which doesnt exist yet...
-  function mintAccountAndTransfer(MintAccount memory newAccount, TransferAsset memory transfer, bytes memory signature)
-    external
-    returns (uint newId)
-  {
+  function mintAccountAndTransfer(
+    MintAccount memory newAccount,
+    TransferAsset memory transfer,
+    IAsset asset,
+    uint subId,
+    bytes memory signature
+  ) external returns (uint newId) {
     address toAllow = _recoverAddress(_getTransferHash(transfer), signature);
     newId = _mintCLOBAccount(newAccount, toAllow);
 
-    IAccounts.AssetTransfer memory assetTransfer = _verifyTransferAsset(transfer, signature);
+    IAccounts.AssetTransfer memory assetTransfer = _verifyTransferAsset(transfer, asset, subId, signature);
     accounts.submitTransfer(assetTransfer, "");
   }
 
@@ -260,7 +268,7 @@ contract Matching is EIP712, Owned {
    * @dev Registered address gains owner address permission to the subAccount until expiry.
    * @param expiry When the access to the owner address expires
    */
-  function registerSessionKey(uint ownerAddress, address toAllow, uint expiry) external {
+  function registerSessionKey(address ownerAddress, address toAllow, uint expiry) external {
     if (msg.sender != ownerAddress) revert M_NotOwnerAddress(msg.sender, ownerAddress);
     permissions[toAllow][ownerAddress] = expiry;
   }
@@ -352,16 +360,14 @@ contract Matching is EIP712, Owned {
    * @param transfer The details of the asset transfer to be made.
    * @param signature The signed message from the owner account.
    */
-  function _verifyTransferAsset(TransferAsset memory transfer, bytes memory signature)
+  function _verifyTransferAsset(TransferAsset memory transfer, IAsset asset, uint subId, bytes memory signature)
     internal
     view
     returns (IAccounts.AssetTransfer memory verifiedTransfer)
   {
-    // todo Verify the asset hash
-  // bytes32 assetHash = _getInstrumentHash(
-  //     matchDetails.baseAsset, matchDetails.quoteAsset, matchDetails.baseSubId, matchDetails.quoteSubId
-  //   );
-  //   if (order1.instrumentHash != instrumentHash) revert M_InvalidTradingPair(order1.instrumentHash, instrumentHash);
+    // Verify the asset hash
+    bytes32 assetHash = _getAssetHash(asset, subId);
+    if (transfer.assetHash != assetHash) revert M_InvalidAssetHash(transfer.assetHash, assetHash);
 
     // Verify signature is signed by the account owner or permitted address
     bytes32 transferHash = _getTransferHash(transfer);
@@ -381,8 +387,8 @@ contract Matching is EIP712, Owned {
     return IAccounts.AssetTransfer({
       fromAcc: transfer.fromAcc,
       toAcc: transfer.toAcc,
-      asset: transfer.asset,
-      subId: transfer.subId,
+      asset: asset,
+      subId: subId,
       amount: transfer.amount.toInt256(),
       assetData: bytes32(0)
     });
@@ -594,15 +600,12 @@ contract Matching is EIP712, Owned {
 
   function _getTransferHash(TransferAsset memory transfer) internal pure returns (bytes32) {
     return keccak256(
-      abi.encode(
-        _TRANSFER_ASSET_TYPEHASH,
-        address(transfer.asset),
-        transfer.subId,
-        transfer.amount,
-        transfer.fromAcc,
-        transfer.toAcc
-      )
+      abi.encode(_TRANSFER_ASSET_TYPEHASH, transfer.amount, transfer.fromAcc, transfer.toAcc, transfer.assetHash)
     );
+  }
+
+  function _getAssetHash(IAsset asset, uint subId) internal pure returns (bytes32) {
+    return keccak256(abi.encode(_ASSET_TYPEHASH, address(asset), subId));
   }
 
   function _getMintAccountHash(MintAccount memory newAccount) internal pure returns (bytes32) {
@@ -631,6 +634,10 @@ contract Matching is EIP712, Owned {
 
   function getTransferHash(TransferAsset calldata transfer) external pure returns (bytes32) {
     return _getTransferHash(transfer);
+  }
+
+  function getAssetHash(IAsset asset, uint subId) external pure returns (bytes32) {
+    return _getAssetHash(asset, subId);
   }
 
   function getMintAccountHash(MintAccount calldata newAccount) external pure returns (bytes32) {
@@ -693,6 +700,7 @@ contract Matching is EIP712, Owned {
 
   error M_InvalidSignature(address signer);
   error M_InvalidTradingPair(bytes32 suppliedHash, bytes32 matchHash);
+  error M_InvalidAssetHash(bytes32 suppliedHash, bytes32 assetHash);
   error M_NotWhitelisted();
   error M_NotOwnerAddress(address sender, address owner);
   error M_InvalidAccountOwner(address accountIdOwner, address inputOwner);
@@ -702,6 +710,7 @@ contract Matching is EIP712, Owned {
   error M_ZeroAmountToTrade();
   error M_TradingSameSide();
   error M_ArrayLengthMismatch(uint length1, uint length2, uint length3);
+  error M_TransferArrayLengthMismatch(uint transfers, uint assets, uint subIds, uint signatues);
   error M_AskPriceBelowLimit(uint limitPrice, uint calculatedPrice);
   error M_BidPriceAboveLimit(uint limitPrice, uint calculatedPrice);
   error M_CannotTradeSameAsset(IAsset baseAsset, IAsset quoteAsset);
