@@ -213,8 +213,7 @@ contract UNIT_MatchingSigning is Test {
 
   // Mint new account with owner as alice but session key from bob
   function testCannotMintAccountSignature() public {
-    Matching.MintAccount memory newAccount =
-      Matching.MintAccount({owner: alice, manager: address(manager), keyExpiry: block.timestamp + 1 weeks});
+    Matching.MintAccount memory newAccount = Matching.MintAccount({owner: alice, manager: address(manager)});
     bytes32 newAccountHash = matching.getMintAccountHash(newAccount);
     bytes memory signature = _sign(newAccountHash, bobKey);
 
@@ -230,18 +229,13 @@ contract UNIT_MatchingSigning is Test {
     matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
     vm.stopPrank();
 
-    Matching.MintAccount memory newAccount =
-      Matching.MintAccount({owner: alice, manager: address(manager), keyExpiry: block.timestamp + 1 weeks});
+    Matching.MintAccount memory newAccount = Matching.MintAccount({owner: alice, manager: address(manager)});
     bytes32 newAccountHash = matching.getMintAccountHash(newAccount);
     bytes memory signature = _sign(newAccountHash, bobKey);
 
     // New account is minted
     uint newId = matching.mintCLOBAccount(newAccount, signature);
     assertEq(newId, 2);
-
-    // Session key active for 1 week
-    uint expiry = matching.permissions(bob, alice);
-    assertEq(expiry, block.timestamp + 1 weeks);
   }
 
   // just for coverage for now

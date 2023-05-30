@@ -68,7 +68,6 @@ contract Matching is EIP712, Owned {
   struct MintAccount {
     address owner;
     address manager;
-    uint keyExpiry;
   }
 
   ///@dev Account Id which receives all fees paid
@@ -106,7 +105,7 @@ contract Matching is EIP712, Owned {
   bytes32 public constant _TRANSFER_ASSET_TYPEHASH = keccak256("TransferAsset(uint256,uint256,uint256,bytes32");
 
   ///@dev Mint account typehash containing desired owner address, manager and expiry of the signing address
-  bytes32 public constant _MINT_ACCOUNT_TYPEHASH = keccak256("MintAccount(address,address,uint256");
+  bytes32 public constant _MINT_ACCOUNT_TYPEHASH = keccak256("MintAccount(address,address");
 
   ///@dev Instrument typehash containing the two IAssets and subIds
   bytes32 public constant _INSTRUMENT_TYPEHASH = keccak256("address,address,uint256,uint256");
@@ -299,8 +298,6 @@ contract Matching is EIP712, Owned {
     if (permissions[toAllow][newAccount.owner] < block.timestamp) revert M_SessionKeyInvalid(toAllow);
     newId = accounts.createAccount(address(this), IManager(newAccount.manager));
     accountToOwner[newId] = newAccount.owner;
-
-    permissions[toAllow][accountToOwner[newId]] = newAccount.keyExpiry;
   }
 
   ////////////////////////////
@@ -425,7 +422,7 @@ contract Matching is EIP712, Owned {
    */
   function _validateOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
     internal
-    view
+    pure
   {
     // Ensure the accountId and taker are different accounts
     if (matchDetails.accountId1 == matchDetails.accountId2) revert M_CannotTradeToSelf(matchDetails.accountId1);
@@ -609,7 +606,7 @@ contract Matching is EIP712, Owned {
   }
 
   function _getMintAccountHash(MintAccount memory newAccount) internal pure returns (bytes32) {
-    return keccak256(abi.encode(_MINT_ACCOUNT_TYPEHASH, newAccount.owner, newAccount.manager, newAccount.keyExpiry));
+    return keccak256(abi.encode(_MINT_ACCOUNT_TYPEHASH, newAccount.owner, newAccount.manager));
   }
 
   function _recoverAddress(bytes32 hash, bytes memory signature) internal view returns (address) {
