@@ -145,6 +145,15 @@ contract Matching is EIP712, Owned {
   }
 
   /**
+   * @notice Set the fee account ID
+   */
+  function setWhitelist(uint feeId) external onlyOwner {
+    feeAccountId = feeId;
+
+    emit FeeAccountIdSet(feeId);
+  }
+
+  /**
    * @notice Set the withdraw account cooldown seconds.
    */
   function setWithdrawAccountCooldown(uint cooldown) external onlyOwner {
@@ -766,6 +775,11 @@ contract Matching is EIP712, Owned {
    * @dev Emitted when an address is added to / remove from the whitelist
    */
   event AddressWhitelisted(address user, bool isWhitelisted);
+
+  /**
+   * @dev Emitted when the fee account ID is set.
+   */
+  event FeeAccountIdSet(uint feeAccountId);
 
   /**
    * @dev Emitted when a trade is executed
