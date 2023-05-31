@@ -158,7 +158,7 @@ contract UNIT_MatchingAccountManagement is Test {
     matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
     vm.stopPrank();
 
-      Matching.MintAccount memory newAccount = Matching.MintAccount({owner: alice, manager: address(manager)});
+    Matching.MintAccount memory newAccount = Matching.MintAccount({owner: alice, manager: address(manager)});
 
     // Create transfer request
     bytes32 assetHash = matching.getAssetHash(IAsset(option), callId);
@@ -169,7 +169,7 @@ contract UNIT_MatchingAccountManagement is Test {
     bytes memory signature = _sign(transferHash, bobKey);
 
     // New account is minted
-    uint newId =  matching.mintAccountAndTransfer(newAccount, transfer, IAsset(option), callId, signature);
+    uint newId = matching.mintAccountAndTransfer(newAccount, transfer, IAsset(option), callId, signature);
     assertEq(newId, 3);
   }
 
@@ -198,7 +198,6 @@ contract UNIT_MatchingAccountManagement is Test {
 
     assertEq(matching.permissions(bob, alice), 0);
   }
-    
 
   function _sign(bytes32 orderHash, uint pk) internal view returns (bytes memory) {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ECDSA.toTypedDataHash(domainSeparator, orderHash));

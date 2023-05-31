@@ -125,9 +125,7 @@ contract Matching is EIP712, Owned {
   ///@dev Asset typehash containing the IAsset and subId
   bytes32 public constant _ASSET_TYPEHASH = keccak256("address,uint256");
 
-  constructor(IAccounts _accounts, address _cashAsset, uint _feeAccountId)
-    EIP712("Matching", "1.0")
-  {
+  constructor(IAccounts _accounts, address _cashAsset, uint _feeAccountId) EIP712("Matching", "1.0") {
     accounts = _accounts;
     cashAsset = _cashAsset;
     feeAccountId = _feeAccountId;
@@ -166,6 +164,7 @@ contract Matching is EIP712, Owned {
   /**
    * @notice Set the deregister session key cooldown seconds.
    */
+
   function setSessionKeyCooldown(uint cooldown) external onlyOwner {
     deregisterKeyCooldown = cooldown;
 
@@ -309,7 +308,7 @@ contract Matching is EIP712, Owned {
    * @notice Allows owner to deregister a session key from their account
    */
   function requestDeregisterSessionKey(address sessionKey) external {
-    // Ensure the session key has not expired 
+    // Ensure the session key has not expired
     if (permissions[sessionKey][msg.sender] < block.timestamp) revert M_SessionKeyInvalid(sessionKey);
 
     sessionKeyCooldown[sessionKey] = block.timestamp;
@@ -325,7 +324,7 @@ contract Matching is EIP712, Owned {
       revert M_CooldownNotElapsed(sessionKeyCooldown[sessionKey] + (deregisterKeyCooldown) - block.timestamp);
     }
 
-   permissions[sessionKey][msg.sender] = 0;
+    permissions[sessionKey][msg.sender] = 0;
   }
 
   /////////////////////
@@ -333,7 +332,7 @@ contract Matching is EIP712, Owned {
   /////////////////////
 
   /**
-   * @notice Activates the cooldown period to withdraw cash. 
+   * @notice Activates the cooldown period to withdraw cash.
    */
   function requestWithdrawCash(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
@@ -347,7 +346,9 @@ contract Matching is EIP712, Owned {
    */
   function withdrawCash(TransferAsset memory transfer, bytes memory signature) external {
     if (cashCooldown[accountToOwner[transfer.fromAcc]] + (withdrawCashCooldown) > block.timestamp) {
-      revert M_CooldownNotElapsed(cashCooldown[accountToOwner[transfer.fromAcc]] + (withdrawCashCooldown) - block.timestamp);
+      revert M_CooldownNotElapsed(
+        cashCooldown[accountToOwner[transfer.fromAcc]] + (withdrawCashCooldown) - block.timestamp
+      );
     }
     // Verify signatures
     bytes32 transferHash = _getTransferHash(transfer);
@@ -454,9 +455,8 @@ contract Matching is EIP712, Owned {
     // If the address is not owner ensure permission has not expired for the 'toAcc'
     address sessionKeyAddress = _recoverAddress(transferHash, signature);
 
-
     // If toAcc is not empty we check for permission expiry, if not empty we fill the transfer with the newId
-    if (transfer.toAcc != 0 ) {
+    if (transfer.toAcc != 0) {
       address toAccOwner = accountToOwner[transfer.toAcc];
       if (sessionKeyAddress != toAccOwner && permissions[sessionKeyAddress][toAccOwner] < block.timestamp) {
         revert M_SessionKeyInvalid(sessionKeyAddress);
@@ -769,7 +769,7 @@ contract Matching is EIP712, Owned {
    * @dev Emitted when a user requests account withdrawal and begins the cooldown
    */
   event AccountCooldown(address user);
-  
+
   /**
    * @dev Emitted when a user requests cash withdrawal and begins the cooldown
    */
@@ -781,11 +781,11 @@ contract Matching is EIP712, Owned {
   event SessionKeyCooldown(address owner, address sessionKeyPublicAddress);
 
   /**
-   * @dev Emitted when withdraw account cooldown is set 
+   * @dev Emitted when withdraw account cooldown is set
    */
   event WithdrawAccountCooldownSet(uint cooldown);
   /**
-   * @dev Emitted when withdraw cash cooldown is set 
+   * @dev Emitted when withdraw cash cooldown is set
    */
   event WithdrawCashCooldownSet(uint cooldown);
   /**
