@@ -228,6 +228,8 @@ contract Matching is EIP712, Owned {
   function forceCloseCLOBAccount(uint accountId) external onlyWhitelisted {
     accounts.transferFrom(address(this), accountToOwner[accountId], accountId);
     delete accountToOwner[accountId];
+
+    emit ClosedCLOBAccount(accountId);
   }
 
   //////////////////////////
@@ -245,6 +247,8 @@ contract Matching is EIP712, Owned {
   function openCLOBAccount(uint accountId) external {
     accounts.transferFrom(msg.sender, address(this), accountId);
     accountToOwner[accountId] = msg.sender;
+
+    emit OpenedCLOBAccount(accountId);
   }
 
   /**
@@ -263,6 +267,8 @@ contract Matching is EIP712, Owned {
 
     IAccounts.AssetTransfer memory assetTransfer = _verifyTransferAsset(transfer, asset, subId, newId, signature);
     accounts.submitTransfer(assetTransfer, "");
+
+    emit OpenedCLOBAccount(newId);
   }
 
   /**
@@ -288,6 +294,8 @@ contract Matching is EIP712, Owned {
     accounts.transferFrom(address(this), msg.sender, accountId);
     accountCooldown[msg.sender] = 0;
     delete accountToOwner[accountId];
+
+    emit ClosedCLOBAccount(accountId);
   }
 
   ////////////////////
@@ -302,6 +310,8 @@ contract Matching is EIP712, Owned {
   function registerSessionKey(address ownerAddress, address toAllow, uint expiry) external {
     if (msg.sender != ownerAddress) revert M_NotOwnerAddress(msg.sender, ownerAddress);
     permissions[toAllow][ownerAddress] = expiry;
+
+    emit SessionKeyRegistered(ownerAddress, toAllow);
   }
 
   /**
@@ -325,6 +335,8 @@ contract Matching is EIP712, Owned {
     }
 
     permissions[sessionKey][msg.sender] = 0;
+
+    emit SessionKeyDeregistered(msg.sender, sessionKey);
   }
 
   /////////////////////
@@ -784,14 +796,36 @@ contract Matching is EIP712, Owned {
    * @dev Emitted when withdraw account cooldown is set
    */
   event WithdrawAccountCooldownSet(uint cooldown);
+
   /**
    * @dev Emitted when withdraw cash cooldown is set
    */
   event WithdrawCashCooldownSet(uint cooldown);
+
   /**
    * @dev Emitted when the deregister session key cooldown is set
    */
   event SessionKeyCooldownSet(uint cooldown);
+
+  /**
+   * @dev Emitted when a CLOB account is closed.
+   */
+  event OpenedCLOBAccount(uint accountId);
+
+  /**
+   * @dev Emitted when a CLOB account is closed.
+   */
+  event ClosedCLOBAccount(uint accountId);
+
+  /**
+   * @dev Emitted when a session key is registered to an owner account.
+   */
+  event SessionKeyRegistered(address owner, address sessionKey);
+
+  /**
+   * @dev Emitted when a session key is deregistered to an owner account.
+   */
+  event SessionKeyDeregistered(address owner, address sessionKey);
 
   ////////////
   // Errors //
