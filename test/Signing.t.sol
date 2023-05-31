@@ -40,7 +40,7 @@ contract UNIT_MatchingSigning is Test {
   function setUp() public {
     account = new Accounts("Lyra Margin Accounts", "LyraMarginNFTs");
     cashAsset = address(usdc);
-    matching = new Matching(account, cashAsset, 420,0);
+    matching = new Matching(account, cashAsset, 420);
 
     manager = new MockManager(address(account));
 
@@ -211,31 +211,21 @@ contract UNIT_MatchingSigning is Test {
     assertEq(isValid, false);
   }
 
-  // Mint new account with owner as alice but session key from bob
+  // Try mint new account with owner as alice but session key from bob
   function testCannotMintAccountSignature() public {
     Matching.MintAccount memory newAccount = Matching.MintAccount({owner: alice, manager: address(manager)});
-    bytes32 newAccountHash = matching.getMintAccountHash(newAccount);
-    bytes memory signature = _sign(newAccountHash, bobKey);
+
+    // Create transfer request
+    bytes32 assetHash = matching.getAssetHash(IAsset(cashAsset), 0);
+    Matching.TransferAsset memory transfer =
+      Matching.TransferAsset({amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc, assetHash: assetHash});
+
+    bytes32 transferHash = matching.getTransferHash(transfer);
+    bytes memory signature = _sign(transferHash, bobKey);
 
     // New account is minted
     vm.expectRevert(abi.encodeWithSelector(Matching.M_SessionKeyInvalid.selector, bob));
-    matching.mintCLOBAccount(newAccount, signature);
-  }
-
-  // Mint new account with owner as alice but session key from bob
-  function testMintAccountSignature() public {
-    // First register bob session key to alice address
-    vm.startPrank(alice);
-    matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
-    vm.stopPrank();
-
-    Matching.MintAccount memory newAccount = Matching.MintAccount({owner: alice, manager: address(manager)});
-    bytes32 newAccountHash = matching.getMintAccountHash(newAccount);
-    bytes memory signature = _sign(newAccountHash, bobKey);
-
-    // New account is minted
-    uint newId = matching.mintCLOBAccount(newAccount, signature);
-    assertEq(newId, 2);
+    matching.mintAccountAndTransfer(newAccount, transfer, IAsset(cashAsset), 0, signature);
   }
 
   // just for coverage for now

@@ -47,7 +47,10 @@ contract UNIT_MatchingAccountManagement is Test {
   function setUp() public {
     account = new Accounts("Lyra Margin Accounts", "LyraMarginNFTs");
     cash = address(usdc);
-    matching = new Matching(account, cash, 420, COOLDOWN_SEC);
+    matching = new Matching(account, cash, 420);
+    matching.setWithdrawAccountCooldown(COOLDOWN_SEC);
+    matching.setWithdrawCashCooldown(COOLDOWN_SEC);
+    matching.setSessionKeyCooldown(COOLDOWN_SEC);
 
     manager = new MockManager(address(account));
     feed = new MockFeed();
@@ -148,13 +151,54 @@ contract UNIT_MatchingAccountManagement is Test {
     assertEq(bobAfter, 0);
   }
 
-  // function testCannotTransferAsset() public {
-  //   // Remove whitelist and try to transfer
-  //   matching.setWhitelist(address(this), false);
+  // Mint new account with owner as alice but session key from bob
+  function testMintAccountAndTransferSignature() public {
+    // First register bob session key to alice address
+    vm.startPrank(alice);
+    matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
+    vm.stopPrank();
 
-  //   vm.expectRevert(Matching.M_NotWhitelisted.selector);
-  //   matching.transferAsset(aliceAcc, bobAcc, cash, 0, 1e18);
-  // }
+      Matching.MintAccount memory newAccount = Matching.MintAccount({owner: alice, manager: address(manager)});
+
+    // Create transfer request
+    bytes32 assetHash = matching.getAssetHash(IAsset(option), callId);
+    Matching.TransferAsset memory transfer =
+      Matching.TransferAsset({amount: 1e18, fromAcc: aliceAcc, toAcc: bobAcc, assetHash: assetHash});
+
+    bytes32 transferHash = matching.getTransferHash(transfer);
+    bytes memory signature = _sign(transferHash, bobKey);
+
+    // New account is minted
+    uint newId =  matching.mintAccountAndTransfer(newAccount, transfer, IAsset(option), callId, signature);
+    assertEq(newId, 3);
+  }
+
+  // User must wait for cooldown to complete
+  function testCannotDeregisterSessionKey() public {
+    vm.startPrank(alice);
+    matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
+    matching.requestDeregisterSessionKey(bob);
+
+    assertEq(matching.permissions(bob, alice), block.timestamp + 1 days);
+
+    vm.expectRevert(abi.encodeWithSelector(Matching.M_CooldownNotElapsed.selector, COOLDOWN_SEC));
+    matching.completeDeregisterSessionKey(bob);
+  }
+
+  // User waits for cooldown to deregister
+  function testDeregisterSessionKey() public {
+    vm.startPrank(alice);
+    matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
+    matching.requestDeregisterSessionKey(bob);
+    assertEq(matching.permissions(bob, alice), block.timestamp + 1 days);
+
+    assertEq(matching.sessionKeyCooldown(bob), block.timestamp);
+    vm.warp(block.timestamp + COOLDOWN_SEC);
+    matching.completeDeregisterSessionKey(bob);
+
+    assertEq(matching.permissions(bob, alice), 0);
+  }
+    
 
   function _sign(bytes32 orderHash, uint pk) internal view returns (bytes memory) {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ECDSA.toTypedDataHash(domainSeparator, orderHash));

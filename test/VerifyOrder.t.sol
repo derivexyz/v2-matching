@@ -40,7 +40,7 @@ contract UNIT_MatchingVerifyOrder is Test {
   function setUp() public {
     account = new Accounts("Lyra Margin Accounts", "LyraMarginNFTs");
     cashAsset = IAsset(address(usdc));
-    matching = new Matching(account, address(cashAsset), 420,0);
+    matching = new Matching(account, address(cashAsset), 420);
 
     manager = new MockManager(address(account));
 
