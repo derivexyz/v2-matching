@@ -100,13 +100,13 @@ contract Matching is EIP712, Owned {
   ///@dev Mapping to track fill amounts per order
   mapping(bytes32 => uint) public fillAmounts;
 
-  ///@dev Mapping of accountId to signal account withdraw
+  ///@dev Mapping of owner to account withdraw cooldown start time
   mapping(address => uint) public accountCooldown;
 
-  ///@dev Mapping of accountId to signal cash withdraw
+  ///@dev Mapping of owner to signal cash cooldown start time
   mapping(address => uint) public cashCooldown;
 
-  ///@dev Mapping of accountId to signal cash withdraw
+  ///@dev Mapping of session key to cooldown start time 
   mapping(address => uint) public sessionKeyCooldown;
 
   ///@dev Order fill typehash containing the limit order hash and trading pair hash, exluding the counterparty for the trade (accountId2)
@@ -201,22 +201,22 @@ contract Matching is EIP712, Owned {
    * @dev Batch transfers assets from one account to another.
    * Can only be called by an address that is currently whitelisted.
    *
-   * @param transfer The details of the asset transfers to be made.
-   * @param signature The signed messages from the owner or permissioned accounts.
+   * @param transfers The details of the asset transfers to be made.
+   * @param signatures The signed messages from the owner or permissioned accounts.
    */
   function submitTransfers(
-    TransferAsset[] memory transfer,
+    TransferAsset[] memory transfers,
     IAsset[] memory assets,
     uint[] memory subIds,
-    bytes[] memory signature
+    bytes[] memory signatures
   ) external onlyWhitelisted {
-    if (transfer.length != signature.length || transfer.length != assets.length || transfer.length != subIds.length) {
-      revert M_TransferArrayLengthMismatch(transfer.length, assets.length, subIds.length, signature.length);
+    if (transfers.length != signatures.length || transfers.length != assets.length || transfers.length != subIds.length) {
+      revert M_TransferArrayLengthMismatch(transfers.length, assets.length, subIds.length, signatures.length);
     }
 
-    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](transfer.length);
-    for (uint i = 0; i < transfer.length; i++) {
-      transferBatch[i] = _verifyTransferAsset(transfer[i], assets[i], subIds[i], 0, signature[i]);
+    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](transfers.length);
+    for (uint i = 0; i < transfers.length; i++) {
+      transferBatch[i] = _verifyTransferAsset(transfers[i], assets[i], subIds[i], 0, signatures[i]);
     }
 
     accounts.submitTransfers(transferBatch, "");
