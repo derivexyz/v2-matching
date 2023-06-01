@@ -173,30 +173,16 @@ contract UNIT_MatchingAccountManagement is Test {
     assertEq(newId, 3);
   }
 
-  // User must wait for cooldown to complete
-  function testCannotDeregisterSessionKey() public {
-    vm.startPrank(alice);
-    matching.registerSessionKey(bob, block.timestamp + 1 days);
-    matching.requestDeregisterSessionKey(bob);
-
-    assertEq(matching.permissions(bob, alice), block.timestamp + 1 days);
-
-    vm.expectRevert(abi.encodeWithSelector(Matching.M_CooldownNotElapsed.selector, COOLDOWN_SEC));
-    matching.completeDeregisterSessionKey(bob);
-  }
-
-  // User waits for cooldown to deregister
+  // User waits for cooldown to deregister the key
   function testDeregisterSessionKey() public {
     vm.startPrank(alice);
     matching.registerSessionKey(bob, block.timestamp + 1 days);
+    assertEq(matching.sessionKeys(bob, alice), block.timestamp + 1 days);
+
     matching.requestDeregisterSessionKey(bob);
-    assertEq(matching.permissions(bob, alice), block.timestamp + 1 days);
 
-    assertEq(matching.sessionKeyCooldown(bob), block.timestamp);
-    vm.warp(block.timestamp + COOLDOWN_SEC);
-    matching.completeDeregisterSessionKey(bob);
-
-    assertEq(matching.permissions(bob, alice), 0);
+    // Expiry should now be set to now + cooldown
+    assertEq(matching.sessionKeys(bob, alice), block.timestamp + COOLDOWN_SEC);
   }
 
   function _sign(bytes32 orderHash, uint pk) internal view returns (bytes memory) {

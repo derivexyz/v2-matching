@@ -32,7 +32,7 @@ contract Matching is EIP712, Owned {
     uint tradeFee;
     bytes signature1;
     bytes signature2;
-  }
+  } // todo another accountID recieve trade
 
   // todo perp asset data
   struct LimitOrder {
@@ -42,7 +42,7 @@ contract Matching is EIP712, Owned {
     uint limitPrice;
     uint expirationTime;
     uint maxFee;
-    uint salt;
+    uint salt; // todo nonce, mapping nonce -> used
     bytes32 instrumentHash;
   }
 
@@ -74,13 +74,13 @@ contract Matching is EIP712, Owned {
   uint public feeAccountId;
 
   ///@dev Cooldown seconds a user must wait before withdrawing their account
-  uint public withdrawAccountCooldown;
+  uint public withdrawAccountCooldownParam;
 
   ///@dev Cooldown seconds a user must wait before withdrawing their cash
-  uint public withdrawCashCooldown;
+  uint public withdrawCashCooldownParam;
 
   ///@dev Cooldown seconds a user must wait before deregister
-  uint public deregisterKeyCooldown;
+  uint public deregisterKeyCooldownParam;
 
   ///@dev Accounts contract address
   IAccounts public immutable accounts;
@@ -95,19 +95,16 @@ contract Matching is EIP712, Owned {
   mapping(uint => address) public accountToOwner;
 
   ///@dev Mapping of signer address -> owner address -> expiry
-  mapping(address => mapping(address => uint)) public permissions; // Allows other addresses to trade on behalf of others
+  mapping(address => mapping(address => uint)) public sessionKeys; // Allows other addresses to trade on behalf of others
 
   ///@dev Mapping to track fill amounts per order
   mapping(bytes32 => uint) public fillAmounts;
 
   ///@dev Mapping of owner to account withdraw cooldown start time
-  mapping(address => uint) public accountCooldown;
+  mapping(address => uint) public withdrawAccountCooldownMapping;
 
   ///@dev Mapping of owner to signal cash cooldown start time
-  mapping(address => uint) public cashCooldown;
-
-  ///@dev Mapping of session key to cooldown start time
-  mapping(address => uint) public sessionKeyCooldown;
+  mapping(address => uint) public withdrawCashCooldownMapping;
 
   ///@dev Order fill typehash containing the limit order hash and trading pair hash, exluding the counterparty for the trade (accountId2)
   bytes32 public constant _LIMITORDER_TYPEHASH =
@@ -147,7 +144,7 @@ contract Matching is EIP712, Owned {
   /**
    * @notice Set the fee account ID
    */
-  function setWhitelist(uint feeId) external onlyOwner {
+  function setFeeAccountId(uint feeId) external onlyOwner {
     feeAccountId = feeId;
 
     emit FeeAccountIdSet(feeId);
@@ -157,27 +154,27 @@ contract Matching is EIP712, Owned {
    * @notice Set the withdraw account cooldown seconds.
    */
   function setWithdrawAccountCooldown(uint cooldown) external onlyOwner {
-    withdrawAccountCooldown = cooldown;
+    withdrawAccountCooldownParam = cooldown;
 
-    emit WithdrawAccountCooldownSet(cooldown);
+    emit WithdrawAccountCooldownParamSet(cooldown);
   }
 
   /**
    * @notice Set the withdraw cash cooldown seconds.
    */
   function setWithdrawCashCooldown(uint cooldown) external onlyOwner {
-    withdrawCashCooldown = cooldown;
+    withdrawCashCooldownParam = cooldown;
 
-    emit WithdrawCashCooldownSet(cooldown);
+    emit WithdrawCashCooldownParamSet(cooldown);
   }
   /**
    * @notice Set the deregister session key cooldown seconds.
    */
 
   function setSessionKeyCooldown(uint cooldown) external onlyOwner {
-    deregisterKeyCooldown = cooldown;
+    deregisterKeyCooldownParam = cooldown;
 
-    emit SessionKeyCooldownSet(cooldown);
+    emit DeregisterKeyCooldownParamSet(cooldown);
   }
 
   /////////////////////////////
@@ -286,7 +283,7 @@ contract Matching is EIP712, Owned {
    */
   function requestCloseCLOBAccount(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
-    accountCooldown[msg.sender] = block.timestamp;
+    withdrawAccountCooldownMapping[msg.sender] = block.timestamp;
     emit AccountCooldown(msg.sender);
   }
 
@@ -297,12 +294,14 @@ contract Matching is EIP712, Owned {
    */
   function completeCloseCLOBAccount(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
-    if (accountCooldown[msg.sender] + (withdrawAccountCooldown) > block.timestamp) {
-      revert M_CooldownNotElapsed(accountCooldown[msg.sender] + (withdrawAccountCooldown) - block.timestamp);
+    if (withdrawAccountCooldownMapping[msg.sender] + (withdrawAccountCooldownParam) > block.timestamp) {
+      revert M_CooldownNotElapsed(
+        withdrawAccountCooldownMapping[msg.sender] + (withdrawAccountCooldownParam) - block.timestamp
+      );
     }
 
     accounts.transferFrom(address(this), msg.sender, accountId);
-    accountCooldown[msg.sender] = 0;
+    withdrawAccountCooldownMapping[msg.sender] = 0;
     delete accountToOwner[accountId];
 
     emit ClosedCLOBAccount(accountId);
@@ -318,34 +317,21 @@ contract Matching is EIP712, Owned {
    * @param expiry When the access to the owner address expires
    */
   function registerSessionKey(address toAllow, uint expiry) external {
-    permissions[toAllow][msg.sender] = expiry;
+    sessionKeys[toAllow][msg.sender] = expiry;
 
     emit SessionKeyRegistered(msg.sender, toAllow);
   }
 
   /**
-   * @notice Allows owner to deregister a session key from their account
+   * @notice Allows owner to deregister a session key from their account.
+   * @dev Expires the sessionKey after the cooldown.
    */
   function requestDeregisterSessionKey(address sessionKey) external {
     // Ensure the session key has not expired
-    if (permissions[sessionKey][msg.sender] < block.timestamp) revert M_SessionKeyInvalid(sessionKey);
+    if (sessionKeys[sessionKey][msg.sender] < block.timestamp) revert M_SessionKeyInvalid(sessionKey);
 
-    sessionKeyCooldown[sessionKey] = block.timestamp;
+    sessionKeys[sessionKey][msg.sender] = block.timestamp + deregisterKeyCooldownParam;
     emit SessionKeyCooldown(msg.sender, sessionKey);
-  }
-
-  /**
-   * @notice Allows user to deregister a session key from their account.
-   * @dev User must have previously called `requestDeregisterSessionKey()` and waited for the cooldown to elapse.
-   */
-  function completeDeregisterSessionKey(address sessionKey) external {
-    if (sessionKeyCooldown[sessionKey] + (deregisterKeyCooldown) > block.timestamp) {
-      revert M_CooldownNotElapsed(sessionKeyCooldown[sessionKey] + (deregisterKeyCooldown) - block.timestamp);
-    }
-
-    permissions[sessionKey][msg.sender] = 0;
-
-    emit SessionKeyDeregistered(msg.sender, sessionKey);
   }
 
   /////////////////////
@@ -357,7 +343,7 @@ contract Matching is EIP712, Owned {
    */
   function requestWithdrawCash(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
-    cashCooldown[msg.sender] = block.timestamp;
+    withdrawCashCooldownMapping[msg.sender] = block.timestamp;
     emit CashCooldown(msg.sender);
   }
 
@@ -365,10 +351,10 @@ contract Matching is EIP712, Owned {
    * @notice Withdraw cash from an accountId using a signature.
    * @dev Owner address must have requested for withdrawal first and waited for the cooldown to elapse.
    */
-  function withdrawCash(TransferAsset memory transfer, bytes memory signature) external {
-    if (cashCooldown[accountToOwner[transfer.fromAcc]] + (withdrawCashCooldown) > block.timestamp) {
+  function completeWithdrawCash(TransferAsset memory transfer, bytes memory signature) external {
+    if (withdrawCashCooldownMapping[accountToOwner[transfer.fromAcc]] + (withdrawCashCooldownParam) > block.timestamp) {
       revert M_CooldownNotElapsed(
-        cashCooldown[accountToOwner[transfer.fromAcc]] + (withdrawCashCooldown) - block.timestamp
+        withdrawCashCooldownMapping[accountToOwner[transfer.fromAcc]] + (withdrawCashCooldownParam) - block.timestamp
       );
     }
     // Verify signatures
@@ -391,7 +377,7 @@ contract Matching is EIP712, Owned {
    * @return newId returns the newly created account ID
    */
   function _mintCLOBAccount(MintAccount memory newAccount, address toAllow) internal returns (uint newId) {
-    if (permissions[toAllow][newAccount.owner] < block.timestamp) revert M_SessionKeyInvalid(toAllow);
+    if (sessionKeys[toAllow][newAccount.owner] < block.timestamp) revert M_SessionKeyInvalid(toAllow);
     newId = accounts.createAccount(address(this), IManager(newAccount.manager));
     accountToOwner[newId] = newAccount.owner;
   }
@@ -479,10 +465,20 @@ contract Matching is EIP712, Owned {
     // If toAcc is not empty we check for permission expiry, if not empty we fill the transfer with the newId
     if (transfer.toAcc != 0) {
       address toAccOwner = accountToOwner[transfer.toAcc];
-      if (sessionKeyAddress != toAccOwner && permissions[sessionKeyAddress][toAccOwner] < block.timestamp) {
+      if (sessionKeyAddress != toAccOwner && sessionKeys[sessionKeyAddress][toAccOwner] < block.timestamp) {
         revert M_SessionKeyInvalid(sessionKeyAddress);
       }
+      // Return normal asset transfer using transfer details
+      return IAccounts.AssetTransfer({
+        fromAcc: transfer.fromAcc,
+        toAcc: transfer.toAcc,
+        asset: asset,
+        subId: subId,
+        amount: transfer.amount.toInt256(),
+        assetData: bytes32(0)
+      });
     } else if (newId != 0) {
+      // Return asset transfer to the newly minted account
       return IAccounts.AssetTransfer({
         fromAcc: transfer.fromAcc,
         toAcc: newId,
@@ -491,17 +487,9 @@ contract Matching is EIP712, Owned {
         amount: transfer.amount.toInt256(),
         assetData: bytes32(0)
       });
+    } else {
+      revert M_TransferToZeroAccount();
     }
-
-    // Return normal asset transfer using transfer details
-    return IAccounts.AssetTransfer({
-      fromAcc: transfer.fromAcc,
-      toAcc: transfer.toAcc,
-      asset: asset,
-      subId: subId,
-      amount: transfer.amount.toInt256(),
-      assetData: bytes32(0)
-    });
   }
 
   /**
@@ -673,7 +661,7 @@ contract Matching is EIP712, Owned {
       return true;
     } else {
       address signer = _recoverAddress(structuredHash, signature);
-      if (permissions[signer][accountToOwner[accountId]] > block.timestamp) {
+      if (sessionKeys[signer][accountToOwner[accountId]] > block.timestamp) {
         return true;
       }
       return false;
@@ -809,17 +797,17 @@ contract Matching is EIP712, Owned {
   /**
    * @dev Emitted when withdraw account cooldown is set
    */
-  event WithdrawAccountCooldownSet(uint cooldown);
+  event WithdrawAccountCooldownParamSet(uint cooldown);
 
   /**
    * @dev Emitted when withdraw cash cooldown is set
    */
-  event WithdrawCashCooldownSet(uint cooldown);
+  event WithdrawCashCooldownParamSet(uint cooldown);
 
   /**
    * @dev Emitted when the deregister session key cooldown is set
    */
-  event SessionKeyCooldownSet(uint cooldown);
+  event DeregisterKeyCooldownParamSet(uint cooldown);
 
   /**
    * @dev Emitted when a CLOB account is closed.
@@ -835,11 +823,6 @@ contract Matching is EIP712, Owned {
    * @dev Emitted when a session key is registered to an owner account.
    */
   event SessionKeyRegistered(address owner, address sessionKey);
-
-  /**
-   * @dev Emitted when a session key is deregistered to an owner account.
-   */
-  event SessionKeyDeregistered(address owner, address sessionKey);
 
   ////////////
   // Errors //
@@ -864,4 +847,5 @@ contract Matching is EIP712, Owned {
   error M_TradeFeeExceedsMaxFee(uint tradeFee, uint maxFee);
   error M_CooldownNotElapsed(uint secondsLeft);
   error M_SessionKeyInvalid(address sessionKeyPublicAddress);
+  error M_TransferToZeroAccount();
 }
