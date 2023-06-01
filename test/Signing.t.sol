@@ -141,7 +141,7 @@ contract UNIT_MatchingSigning is Test {
   function testTransferSignatureAsSessionKey() public {
     // Register session key first
     vm.startPrank(alice);
-    matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
+    matching.registerSessionKey(bob, block.timestamp + 1 days);
     vm.stopPrank();
 
     // Create transfer request
@@ -160,7 +160,7 @@ contract UNIT_MatchingSigning is Test {
   function testSessionKeyExpiry() public {
     // Register session key first
     vm.startPrank(alice);
-    matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
+    matching.registerSessionKey(bob, block.timestamp + 1 days);
     vm.stopPrank();
 
     // Create transfer request
@@ -185,7 +185,7 @@ contract UNIT_MatchingSigning is Test {
   function testSessionKeyDifferentTransfer() public {
     // Register session key first
     vm.startPrank(alice);
-    matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
+    matching.registerSessionKey(bob, block.timestamp + 1 days);
     vm.stopPrank();
 
     // Create transfer request

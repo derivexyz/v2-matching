@@ -118,7 +118,7 @@ contract UNIT_MatchingAccountManagement is Test {
 
   function testCanTransferAsset() public {
     vm.startPrank(bob);
-    matching.registerSessionKey(bob, alice, block.timestamp + 1 days);
+    matching.registerSessionKey(alice, block.timestamp + 1 days);
     vm.stopPrank();
 
     int aliceBefore = account.getBalance(aliceAcc, option, callId);
@@ -155,7 +155,7 @@ contract UNIT_MatchingAccountManagement is Test {
   function testMintAccountAndTransferSignature() public {
     // First register bob session key to alice address
     vm.startPrank(alice);
-    matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
+    matching.registerSessionKey(bob, block.timestamp + 1 days);
     vm.stopPrank();
 
     Matching.MintAccount memory newAccount = Matching.MintAccount({owner: alice, manager: address(manager)});
@@ -176,7 +176,7 @@ contract UNIT_MatchingAccountManagement is Test {
   // User must wait for cooldown to complete
   function testCannotDeregisterSessionKey() public {
     vm.startPrank(alice);
-    matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
+    matching.registerSessionKey(bob, block.timestamp + 1 days);
     matching.requestDeregisterSessionKey(bob);
 
     assertEq(matching.permissions(bob, alice), block.timestamp + 1 days);
@@ -188,7 +188,7 @@ contract UNIT_MatchingAccountManagement is Test {
   // User waits for cooldown to deregister
   function testDeregisterSessionKey() public {
     vm.startPrank(alice);
-    matching.registerSessionKey(alice, bob, block.timestamp + 1 days);
+    matching.registerSessionKey(bob, block.timestamp + 1 days);
     matching.requestDeregisterSessionKey(bob);
     assertEq(matching.permissions(bob, alice), block.timestamp + 1 days);
 

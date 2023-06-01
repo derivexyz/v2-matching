@@ -106,7 +106,7 @@ contract Matching is EIP712, Owned {
   ///@dev Mapping of owner to signal cash cooldown start time
   mapping(address => uint) public cashCooldown;
 
-  ///@dev Mapping of session key to cooldown start time 
+  ///@dev Mapping of session key to cooldown start time
   mapping(address => uint) public sessionKeyCooldown;
 
   ///@dev Order fill typehash containing the limit order hash and trading pair hash, exluding the counterparty for the trade (accountId2)
@@ -200,7 +200,7 @@ contract Matching is EIP712, Owned {
 
     VerifiedTrade[] memory matchedOrders = new VerifiedTrade[](matches.length);
     for (uint i = 0; i < matches.length; i++) {
-      matchedOrders[i] = _verifyTrade(matches[i], orders1[i], orders2[i]); // if one trade reverts everything reverts
+      matchedOrders[i] = _verifyTrade(matches[i], orders1[i], orders2[i]);
     }
 
     _submitAssetTransfers(matchedOrders);
@@ -219,7 +219,8 @@ contract Matching is EIP712, Owned {
     uint[] memory subIds,
     bytes[] memory signatures
   ) external onlyWhitelisted {
-    if (transfers.length != signatures.length || transfers.length != assets.length || transfers.length != subIds.length) {
+    if (transfers.length != signatures.length || transfers.length != assets.length || transfers.length != subIds.length)
+    {
       revert M_TransferArrayLengthMismatch(transfers.length, assets.length, subIds.length, signatures.length);
     }
 
@@ -316,11 +317,10 @@ contract Matching is EIP712, Owned {
    * @dev Registered address gains owner address permission to the subAccount until expiry.
    * @param expiry When the access to the owner address expires
    */
-  function registerSessionKey(address ownerAddress, address toAllow, uint expiry) external {
-    if (msg.sender != ownerAddress) revert M_NotOwnerAddress(msg.sender, ownerAddress);
-    permissions[toAllow][ownerAddress] = expiry;
+  function registerSessionKey(address toAllow, uint expiry) external {
+    permissions[toAllow][msg.sender] = expiry;
 
-    emit SessionKeyRegistered(ownerAddress, toAllow);
+    emit SessionKeyRegistered(msg.sender, toAllow);
   }
 
   /**
