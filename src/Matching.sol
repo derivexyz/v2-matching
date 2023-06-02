@@ -7,10 +7,10 @@ import "openzeppelin/utils/cryptography/SignatureChecker.sol";
 import "lyra-utils/ownership/Owned.sol";
 import "lyra-utils/decimals/DecimalMath.sol";
 
+import "v2-core/src/interfaces/ICashAsset.sol";
 import "v2-core/src/Accounts.sol";
 import "forge-std/console2.sol";
 
-// todo sub signers
 /**
  * @title Matching
  * @author Lyra
@@ -32,18 +32,18 @@ contract Matching is EIP712, Owned {
     uint tradeFee;
     bytes signature1;
     bytes signature2;
-  }
+  } // todo another accountID recieve trade
 
   // todo perp asset data
   struct LimitOrder {
     bool isBid;
     uint accountId1;
-    uint amount; // For bids, amount is baseAsset. For asks, amount is quoteAsset
+    uint amount;
     uint limitPrice;
     uint expirationTime;
     uint maxFee;
-    uint salt; // todo optional for users with duplicate orders
-    bytes32 tradingPair;
+    uint salt; // todo nonce, mapping nonce -> used
+    bytes32 instrumentHash;
   }
 
   struct VerifiedTrade {
@@ -58,14 +58,35 @@ contract Matching is EIP712, Owned {
     uint tradeFee;
   }
 
+  struct TransferAsset {
+    uint amount;
+    uint fromAcc;
+    uint toAcc;
+    bytes32 assetHash;
+  }
+
+  struct MintAccount {
+    address owner;
+    address manager;
+  }
+
   ///@dev Account Id which receives all fees paid
   uint public feeAccountId;
+
+  ///@dev Cooldown seconds a user must wait before withdrawing their account
+  uint public withdrawAccountCooldownParam;
+
+  ///@dev Cooldown seconds a user must wait before withdrawing their cash
+  uint public withdrawCashCooldownParam;
+
+  ///@dev Cooldown seconds a user must wait before deregister
+  uint public deregisterKeyCooldownParam;
 
   ///@dev Accounts contract address
   IAccounts public immutable accounts;
 
   ///@dev The cash asset used as quote and for paying fees
-  IAsset public cashAsset;
+  address public cashAsset;
 
   ///@dev Mapping of (address => isWhitelistedModule)
   mapping(address => bool) public isWhitelisted;
@@ -73,20 +94,35 @@ contract Matching is EIP712, Owned {
   ///@dev Mapping of accountId to address
   mapping(uint => address) public accountToOwner;
 
+  ///@dev Mapping of signer address -> owner address -> expiry
+  mapping(address => mapping(address => uint)) public sessionKeys; // Allows other addresses to trade on behalf of others
+
   ///@dev Mapping to track fill amounts per order
   mapping(bytes32 => uint) public fillAmounts;
 
-  ///@dev Mapping to track frozen accounts
-  mapping(address => bool) public isFrozen;
+  ///@dev Mapping of owner to account withdraw cooldown start time
+  mapping(address => uint) public withdrawAccountCooldownMapping;
+
+  ///@dev Mapping of owner to signal cash cooldown start time
+  mapping(address => uint) public withdrawCashCooldownMapping;
 
   ///@dev Order fill typehash containing the limit order hash and trading pair hash, exluding the counterparty for the trade (accountId2)
   bytes32 public constant _LIMITORDER_TYPEHASH =
     keccak256("LimitOrder(bool,uint256,uint256,uint256,uint256,uint256,uint256,bytes32)");
 
-  ///@dev Trading pair typehash containing the two IAssets and subIds
-  bytes32 public constant _TRADING_PAIR_TYPEHASH = keccak256("address,address,uint256,uint256");
+  ///@dev Transfer Asset typehash containing the asset and amount you want to transfer
+  bytes32 public constant _TRANSFER_ASSET_TYPEHASH = keccak256("TransferAsset(uint256,uint256,uint256,bytes32");
 
-  constructor(IAccounts _accounts, IAsset _cashAsset, uint _feeAccountId) EIP712("Matching", "1.0") {
+  ///@dev Mint account typehash containing desired owner address, manager and expiry of the signing address
+  bytes32 public constant _MINT_ACCOUNT_TYPEHASH = keccak256("MintAccount(address,address");
+
+  ///@dev Instrument typehash containing the two IAssets and subIds
+  bytes32 public constant _INSTRUMENT_TYPEHASH = keccak256("address,address,uint256,uint256");
+
+  ///@dev Asset typehash containing the IAsset and subId
+  bytes32 public constant _ASSET_TYPEHASH = keccak256("address,uint256");
+
+  constructor(IAccounts _accounts, address _cashAsset, uint _feeAccountId) EIP712("Matching", "1.0") {
     accounts = _accounts;
     cashAsset = _cashAsset;
     feeAccountId = _feeAccountId;
@@ -97,12 +133,48 @@ contract Matching is EIP712, Owned {
   ////////////////////////////
 
   /**
-   * @notice set which address can submit trades
+   * @notice Set which address can submit trades.
    */
   function setWhitelist(address toAllow, bool whitelisted) external onlyOwner {
     isWhitelisted[toAllow] = whitelisted;
 
     emit AddressWhitelisted(toAllow, whitelisted);
+  }
+
+  /**
+   * @notice Set the fee account ID
+   */
+  function setFeeAccountId(uint feeId) external onlyOwner {
+    feeAccountId = feeId;
+
+    emit FeeAccountIdSet(feeId);
+  }
+
+  /**
+   * @notice Set the withdraw account cooldown seconds.
+   */
+  function setWithdrawAccountCooldown(uint cooldown) external onlyOwner {
+    withdrawAccountCooldownParam = cooldown;
+
+    emit WithdrawAccountCooldownParamSet(cooldown);
+  }
+
+  /**
+   * @notice Set the withdraw cash cooldown seconds.
+   */
+  function setWithdrawCashCooldown(uint cooldown) external onlyOwner {
+    withdrawCashCooldownParam = cooldown;
+
+    emit WithdrawCashCooldownParamSet(cooldown);
+  }
+  /**
+   * @notice Set the deregister session key cooldown seconds.
+   */
+
+  function setSessionKeyCooldown(uint cooldown) external onlyOwner {
+    deregisterKeyCooldownParam = cooldown;
+
+    emit DeregisterKeyCooldownParamSet(cooldown);
   }
 
   /////////////////////////////
@@ -125,53 +197,194 @@ contract Matching is EIP712, Owned {
 
     VerifiedTrade[] memory matchedOrders = new VerifiedTrade[](matches.length);
     for (uint i = 0; i < matches.length; i++) {
-      matchedOrders[i] = _verifyTrade(matches[i], orders1[i], orders2[i]); // if one trade reverts everything reverts
+      matchedOrders[i] = _verifyTrade(matches[i], orders1[i], orders2[i]);
     }
 
     _submitAssetTransfers(matchedOrders);
+  }
+
+  /**
+   * @dev Batch transfers assets from one account to another.
+   * Can only be called by an address that is currently whitelisted.
+   *
+   * @param transfers The details of the asset transfers to be made.
+   * @param signatures The signed messages from the owner or permissioned accounts.
+   */
+  function submitTransfers(
+    TransferAsset[] memory transfers,
+    IAsset[] memory assets,
+    uint[] memory subIds,
+    bytes[] memory signatures
+  ) external onlyWhitelisted {
+    if (transfers.length != signatures.length || transfers.length != assets.length || transfers.length != subIds.length)
+    {
+      revert M_TransferArrayLengthMismatch(transfers.length, assets.length, subIds.length, signatures.length);
+    }
+
+    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](transfers.length);
+    for (uint i = 0; i < transfers.length; i++) {
+      transferBatch[i] = _verifyTransferAsset(transfers[i], assets[i], subIds[i], 0, signatures[i]);
+    }
+
+    accounts.submitTransfers(transferBatch, "");
+  }
+
+  /**
+   * @notice Allows whitelisted addresses to force close an account with no cooldown delay.
+   */
+  function forceCloseCLOBAccount(uint accountId) external onlyWhitelisted {
+    accounts.transferFrom(address(this), accountToOwner[accountId], accountId);
+    delete accountToOwner[accountId];
+
+    emit ClosedCLOBAccount(accountId);
   }
 
   //////////////////////////
   //  External Functions  //
   //////////////////////////
 
+  ///////////////////////
+  //  Account actions  //
+  ///////////////////////
   /**
    * @notice Allows user to open an account by transferring their account NFT to this contract.
    * @dev User must approve contract first.
    * @param accountId The users' accountId
    */
-  // todo do we want to allow users to open account or only approval -> OB opens account flow?
   function openCLOBAccount(uint accountId) external {
     accounts.transferFrom(msg.sender, address(this), accountId);
     accountToOwner[accountId] = msg.sender;
+
+    emit OpenedCLOBAccount(accountId);
+  }
+
+  /**
+   * @notice Allows signature to create new subAccount, open a CLOB account, and transfer asset.
+   * @dev Signature should have signed the transfer.
+   */
+  function mintAccountAndTransfer(
+    MintAccount memory newAccount,
+    TransferAsset memory transfer,
+    IAsset asset,
+    uint subId,
+    bytes memory signature
+  ) external returns (uint newId) {
+    address toAllow = _recoverAddress(_getTransferHash(transfer), signature);
+    newId = _mintCLOBAccount(newAccount, toAllow);
+
+    IAccounts.AssetTransfer memory assetTransfer = _verifyTransferAsset(transfer, asset, subId, newId, signature);
+    accounts.submitTransfer(assetTransfer, "");
+
+    emit OpenedCLOBAccount(newId);
+  }
+
+  /**
+   * @notice Activates the cooldown period to withdraw account.
+   */
+  function requestCloseCLOBAccount(uint accountId) external {
+    if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
+    withdrawAccountCooldownMapping[msg.sender] = block.timestamp;
+    emit AccountCooldown(msg.sender);
   }
 
   /**
    * @notice Allows user to close their account by transferring their account NFT back.
+   * @dev User must have previously called `requestCloseCLOBAccount()` and waited for the cooldown to elapse.
    * @param accountId The users' accountId
    */
-  function closeCLOBAccount(uint accountId) external {
+  function completeCloseCLOBAccount(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
+    if (withdrawAccountCooldownMapping[msg.sender] + (withdrawAccountCooldownParam) > block.timestamp) {
+      revert M_CooldownNotElapsed(
+        withdrawAccountCooldownMapping[msg.sender] + (withdrawAccountCooldownParam) - block.timestamp
+      );
+    }
 
     accounts.transferFrom(address(this), msg.sender, accountId);
+    withdrawAccountCooldownMapping[msg.sender] = 0;
     delete accountToOwner[accountId];
+
+    emit ClosedCLOBAccount(accountId);
   }
 
-  // todo withdrawals / key to give permission to trade for an address
+  ////////////////////
+  //  Session Keys  //
+  ////////////////////
 
   /**
-   * @notice Allows sender to 'freeze' their account which blocks all trading actions.
-   * @param freeze Boolean on whether to freeze or unfreeze your account
+   * @notice Allows owner to register the public address associated with their session key to their accountId.
+   * @dev Registered address gains owner address permission to the subAccount until expiry.
+   * @param expiry When the access to the owner address expires
    */
-  function freezeAccount(bool freeze) external {
-    // todo add signal for withdrawal with time delay
-    isFrozen[msg.sender] = freeze;
-    emit AccountFrozen(msg.sender, freeze);
+  function registerSessionKey(address toAllow, uint expiry) external {
+    sessionKeys[toAllow][msg.sender] = expiry;
+
+    emit SessionKeyRegistered(msg.sender, toAllow);
+  }
+
+  /**
+   * @notice Allows owner to deregister a session key from their account.
+   * @dev Expires the sessionKey after the cooldown.
+   */
+  function requestDeregisterSessionKey(address sessionKey) external {
+    // Ensure the session key has not expired
+    if (sessionKeys[sessionKey][msg.sender] < block.timestamp) revert M_SessionKeyInvalid(sessionKey);
+
+    sessionKeys[sessionKey][msg.sender] = block.timestamp + deregisterKeyCooldownParam;
+    emit SessionKeyCooldown(msg.sender, sessionKey);
+  }
+
+  /////////////////////
+  //  Withdraw Cash  //
+  /////////////////////
+
+  /**
+   * @notice Activates the cooldown period to withdraw cash.
+   */
+  function requestWithdrawCash(uint accountId) external {
+    if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
+    withdrawCashCooldownMapping[msg.sender] = block.timestamp;
+    emit CashCooldown(msg.sender);
+  }
+
+  /**
+   * @notice Withdraw cash from an accountId using a signature.
+   * @dev Owner address must have requested for withdrawal first and waited for the cooldown to elapse.
+   */
+  function completeWithdrawCash(TransferAsset memory transfer, bytes memory signature) external {
+    if (withdrawCashCooldownMapping[accountToOwner[transfer.fromAcc]] + (withdrawCashCooldownParam) > block.timestamp) {
+      revert M_CooldownNotElapsed(
+        withdrawCashCooldownMapping[accountToOwner[transfer.fromAcc]] + (withdrawCashCooldownParam) - block.timestamp
+      );
+    }
+    // Verify signatures
+    bytes32 transferHash = _getTransferHash(transfer);
+    if (!_verifySignature(transfer.fromAcc, transferHash, signature)) {
+      revert M_InvalidSignature(accountToOwner[transfer.fromAcc]);
+    }
+
+    ICashAsset(cashAsset).withdraw(transfer.fromAcc, transfer.amount, accountToOwner[transfer.fromAcc]);
   }
 
   //////////////////////////
   //  Internal Functions  //
   //////////////////////////
+
+  /**
+   * @dev Mints a new CLOB Account by creating a subAccount
+   * @param newAccount the details of the new account to be minted. The MintAccount struct contains the owner of the new account and the manager of the new account.
+   * @param toAllow is the address to be allowed for executing functions on behalf of the account owner
+   * @return newId returns the newly created account ID
+   */
+  function _mintCLOBAccount(MintAccount memory newAccount, address toAllow) internal returns (uint newId) {
+    if (sessionKeys[toAllow][newAccount.owner] < block.timestamp) revert M_SessionKeyInvalid(toAllow);
+    newId = accounts.createAccount(address(this), IManager(newAccount.manager));
+    accountToOwner[newId] = newAccount.owner;
+  }
+
+  ////////////////////////////
+  //  Verify trade details  //
+  ////////////////////////////
 
   /**
    * @notice Allows whitelisted addresses to submit trades.
@@ -186,7 +399,7 @@ contract Matching is EIP712, Owned {
     returns (VerifiedTrade memory matchedOrder)
   {
     // Verify trading pair and user signatures
-    _verifySignatures(order1, order2, matchDetails);
+    _verifyTradeSignatures(order1, order2, matchDetails);
 
     // Validate parameters for both orders
     _validateOrderParams(order1);
@@ -219,16 +432,79 @@ contract Matching is EIP712, Owned {
     });
   }
 
-  function _verifySignatures(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
+  /**
+   * @notice Verifies the transfer of an asset from one account to another.
+   * Can only be called by an address that is currently whitelisted.
+   *
+   * @param transfer The details of the asset transfer to be made.
+   * @param signature The signed message from the owner account.
+   * @param asset The asset to be transferred, used to check against the signature.
+   * @param subId The subId of the asset to be transferred, used to check against the signature.
+   * @param newId If not 0, the newly minted accountId to transfer to.
+   */
+  function _verifyTransferAsset(
+    TransferAsset memory transfer,
+    IAsset asset,
+    uint subId,
+    uint newId,
+    bytes memory signature
+  ) internal view returns (IAccounts.AssetTransfer memory verifiedTransfer) {
+    // Verify the asset hash
+    bytes32 assetHash = _getAssetHash(asset, subId);
+    if (transfer.assetHash != assetHash) revert M_InvalidAssetHash(transfer.assetHash, assetHash);
+
+    // Verify signature is signed by the account owner or permitted address
+    bytes32 transferHash = _getTransferHash(transfer);
+    if (!_verifySignature(transfer.fromAcc, transferHash, signature)) {
+      revert M_InvalidSignature(accountToOwner[transfer.fromAcc]);
+    }
+
+    // If the address is not owner ensure permission has not expired for the 'toAcc'
+    address sessionKeyAddress = _recoverAddress(transferHash, signature);
+
+    // If toAcc is not empty we check for permission expiry, if not empty we fill the transfer with the newId
+    if (transfer.toAcc != 0) {
+      address toAccOwner = accountToOwner[transfer.toAcc];
+      if (sessionKeyAddress != toAccOwner && sessionKeys[sessionKeyAddress][toAccOwner] < block.timestamp) {
+        revert M_SessionKeyInvalid(sessionKeyAddress);
+      }
+      // Return normal asset transfer using transfer details
+      return IAccounts.AssetTransfer({
+        fromAcc: transfer.fromAcc,
+        toAcc: transfer.toAcc,
+        asset: asset,
+        subId: subId,
+        amount: transfer.amount.toInt256(),
+        assetData: bytes32(0)
+      });
+    } else if (newId != 0) {
+      // Return asset transfer to the newly minted account
+      return IAccounts.AssetTransfer({
+        fromAcc: transfer.fromAcc,
+        toAcc: newId,
+        asset: asset,
+        subId: subId,
+        amount: transfer.amount.toInt256(),
+        assetData: bytes32(0)
+      });
+    } else {
+      revert M_TransferToZeroAccount();
+    }
+  }
+
+  /**
+   * @notice Verifies the instrument hash and trade against the signatures provided in the match details.
+   */
+  function _verifyTradeSignatures(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
     internal
     view
   {
     // Verify trading pair
-    bytes32 tradingPair = _getTradingPairHash(
+    bytes32 instrumentHash = _getInstrumentHash(
       matchDetails.baseAsset, matchDetails.quoteAsset, matchDetails.baseSubId, matchDetails.quoteSubId
     );
-    if (order1.tradingPair != tradingPair) revert M_InvalidTradingPair(order1.tradingPair, tradingPair);
-    if (order2.tradingPair != tradingPair) revert M_InvalidTradingPair(order2.tradingPair, tradingPair);
+    if (order1.instrumentHash != instrumentHash) revert M_InvalidTradingPair(order1.instrumentHash, instrumentHash);
+    if (order2.instrumentHash != instrumentHash) revert M_InvalidTradingPair(order2.instrumentHash, instrumentHash);
 
     bytes32 order1Hash = _getOrderHash(order1);
     bytes32 order2Hash = _getOrderHash(order2);
@@ -242,20 +518,15 @@ contract Matching is EIP712, Owned {
     }
   }
 
+  /**
+   * @notice Validates the order details including accounts, trade amount, assets and price.
+   */
   function _validateOrderMatch(LimitOrder memory order1, LimitOrder memory order2, Match memory matchDetails)
     internal
-    view
+    pure
   {
     // Ensure the accountId and taker are different accounts
     if (matchDetails.accountId1 == matchDetails.accountId2) revert M_CannotTradeToSelf(matchDetails.accountId1);
-
-    // Ensure the accountId and taker accounts are not frozen
-    if (isFrozen[accountToOwner[matchDetails.accountId1]]) {
-      revert M_AccountFrozen(accountToOwner[matchDetails.accountId1]);
-    }
-    if (isFrozen[accountToOwner[matchDetails.accountId2]]) {
-      revert M_AccountFrozen(accountToOwner[matchDetails.accountId2]);
-    }
 
     // Check trade fee < maxFee
     if (matchDetails.tradeFee > order1.maxFee) revert M_TradeFeeExceedsMaxFee(matchDetails.tradeFee, order1.maxFee);
@@ -286,6 +557,9 @@ contract Matching is EIP712, Owned {
     if (block.timestamp > order.expirationTime) revert M_OrderExpired(block.timestamp, order.expirationTime);
   }
 
+  /**
+   * @notice Updates fill and fee allowances for a trade if the amounts are valid.
+   */
   function _verifyAndUpdateFillAllowance(
     uint order1Amount,
     uint order2Amount,
@@ -310,6 +584,9 @@ contract Matching is EIP712, Owned {
     fillAmounts[order2Hash] += quoteAmount;
   }
 
+  /**
+   * @notice Calculates the execution price is within the limit price.
+   */
   function _checkLimitPrice(bool isBid, uint limitPrice, uint calculatedPrice) internal pure {
     // If you want to buy but the price is above your limit
     if (isBid && calculatedPrice > limitPrice) {
@@ -320,6 +597,9 @@ contract Matching is EIP712, Owned {
     }
   }
 
+  /**
+   * @notice Submits the asset transfers from an array of verified orders.
+   */
   function _submitAssetTransfers(VerifiedTrade[] memory orders) internal {
     IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](orders.length * 4);
 
@@ -347,7 +627,7 @@ contract Matching is EIP712, Owned {
       transferBatch[i + 2] = IAccounts.AssetTransfer({
         fromAcc: orders[i].accountId1,
         toAcc: feeAccountId,
-        asset: cashAsset,
+        asset: IAsset(cashAsset),
         subId: 0,
         amount: orders[i].tradeFee.toInt256(),
         assetData: bytes32(0)
@@ -356,7 +636,7 @@ contract Matching is EIP712, Owned {
       transferBatch[i + 3] = IAccounts.AssetTransfer({
         fromAcc: orders[i].accountId2,
         toAcc: feeAccountId,
-        asset: cashAsset,
+        asset: IAsset(cashAsset),
         subId: 0,
         amount: orders[i].tradeFee.toInt256(),
         assetData: bytes32(0)
@@ -366,16 +646,38 @@ contract Matching is EIP712, Owned {
     accounts.submitTransfers(transferBatch, ""); // todo fill with oracle data
   }
 
-  function _verifySignature(uint accountId, bytes32 orderHash, bytes memory signature) internal view returns (bool) {
-    return SignatureChecker.isValidSignatureNow(accountToOwner[accountId], _hashTypedDataV4(orderHash), signature);
+  /**
+   * @notice Verify signature against owner address or permissioned address.
+   */
+  function _verifySignature(uint accountId, bytes32 structuredHash, bytes memory signature)
+    internal
+    view
+    returns (bool)
+  {
+    if (
+      SignatureChecker.isValidSignatureNow(accountToOwner[accountId], _hashTypedDataV4(structuredHash), signature)
+        == true
+    ) {
+      return true;
+    } else {
+      address signer = _recoverAddress(structuredHash, signature);
+      if (sessionKeys[signer][accountToOwner[accountId]] > block.timestamp) {
+        return true;
+      }
+      return false;
+    }
   }
 
-  function _getTradingPairHash(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
+  /////////////////////////
+  //  Hashing Functions  //
+  /////////////////////////
+
+  function _getInstrumentHash(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
     internal
     pure
     returns (bytes32)
   {
-    return keccak256(abi.encode(_TRADING_PAIR_TYPEHASH, baseAsset, quoteAsset, baseSubId, quoteSubId));
+    return keccak256(abi.encode(_INSTRUMENT_TYPEHASH, baseAsset, quoteAsset, baseSubId, quoteSubId));
   }
 
   function _getOrderHash(LimitOrder memory order) internal pure returns (bytes32) {
@@ -389,14 +691,29 @@ contract Matching is EIP712, Owned {
         order.expirationTime,
         order.maxFee,
         order.salt,
-        order.tradingPair
+        order.instrumentHash
       )
     );
   }
 
-  //////////
-  // View //
-  //////////
+  function _getTransferHash(TransferAsset memory transfer) internal pure returns (bytes32) {
+    return keccak256(
+      abi.encode(_TRANSFER_ASSET_TYPEHASH, transfer.amount, transfer.fromAcc, transfer.toAcc, transfer.assetHash)
+    );
+  }
+
+  function _getAssetHash(IAsset asset, uint subId) internal pure returns (bytes32) {
+    return keccak256(abi.encode(_ASSET_TYPEHASH, address(asset), subId));
+  }
+
+  function _recoverAddress(bytes32 hash, bytes memory signature) internal view returns (address) {
+    (address recovered,) = ECDSA.tryRecover(_hashTypedDataV4(hash), signature);
+    return recovered;
+  }
+
+  ///////////
+  // Views //
+  ///////////
 
   /**
    * @dev get domain separator for signing
@@ -409,12 +726,20 @@ contract Matching is EIP712, Owned {
     return _getOrderHash(order);
   }
 
-  function getTradingPair(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
+  function getTransferHash(TransferAsset calldata transfer) external pure returns (bytes32) {
+    return _getTransferHash(transfer);
+  }
+
+  function getAssetHash(IAsset asset, uint subId) external pure returns (bytes32) {
+    return _getAssetHash(asset, subId);
+  }
+
+  function getInstrument(IAsset baseAsset, IAsset quoteAsset, uint baseSubId, uint quoteSubId)
     external
     pure
     returns (bytes32)
   {
-    return _getTradingPairHash(baseAsset, quoteAsset, baseSubId, quoteSubId);
+    return _getInstrumentHash(baseAsset, quoteAsset, baseSubId, quoteSubId);
   }
 
   function verifySignature(uint accountId, bytes32 orderHash, bytes memory signature) external view returns (bool) {
@@ -440,6 +765,11 @@ contract Matching is EIP712, Owned {
   event AddressWhitelisted(address user, bool isWhitelisted);
 
   /**
+   * @dev Emitted when the fee account ID is set.
+   */
+  event FeeAccountIdSet(uint feeAccountId);
+
+  /**
    * @dev Emitted when a trade is executed
    */
   event Trade(bytes32 indexed OrderParams, uint fillAmount);
@@ -450,9 +780,49 @@ contract Matching is EIP712, Owned {
   event AccountFrozen(address account, bool isFrozen);
 
   /**
-   * @dev Emitted when the base fee rate is updated for an asset
+   * @dev Emitted when a user requests account withdrawal and begins the cooldown
    */
-  event FeeRateUpdated(IAsset asset, uint newFeeRate);
+  event AccountCooldown(address user);
+
+  /**
+   * @dev Emitted when a user requests cash withdrawal and begins the cooldown
+   */
+  event CashCooldown(address user);
+
+  /**
+   * @dev Emitted when a user requests to deregister a session key
+   */
+  event SessionKeyCooldown(address owner, address sessionKeyPublicAddress);
+
+  /**
+   * @dev Emitted when withdraw account cooldown is set
+   */
+  event WithdrawAccountCooldownParamSet(uint cooldown);
+
+  /**
+   * @dev Emitted when withdraw cash cooldown is set
+   */
+  event WithdrawCashCooldownParamSet(uint cooldown);
+
+  /**
+   * @dev Emitted when the deregister session key cooldown is set
+   */
+  event DeregisterKeyCooldownParamSet(uint cooldown);
+
+  /**
+   * @dev Emitted when a CLOB account is closed.
+   */
+  event OpenedCLOBAccount(uint accountId);
+
+  /**
+   * @dev Emitted when a CLOB account is closed.
+   */
+  event ClosedCLOBAccount(uint accountId);
+
+  /**
+   * @dev Emitted when a session key is registered to an owner account.
+   */
+  event SessionKeyRegistered(address owner, address sessionKey);
 
   ////////////
   // Errors //
@@ -460,17 +830,22 @@ contract Matching is EIP712, Owned {
 
   error M_InvalidSignature(address signer);
   error M_InvalidTradingPair(bytes32 suppliedHash, bytes32 matchHash);
+  error M_InvalidAssetHash(bytes32 suppliedHash, bytes32 assetHash);
   error M_NotWhitelisted();
   error M_NotOwnerAddress(address sender, address owner);
-  error M_AccountFrozen(address owner);
+  error M_InvalidAccountOwner(address accountIdOwner, address inputOwner);
   error M_CannotTradeToSelf(uint accountId);
   error M_InsufficientFillAmount(uint orderNumber, uint remainingFill, uint requestedFill);
   error M_OrderExpired(uint blockTimestamp, uint expirationTime);
   error M_ZeroAmountToTrade();
   error M_TradingSameSide();
   error M_ArrayLengthMismatch(uint length1, uint length2, uint length3);
+  error M_TransferArrayLengthMismatch(uint transfers, uint assets, uint subIds, uint signatues);
   error M_AskPriceBelowLimit(uint limitPrice, uint calculatedPrice);
   error M_BidPriceAboveLimit(uint limitPrice, uint calculatedPrice);
   error M_CannotTradeSameAsset(IAsset baseAsset, IAsset quoteAsset);
   error M_TradeFeeExceedsMaxFee(uint tradeFee, uint maxFee);
+  error M_CooldownNotElapsed(uint secondsLeft);
+  error M_SessionKeyInvalid(address sessionKeyPublicAddress);
+  error M_TransferToZeroAccount();
 }

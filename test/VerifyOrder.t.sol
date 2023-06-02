@@ -40,7 +40,7 @@ contract UNIT_MatchingVerifyOrder is Test {
   function setUp() public {
     account = new Accounts("Lyra Margin Accounts", "LyraMarginNFTs");
     cashAsset = IAsset(address(usdc));
-    matching = new Matching(account, cashAsset, 420);
+    matching = new Matching(account, address(cashAsset), 420);
 
     manager = new MockManager(address(account));
 
@@ -62,78 +62,6 @@ contract UNIT_MatchingVerifyOrder is Test {
     account.approve(address(matching), accountId2);
     matching.openCLOBAccount(accountId2);
     vm.stopPrank();
-  }
-
-  // Attempt to trade with your frozen account
-  function testCannotTradeIfYouFrozen() public {
-    vm.startPrank(alice);
-    matching.freezeAccount(true);
-    vm.stopPrank();
-
-    (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
-      _createSignedOrder(accountId, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, true);
-    (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
-      _createSignedOrder(accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
-
-    Matching.Match memory matchDetails = Matching.Match({
-      accountId1: accountId,
-      accountId2: accountId2,
-      baseAmount: 1e18,
-      quoteAmount: 1e18,
-      baseAsset: cashAsset,
-      quoteAsset: IAsset(address(usdc)),
-      baseSubId: 0,
-      quoteSubId: 0,
-      tradeFee: 0,
-      signature1: signature1,
-      signature2: signature2
-    });
-
-    (
-      Matching.LimitOrder[] memory order1Array,
-      Matching.LimitOrder[] memory order2Array,
-      Matching.Match[] memory matchDetailsArray
-    ) = _createTradeArrays(limitOrder1, limitOrder2, matchDetails);
-
-    // Revert since you cannot trade with 0 amount
-    vm.expectRevert(abi.encodeWithSelector(Matching.M_AccountFrozen.selector, alice));
-
-    matching.submitTrades(matchDetailsArray, order1Array, order2Array);
-  }
-
-  // Attempt to trade with another account that is frozen
-  function testCannotTradeWithFrozenAccount() public {
-    vm.startPrank(bob);
-    matching.freezeAccount(true);
-    vm.stopPrank();
-    (Matching.LimitOrder memory limitOrder1, bytes memory signature1) =
-      _createSignedOrder(accountId, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, true);
-    (Matching.LimitOrder memory limitOrder2, bytes memory signature2) =
-      _createSignedOrder(accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
-
-    Matching.Match memory matchDetails = Matching.Match({
-      accountId1: accountId,
-      accountId2: accountId2,
-      baseAmount: 1e18,
-      quoteAmount: 1e18,
-      baseAsset: cashAsset,
-      quoteAsset: IAsset(address(usdc)),
-      baseSubId: 0,
-      quoteSubId: 0,
-      tradeFee: 0,
-      signature1: signature1,
-      signature2: signature2
-    });
-
-    (
-      Matching.LimitOrder[] memory order1Array,
-      Matching.LimitOrder[] memory order2Array,
-      Matching.Match[] memory matchDetailsArray
-    ) = _createTradeArrays(limitOrder1, limitOrder2, matchDetails);
-
-    // Revert since you cannot trade with 0 amount
-    vm.expectRevert(abi.encodeWithSelector(Matching.M_AccountFrozen.selector, bob));
-    matching.submitTrades(matchDetailsArray, order1Array, order2Array);
   }
 
   // Attempt to trade an order that has expired
@@ -423,7 +351,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     uint pk,
     bool isBid
   ) internal view returns (Matching.LimitOrder memory limitOrder, bytes memory signature) {
-    bytes32 tradingPair = matching.getTradingPair(cashAsset, IAsset(address(usdc)), 0, 0);
+    bytes32 instrumentHash = matching.getInstrument(cashAsset, IAsset(address(usdc)), 0, 0);
     Matching.LimitOrder memory order1 = Matching.LimitOrder({
       isBid: isBid,
       accountId1: fromAcc,
@@ -432,7 +360,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       expirationTime: expiry,
       maxFee: maxFee,
       salt: 0,
-      tradingPair: tradingPair
+      instrumentHash: instrumentHash
     });
 
     // Sign the order
@@ -447,7 +375,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       expirationTime: order1.expirationTime,
       maxFee: order1.maxFee,
       salt: order1.salt,
-      tradingPair: order1.tradingPair
+      instrumentHash: order1.instrumentHash
     });
   }
 
@@ -461,8 +389,8 @@ contract UNIT_MatchingVerifyOrder is Test {
     bool isBid
   ) internal view returns (Matching.LimitOrder memory limitOrder, bytes memory signature) {
     // Create LimitOrder
-    bytes32 tradingPair =
-      matching.getTradingPair(IAsset(address(baseAsset)), IAsset(address(quoteAsset)), baseSubId, quoteSubId);
+    bytes32 instrumentHash =
+      matching.getInstrument(IAsset(address(baseAsset)), IAsset(address(quoteAsset)), baseSubId, quoteSubId);
     Matching.LimitOrder memory order1 = Matching.LimitOrder({
       isBid: isBid,
       accountId1: fromAcc,
@@ -471,7 +399,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
       salt: 0,
-      tradingPair: tradingPair
+      instrumentHash: instrumentHash
     });
 
     // Sign the order
@@ -486,7 +414,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       expirationTime: order1.expirationTime,
       maxFee: 0,
       salt: order1.salt,
-      tradingPair: order1.tradingPair
+      instrumentHash: order1.instrumentHash
     });
   }
 
