@@ -47,7 +47,10 @@ contract UNIT_MatchingAccountManagement is Test {
   function setUp() public {
     account = new Accounts("Lyra Margin Accounts", "LyraMarginNFTs");
     cash = address(usdc);
-    matching = new Matching(account, cash, 420, COOLDOWN_SEC);
+    matching = new Matching(account, cash, 420);
+    matching.setWithdrawAccountCooldown(COOLDOWN_SEC);
+    matching.setWithdrawCashCooldown(COOLDOWN_SEC);
+    matching.setSessionKeyCooldown(COOLDOWN_SEC);
 
     manager = new MockManager(address(account));
     feed = new MockFeed();
@@ -92,16 +95,16 @@ contract UNIT_MatchingAccountManagement is Test {
 
   function testCanWithdrawAccount() public {
     vm.startPrank(alice);
-    matching.requestWithdraw(aliceAcc);
+    matching.requestCloseCLOBAccount(aliceAcc);
 
     assertEq(account.ownerOf(aliceAcc), address(matching));
 
     // Should revert since cooldown has no elapsed
     vm.expectRevert(abi.encodeWithSelector(Matching.M_CooldownNotElapsed.selector, COOLDOWN_SEC));
-    matching.closeCLOBAccount(aliceAcc);
+    matching.completeCloseCLOBAccount(aliceAcc);
 
     vm.warp(block.timestamp + COOLDOWN_SEC);
-    matching.closeCLOBAccount(aliceAcc);
+    matching.completeCloseCLOBAccount(aliceAcc);
     assertEq(account.ownerOf(aliceAcc), address(alice));
   }
 
@@ -110,12 +113,12 @@ contract UNIT_MatchingAccountManagement is Test {
 
     // Should revert since bob is not owner
     vm.expectRevert(abi.encodeWithSelector(Matching.M_NotOwnerAddress.selector, address(bob), address(alice)));
-    matching.requestWithdraw(aliceAcc);
+    matching.requestCloseCLOBAccount(aliceAcc);
   }
 
   function testCanTransferAsset() public {
     vm.startPrank(bob);
-    matching.registerSessionKey(bobAcc, alice, block.timestamp + 1 days);
+    matching.registerSessionKey(alice, block.timestamp + 1 days);
     vm.stopPrank();
 
     int aliceBefore = account.getBalance(aliceAcc, option, callId);
@@ -123,8 +126,9 @@ contract UNIT_MatchingAccountManagement is Test {
     assertEq(aliceBefore, 1e18);
     assertEq(bobBefore, -1e18);
 
+    bytes32 assetHash = matching.getAssetHash(option, callId);
     Matching.TransferAsset memory transfer =
-      Matching.TransferAsset({asset: option, subId: callId, amount: 1e18, fromAcc: aliceAcc, toAcc: bobAcc});
+      Matching.TransferAsset({amount: 1e18, fromAcc: aliceAcc, toAcc: bobAcc, assetHash: assetHash});
 
     // Sign the transfer
     bytes32 transferHash = matching.getTransferHash(transfer);
@@ -134,8 +138,12 @@ contract UNIT_MatchingAccountManagement is Test {
     transfers[0] = transfer;
     bytes[] memory signatures = new bytes[](1);
     signatures[0] = signature;
+    IAsset[] memory assets = new IAsset[](1);
+    assets[0] = option;
+    uint[] memory subIds = new uint[](1);
+    subIds[0] = callId;
 
-    matching.submitTransfers(transfers, signatures);
+    matching.submitTransfers(transfers, assets, subIds, signatures);
 
     int aliceAfter = account.getBalance(aliceAcc, option, callId);
     int bobAfter = account.getBalance(bobAcc, option, callId);
@@ -143,13 +151,39 @@ contract UNIT_MatchingAccountManagement is Test {
     assertEq(bobAfter, 0);
   }
 
-  // function testCannotTransferAsset() public {
-  //   // Remove whitelist and try to transfer
-  //   matching.setWhitelist(address(this), false);
+  // Mint new account with owner as alice but session key from bob
+  function testMintAccountAndTransferSignature() public {
+    // First register bob session key to alice address
+    vm.startPrank(alice);
+    matching.registerSessionKey(bob, block.timestamp + 1 days);
+    vm.stopPrank();
 
-  //   vm.expectRevert(Matching.M_NotWhitelisted.selector);
-  //   matching.transferAsset(aliceAcc, bobAcc, cash, 0, 1e18);
-  // }
+    Matching.MintAccount memory newAccount = Matching.MintAccount({owner: alice, manager: address(manager)});
+
+    // Create transfer request
+    bytes32 assetHash = matching.getAssetHash(IAsset(option), callId);
+    Matching.TransferAsset memory transfer =
+      Matching.TransferAsset({amount: 1e18, fromAcc: aliceAcc, toAcc: bobAcc, assetHash: assetHash});
+
+    bytes32 transferHash = matching.getTransferHash(transfer);
+    bytes memory signature = _sign(transferHash, bobKey);
+
+    // New account is minted
+    uint newId = matching.mintAccountAndTransfer(newAccount, transfer, IAsset(option), callId, signature);
+    assertEq(newId, 3);
+  }
+
+  // User waits for cooldown to deregister the key
+  function testDeregisterSessionKey() public {
+    vm.startPrank(alice);
+    matching.registerSessionKey(bob, block.timestamp + 1 days);
+    assertEq(matching.sessionKeys(bob, alice), block.timestamp + 1 days);
+
+    matching.requestDeregisterSessionKey(bob);
+
+    // Expiry should now be set to now + cooldown
+    assertEq(matching.sessionKeys(bob, alice), block.timestamp + COOLDOWN_SEC);
+  }
 
   function _sign(bytes32 orderHash, uint pk) internal view returns (bytes memory) {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ECDSA.toTypedDataHash(domainSeparator, orderHash));

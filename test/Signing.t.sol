@@ -40,7 +40,7 @@ contract UNIT_MatchingSigning is Test {
   function setUp() public {
     account = new Accounts("Lyra Margin Accounts", "LyraMarginNFTs");
     cashAsset = address(usdc);
-    matching = new Matching(account, cashAsset, 420,0);
+    matching = new Matching(account, cashAsset, 420);
 
     manager = new MockManager(address(account));
 
@@ -61,7 +61,7 @@ contract UNIT_MatchingSigning is Test {
 
   function testValidSignature() public {
     // Create LimitOrder
-    bytes32 instrument = matching.getInstrument(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
+    bytes32 instrumentHash = matching.getInstrument(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
     Matching.LimitOrder memory order = Matching.LimitOrder({
       isBid: true,
       accountId1: aliceAcc,
@@ -70,7 +70,7 @@ contract UNIT_MatchingSigning is Test {
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
       salt: 0,
-      instrument: instrument
+      instrumentHash: instrumentHash
     });
 
     // Sign the order
@@ -84,7 +84,7 @@ contract UNIT_MatchingSigning is Test {
 
   function testInvalidSignature() public {
     // Create LimitOrder
-    bytes32 instrument = matching.getInstrument(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
+    bytes32 instrumentHash = matching.getInstrument(IAsset(address(usdc)), IAsset(address(usdc)), 0, 0);
     Matching.LimitOrder memory order = Matching.LimitOrder({
       isBid: true,
       accountId1: aliceAcc,
@@ -93,7 +93,7 @@ contract UNIT_MatchingSigning is Test {
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
       salt: 0,
-      instrument: instrument
+      instrumentHash: instrumentHash
     });
 
     // Sign the order with wrong pk for the aliceAcc
@@ -112,8 +112,9 @@ contract UNIT_MatchingSigning is Test {
 
   function testTransferSignatureAsOwner() public {
     // Create transfer request
+    bytes32 assetHash = matching.getAssetHash(IAsset(cashAsset), 0);
     Matching.TransferAsset memory transfer =
-      Matching.TransferAsset({asset: IAsset(cashAsset), subId: 0, amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc});
+      Matching.TransferAsset({amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc, assetHash: assetHash});
 
     bytes32 transferHash = matching.getTransferHash(transfer);
     bytes memory signature = _sign(transferHash, aliceKey);
@@ -125,8 +126,9 @@ contract UNIT_MatchingSigning is Test {
 
   function testCannotTransferSignatureAsSessionKey() public {
     // Don't register session key first
+    bytes32 assetHash = matching.getAssetHash(IAsset(cashAsset), 0);
     Matching.TransferAsset memory transfer =
-      Matching.TransferAsset({asset: IAsset(cashAsset), subId: 0, amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc});
+      Matching.TransferAsset({amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc, assetHash: assetHash});
 
     bytes32 transferHash = matching.getTransferHash(transfer);
     bytes memory signature = _sign(transferHash, bobKey);
@@ -139,12 +141,13 @@ contract UNIT_MatchingSigning is Test {
   function testTransferSignatureAsSessionKey() public {
     // Register session key first
     vm.startPrank(alice);
-    matching.registerSessionKey(aliceAcc, bob, block.timestamp + 1 days);
+    matching.registerSessionKey(bob, block.timestamp + 1 days);
     vm.stopPrank();
 
     // Create transfer request
+    bytes32 assetHash = matching.getAssetHash(IAsset(cashAsset), 0);
     Matching.TransferAsset memory transfer =
-      Matching.TransferAsset({asset: IAsset(cashAsset), subId: 0, amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc});
+      Matching.TransferAsset({amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc, assetHash: assetHash});
 
     bytes32 transferHash = matching.getTransferHash(transfer);
     bytes memory signature = _sign(transferHash, bobKey);
@@ -157,12 +160,13 @@ contract UNIT_MatchingSigning is Test {
   function testSessionKeyExpiry() public {
     // Register session key first
     vm.startPrank(alice);
-    matching.registerSessionKey(aliceAcc, bob, block.timestamp + 1 days);
+    matching.registerSessionKey(bob, block.timestamp + 1 days);
     vm.stopPrank();
 
     // Create transfer request
+    bytes32 assetHash = matching.getAssetHash(IAsset(cashAsset), 0);
     Matching.TransferAsset memory transfer =
-      Matching.TransferAsset({asset: IAsset(cashAsset), subId: 0, amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc});
+      Matching.TransferAsset({amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc, assetHash: assetHash});
 
     bytes32 transferHash = matching.getTransferHash(transfer);
     bytes memory signature = _sign(transferHash, bobKey);
@@ -181,12 +185,13 @@ contract UNIT_MatchingSigning is Test {
   function testSessionKeyDifferentTransfer() public {
     // Register session key first
     vm.startPrank(alice);
-    matching.registerSessionKey(aliceAcc, bob, block.timestamp + 1 days);
+    matching.registerSessionKey(bob, block.timestamp + 1 days);
     vm.stopPrank();
 
     // Create transfer request
+    bytes32 assetHash = matching.getAssetHash(IAsset(cashAsset), 0);
     Matching.TransferAsset memory transfer =
-      Matching.TransferAsset({asset: IAsset(cashAsset), subId: 0, amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc});
+      Matching.TransferAsset({amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc, assetHash: assetHash});
 
     bytes32 transferHash = matching.getTransferHash(transfer);
     bytes memory signature = _sign(transferHash, bobKey);
@@ -196,7 +201,7 @@ contract UNIT_MatchingSigning is Test {
     assertEq(isValid, true);
 
     Matching.TransferAsset memory transfer2 =
-      Matching.TransferAsset({asset: IAsset(cashAsset), subId: 0, amount: 2e18, fromAcc: aliceAcc, toAcc: aliceAcc});
+      Matching.TransferAsset({amount: 2e18, fromAcc: aliceAcc, toAcc: aliceAcc, assetHash: assetHash});
 
     bytes32 transferHash2 = matching.getTransferHash(transfer2);
     bytes memory signature2 = _sign(transferHash2, bobKey);
@@ -206,20 +211,21 @@ contract UNIT_MatchingSigning is Test {
     assertEq(isValid, false);
   }
 
-  // Mint new account with owner as alice but session key from bob
-  function testMintAccountSignature() public {
-    Matching.MintAccount memory newAccount =
-      Matching.MintAccount({owner: alice, manager: address(manager), keyExpiry: block.timestamp + 1 weeks});
-    bytes32 newAccountHash = matching.getMintAccountHash(newAccount);
-    bytes memory signature = _sign(newAccountHash, bobKey);
+  // Try mint new account with owner as alice but session key from bob
+  function testCannotMintAccountSignature() public {
+    Matching.MintAccount memory newAccount = Matching.MintAccount({owner: alice, manager: address(manager)});
+
+    // Create transfer request
+    bytes32 assetHash = matching.getAssetHash(IAsset(cashAsset), 0);
+    Matching.TransferAsset memory transfer =
+      Matching.TransferAsset({amount: 1e18, fromAcc: aliceAcc, toAcc: aliceAcc, assetHash: assetHash});
+
+    bytes32 transferHash = matching.getTransferHash(transfer);
+    bytes memory signature = _sign(transferHash, bobKey);
 
     // New account is minted
-    uint newId = matching.mintCLOBAccount(newAccount, signature);
-    assertEq(newId, 2);
-
-    // Session key active for 1 week
-    uint expiry = matching.permissions(bob, alice);
-    assertEq(expiry, block.timestamp + 1 weeks);
+    vm.expectRevert(abi.encodeWithSelector(Matching.M_SessionKeyInvalid.selector, bob));
+    matching.mintAccountAndTransfer(newAccount, transfer, IAsset(cashAsset), 0, signature);
   }
 
   // just for coverage for now
