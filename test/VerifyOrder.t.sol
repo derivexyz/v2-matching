@@ -73,8 +73,8 @@ contract UNIT_MatchingVerifyOrder is Test {
       _createSignedOrder(accountId, 1e18, 1e18, 0, expiry, aliceKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
-      accountId1: accountId,
-      accountId2: accountId2,
+      bidId: accountId,
+      askId: accountId2,
       baseAmount: 1e18,
       quoteAmount: 1e18,
       baseAsset: cashAsset,
@@ -106,8 +106,8 @@ contract UNIT_MatchingVerifyOrder is Test {
       _createSignedOrder(accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
-      accountId1: accountId,
-      accountId2: accountId2,
+      bidId: accountId,
+      askId: accountId2,
       baseAmount: 1e18,
       quoteAmount: 1e18,
       baseAsset: cashAsset,
@@ -138,8 +138,8 @@ contract UNIT_MatchingVerifyOrder is Test {
       _createSignedOrder(accountId2, 1e18, 1e18, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
-      accountId1: accountId,
-      accountId2: accountId2,
+      bidId: accountId,
+      askId: accountId2,
       baseAmount: 0,
       quoteAmount: 0,
       baseAsset: cashAsset,
@@ -170,8 +170,8 @@ contract UNIT_MatchingVerifyOrder is Test {
       _createSignedOrder(accountId, 1e18, 1e18, 0, block.timestamp + 1 days, aliceKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
-      accountId1: accountId,
-      accountId2: accountId,
+      bidId: accountId,
+      askId: accountId,
       baseAmount: 1e18,
       quoteAmount: 1e18,
       baseAsset: cashAsset,
@@ -205,8 +205,8 @@ contract UNIT_MatchingVerifyOrder is Test {
       _createSignedOrder(accountId2, 1e18, assetAmount, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
-      accountId1: accountId,
-      accountId2: accountId2,
+      bidId: accountId,
+      askId: accountId2,
       baseAmount: fillAmount,
       quoteAmount: fillAmount,
       baseAsset: cashAsset,
@@ -243,8 +243,8 @@ contract UNIT_MatchingVerifyOrder is Test {
       _createSignedOrder(accountId2, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
-      accountId1: accountId,
-      accountId2: accountId2,
+      bidId: accountId,
+      askId: accountId2,
       baseAmount: fillAmount1,
       quoteAmount: fillAmount2,
       baseAsset: cashAsset,
@@ -284,8 +284,8 @@ contract UNIT_MatchingVerifyOrder is Test {
       _createSignedOrder(accountId2, 5e18, 100 ether, 0, block.timestamp + 1 days, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
-      accountId1: accountId,
-      accountId2: accountId2,
+      bidId: accountId,
+      askId: accountId2,
       baseAmount: fillAmount1,
       quoteAmount: fillAmount2,
       baseAsset: cashAsset,
@@ -318,8 +318,8 @@ contract UNIT_MatchingVerifyOrder is Test {
       _createSignedOrderAsset(accountId2, address(usdc), address(usdc), 1, 1, bobKey, false);
 
     Matching.Match memory matchDetails = Matching.Match({
-      accountId1: accountId,
-      accountId2: accountId2,
+      bidId: accountId,
+      askId: accountId2,
       baseAmount: 1e19,
       quoteAmount: 1e18,
       baseAsset: IAsset(address(usdc)),

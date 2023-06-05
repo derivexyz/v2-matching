@@ -6,6 +6,7 @@ import "openzeppelin/utils/cryptography/EIP712.sol";
 import "openzeppelin/utils/cryptography/SignatureChecker.sol";
 import "lyra-utils/ownership/Owned.sol";
 import "lyra-utils/decimals/DecimalMath.sol";
+import "lyra-utils/decimals/SignedDecimalMath.sol";
 
 import "v2-core/src/interfaces/ICashAsset.sol";
 import "v2-core/src/Accounts.sol";
@@ -20,12 +21,12 @@ import "forge-std/console2.sol";
  */
 contract Matching is EIP712, Owned {
   using DecimalMath for uint;
-  using DecimalMath for int;
+  using SignedDecimalMath for int;
   using SafeCast for uint;
 
   struct Match {
-    uint accountId1;
-    uint accountId2;
+    uint bidId;
+    uint askId;
     IAsset baseAsset; // baseAsset == perpAsset and quote == empty for perp
     IAsset quoteAsset;
     uint baseSubId;
@@ -44,13 +45,13 @@ contract Matching is EIP712, Owned {
     uint limitPrice;
     uint expirationTime;
     uint maxFee;
-    uint salt; // todo nonce, mapping nonce -> used
+    uint nonce; // todo nonce, mapping nonce -> used
     bytes32 instrumentHash;
   }
 
   struct VerifiedTrade {
-    uint accountId1;
-    uint accountId2;
+    uint bidId;
+    uint askId;
     IAsset baseAsset;
     IAsset quoteAsset;
     uint baseSubId;
@@ -58,6 +59,7 @@ contract Matching is EIP712, Owned {
     uint asset1Amount; // Position size for perps
     uint asset2Amount; // Delta paid for perps
     uint tradeFee;
+    int perpDelta;
   }
 
   struct TransferAsset {
@@ -115,6 +117,9 @@ contract Matching is EIP712, Owned {
 
   ///@dev Mapping of owner to signal cash cooldown start time
   mapping(address => uint) public withdrawCashCooldownMapping;
+
+  ///@dev Mapping of accountId -> nonce -> used
+  mapping(uint => mapping(uint => bool)) public nonceUsed;
 
   ///@dev Order fill typehash containing the limit order hash and trading pair hash, exluding the counterparty for the trade (accountId2)
   bytes32 public constant _LIMITORDER_TYPEHASH =
@@ -423,13 +428,19 @@ contract Matching is EIP712, Owned {
     // Validate order match and parameters
     _validateOrderDetails(order1, order2, matchDetails);
 
+    // Verify nonce is not used
+    _verifyNonceForOrder(order1.accountId1, order1.nonce, order1.amount, _getOrderHash(order1));
+    _verifyNonceForOrder(order2.accountId1, order2.nonce, order2.amount, _getOrderHash(order2));
+
     // Check if it is a perp or option trade
     bool isPerpTrade = _isPerpTrade(address(matchDetails.baseAsset), address(matchDetails.quoteAsset));
 
     // todo if perp validateLimitPrice flow slightly different
+    int perpDelta = 0;
     if (isPerpTrade) {
       _validateLimitPrice(order1.isBid, order1.limitPrice, matchDetails.quoteAmount);
       _validateLimitPrice(order2.isBid, order2.limitPrice, matchDetails.quoteAmount);
+      perpDelta = _calculatePerpDelta(matchDetails.quoteAmount, matchDetails.baseAmount);
     } else {
       uint calculatedPrice = matchDetails.baseAmount.divideDecimal(matchDetails.quoteAmount);
       // Verify the calculated price is within the limit price
@@ -439,29 +450,26 @@ contract Matching is EIP712, Owned {
 
     // Verify and update fill/fee amounts for both orders
     _verifyAndUpdateFillAllowance(
-      order1.amount,
-      order2.amount,
-      order1.maxFee,
-      order2.maxFee,
-      matchDetails.tradeFee,
-      matchDetails.baseAmount,
-      matchDetails.quoteAmount,
-      _getOrderHash(order1),
-      _getOrderHash(order2)
+      order1, order2, matchDetails.tradeFee, matchDetails.baseAmount, matchDetails.quoteAmount
     );
 
     // Once all parameters are verified and validated we return the order details to be executed
-    return VerifiedTrade({
-      accountId1: matchDetails.accountId1,
-      accountId2: matchDetails.accountId2,
+    matchedOrder = VerifiedTrade({
+      bidId: matchDetails.bidId,
+      askId: matchDetails.askId,
       baseAsset: matchDetails.baseAsset,
       quoteAsset: matchDetails.quoteAsset,
       baseSubId: matchDetails.baseSubId,
       quoteSubId: matchDetails.quoteSubId,
       asset1Amount: matchDetails.baseAmount,
       asset2Amount: matchDetails.quoteAmount,
-      tradeFee: matchDetails.tradeFee
+      tradeFee: matchDetails.tradeFee,
+      perpDelta: 0
     });
+
+    if (isPerpTrade) {
+      matchedOrder.perpDelta = perpDelta;
+    }
   }
 
   /**
@@ -558,7 +566,7 @@ contract Matching is EIP712, Owned {
     view
   {
     // Ensure the accountId and taker are different accounts
-    if (matchDetails.accountId1 == matchDetails.accountId2) revert M_CannotTradeToSelf(matchDetails.accountId1);
+    if (matchDetails.bidId == matchDetails.askId) revert M_CannotTradeToSelf(matchDetails.bidId);
 
     // Ensure some amount is traded
     if (order1.amount == 0) revert M_ZeroAmountToTrade();
@@ -577,8 +585,20 @@ contract Matching is EIP712, Owned {
       revert M_ZeroAmountToTrade();
     }
 
-    // Verify that the two assets are unique
+    // Must be trading bid with ask
     if (order1.isBid == order2.isBid) revert M_TradingSameSide();
+
+    // Ensure the bid accountId is the same as the bidId inside the match
+    if (order1.isBid) {
+      if (order1.accountId1 != matchDetails.bidId) {
+        revert M_TradeSideAccountIdMisMatch(order1.accountId1, matchDetails.bidId);
+      }
+      if (order2.accountId1 != matchDetails.askId) {
+        revert M_TradeSideAccountIdMisMatch(order2.accountId1, matchDetails.askId);
+      }
+    }
+
+    // Verify that the two assets are unique
     if (matchDetails.baseAsset == matchDetails.quoteAsset) {
       revert M_CannotTradeSameAsset(matchDetails.baseAsset, matchDetails.quoteAsset);
     }
@@ -588,19 +608,18 @@ contract Matching is EIP712, Owned {
    * @notice Updates fill and fee allowances for a trade if the amounts are valid.
    */
   function _verifyAndUpdateFillAllowance(
-    uint order1Amount,
-    uint order2Amount,
-    uint order1MaxFee,
-    uint order2MaxFee,
+    LimitOrder memory order1,
+    LimitOrder memory order2,
     uint tradeFee,
     uint baseAmount,
-    uint quoteAmount,
-    bytes32 order1Hash,
-    bytes32 order2Hash
+    uint quoteAmount
   ) internal {
+    bytes32 order1Hash = _getOrderHash(order1);
+    bytes32 order2Hash = _getOrderHash(order2);
+
     // Ensure the orders have not been completely filled yet
-    uint remainingAmount1 = order1Amount - fillAmounts[order1Hash].filledAmount;
-    uint remainingAmount2 = order2Amount - fillAmounts[order2Hash].filledAmount;
+    uint remainingAmount1 = order1.amount - fillAmounts[order1Hash].filledAmount;
+    uint remainingAmount2 = order2.amount - fillAmounts[order2Hash].filledAmount;
 
     if (remainingAmount1 < baseAmount) {
       revert M_InsufficientFillAmount(1, remainingAmount1, baseAmount);
@@ -610,8 +629,8 @@ contract Matching is EIP712, Owned {
     }
 
     // Ensure trade fee < maxFee (cumulative paid)
-    uint remainingFee1 = order1MaxFee - fillAmounts[order1Hash].totalFees;
-    uint remainingFee2 = order2MaxFee - fillAmounts[order1Hash].totalFees;
+    uint remainingFee1 = order1.maxFee - fillAmounts[order1Hash].totalFees;
+    uint remainingFee2 = order2.maxFee - fillAmounts[order1Hash].totalFees;
     if (tradeFee > remainingFee1) revert M_TradeFeeExceedsMaxFee(tradeFee, remainingFee1);
     if (tradeFee > remainingFee2) revert M_TradeFeeExceedsMaxFee(tradeFee, remainingFee2);
 
@@ -621,28 +640,34 @@ contract Matching is EIP712, Owned {
 
     fillAmounts[order1Hash].totalFees += tradeFee;
     fillAmounts[order2Hash].totalFees += tradeFee;
+
+    if (fillAmounts[order1Hash].filledAmount == order1.amount) {
+      nonceUsed[order1.accountId1][order1.nonce] = true;
+    }
+
+    if (fillAmounts[order2Hash].filledAmount == order2.amount) {
+      nonceUsed[order2.accountId1][order2.nonce] = true;
+    }
   }
 
   /**
    * @notice Calculates the execution price is within the limit price.
    */
-  function _validateLimitPrice(bool isLong, uint limitPrice, uint marketPrice) internal pure {
-    // If you want to long but the price is above your limit
-    if (isLong && marketPrice > limitPrice) {
+  function _validateLimitPrice(bool isBid, uint limitPrice, uint marketPrice) internal pure {
+    // If you want to buy but the price is above your limit
+    if (isBid && marketPrice > limitPrice) {
       revert M_BidPriceAboveLimit(limitPrice, marketPrice);
-    } else if (!isLong && marketPrice < limitPrice) {
-      // If you want to short but the price is below your limit
+    } else if (!isBid && marketPrice < limitPrice) {
+      // If you want to sell but the price is below your limit
       revert M_AskPriceBelowLimit(limitPrice, marketPrice);
     }
   }
 
   // Difference between the perp Asset index price and the market price
-  function _calculatePerpDelta(uint marketPrice, uint positionSize) internal returns (int delta) {
+  function _calculatePerpDelta(uint marketPrice, uint positionSize) internal pure returns (int delta) {
     // int index = perpAsset.getIndexPriceSpot(); // implemented in proto1/sprint7
     int index = 1800e18;
-
-    // if ()
-    // delta = (marketPrice.toInt256() - index).multiplyDecimal(positionSize);
+    delta = (marketPrice.toInt256() - index).multiplyDecimal(positionSize.toInt256());
   }
 
   function _submitAssetTransfers(VerifiedTrade[] memory orders) internal {
@@ -651,26 +676,38 @@ contract Matching is EIP712, Owned {
     for (uint i = 0; i < orders.length; i++) {
       // Transfer assets between the two accounts
       transferBatch[i] = IAccounts.AssetTransfer({
-        fromAcc: orders[i].accountId1,
-        toAcc: orders[i].accountId2,
+        fromAcc: orders[i].askId,
+        toAcc: orders[i].bidId,
         asset: orders[i].baseAsset,
         subId: orders[i].baseSubId,
         amount: orders[i].asset1Amount.toInt256(),
         assetData: bytes32(0)
       });
 
-      transferBatch[i + 1] = IAccounts.AssetTransfer({
-        fromAcc: orders[i].accountId2,
-        toAcc: orders[i].accountId1,
-        asset: orders[i].quoteAsset,
-        subId: orders[i].quoteSubId,
-        amount: orders[i].asset2Amount.toInt256(),
-        assetData: bytes32(0)
-      });
+      // If perp trade send delta, if option send quote asset
+      if (orders[i].perpDelta != 0) {
+        transferBatch[i + 1] = IAccounts.AssetTransfer({
+          fromAcc: orders[i].bidId,
+          toAcc: orders[i].askId,
+          asset: IAsset(cashAsset),
+          subId: orders[i].quoteSubId,
+          amount: orders[i].perpDelta,
+          assetData: bytes32(0)
+        });
+      } else {
+        transferBatch[i + 1] = IAccounts.AssetTransfer({
+          fromAcc: orders[i].bidId,
+          toAcc: orders[i].askId,
+          asset: orders[i].quoteAsset,
+          subId: orders[i].quoteSubId,
+          amount: orders[i].asset2Amount.toInt256(),
+          assetData: bytes32(0)
+        });
+      }
 
       // Charge fee from both accounts to the feeAccount
       transferBatch[i + 2] = IAccounts.AssetTransfer({
-        fromAcc: orders[i].accountId1,
+        fromAcc: orders[i].bidId,
         toAcc: feeAccountId,
         asset: IAsset(cashAsset),
         subId: 0,
@@ -679,7 +716,7 @@ contract Matching is EIP712, Owned {
       });
 
       transferBatch[i + 3] = IAccounts.AssetTransfer({
-        fromAcc: orders[i].accountId2,
+        fromAcc: orders[i].askId,
         toAcc: feeAccountId,
         asset: IAsset(cashAsset),
         subId: 0,
@@ -718,6 +755,11 @@ contract Matching is EIP712, Owned {
     }
   }
 
+  function _verifyNonceForOrder(uint accountId, uint nonce) internal {
+    // If the nonce is used revert
+    if (nonceUsed[accountId][nonce]) revert M_NonceUsed(accountId, nonce);
+  }
+
   /////////////////////////
   //  Hashing Functions  //
   /////////////////////////
@@ -740,7 +782,7 @@ contract Matching is EIP712, Owned {
         order.limitPrice,
         order.expirationTime,
         order.maxFee,
-        order.salt,
+        order.nonce,
         order.instrumentHash
       )
     );
@@ -898,4 +940,6 @@ contract Matching is EIP712, Owned {
   error M_CooldownNotElapsed(uint secondsLeft);
   error M_SessionKeyInvalid(address sessionKeyPublicAddress);
   error M_TransferToZeroAccount();
+  error M_TradeSideAccountIdMisMatch(uint orderAccountId, uint matchAccountId);
+  error M_NonceUsed(uint accountId, uint nonce);
 }
