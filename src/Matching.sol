@@ -69,6 +69,10 @@ contract Matching is EIP712, Owned {
     bytes32 assetHash;
   }
 
+  struct TransferManyAssets {
+    TransferAsset[] assets;
+  }
+
   struct MintAccount {
     address owner;
     address manager;
@@ -253,6 +257,21 @@ contract Matching is EIP712, Owned {
     accounts.submitTransfers(transferBatch, "");
   }
 
+  function submitTransfersOneSignature(
+    TransferManyAssets memory transfer,
+    IAsset[] memory assets,
+    uint[] memory subIds,
+    bytes memory signature
+  ) external onlyWhitelisted {
+    if (assets.length != subIds.length) {
+      revert M_TransferArrayLengthMismatch(assets.length, subIds.length, 0, 0);
+    }
+
+    IAccounts.AssetTransfer[] memory transferBatch = _verifyTransferBatchAssets(transfer, assets, subIds, 0, signature);
+
+    accounts.submitTransfers(transferBatch, "");
+  }
+
   /**
    * @notice Allows whitelisted addresses to force close an account with no cooldown delay.
    */
@@ -429,8 +448,8 @@ contract Matching is EIP712, Owned {
     _validateOrderDetails(order1, order2, matchDetails);
 
     // Verify nonce is not used
-    _verifyNonceForOrder(order1.accountId1, order1.nonce, order1.amount, _getOrderHash(order1));
-    _verifyNonceForOrder(order2.accountId1, order2.nonce, order2.amount, _getOrderHash(order2));
+    _verifyNonceForOrder(order1.accountId1, order1.nonce);
+    _verifyNonceForOrder(order2.accountId1, order2.nonce);
 
     // Check if it is a perp or option trade
     bool isPerpTrade = _isPerpTrade(address(matchDetails.baseAsset), address(matchDetails.quoteAsset));
@@ -527,6 +546,63 @@ contract Matching is EIP712, Owned {
         amount: transfer.amount.toInt256(),
         assetData: bytes32(0)
       });
+    } else {
+      revert M_TransferToZeroAccount();
+    }
+  }
+
+  function _verifyTransferBatchAssets(
+    TransferManyAssets memory transfer,
+    IAsset[] memory assets,
+    uint[] memory subIds,
+    uint newId,
+    bytes memory signature
+  ) internal view returns (IAccounts.AssetTransfer[] memory verifiedTransfers) {
+    // Verify the asset hashs
+    for (uint i = 0; i < transfer.assets.length; i++) {
+      bytes32 assetHash = _getAssetHash(assets[i], subIds[i]);
+      if (transfer.assets[i].assetHash != assetHash) revert M_InvalidAssetHash(transfer.assets[i].assetHash, assetHash);
+    }
+
+    // Verify signature is signed by the account owner or permitted address
+    bytes32 transferHash = _getTransferManyAssetsHash(transfer);
+    if (!_verifySignature(transfer.assets[0].fromAcc, transferHash, signature)) {
+      revert M_InvalidSignature(accountToOwner[transfer.assets[0].fromAcc]);
+    }
+
+    // If the address is not owner ensure permission has not expired for the 'toAcc'
+    address sessionKeyAddress = _recoverAddress(transferHash, signature);
+
+    // If toAcc is not empty we check for permission expiry, if not empty we fill the transfer with the newId
+    verifiedTransfers = new IAccounts.AssetTransfer[](transfer.assets.length);
+    if (transfer.assets[0].toAcc != 0) {
+      address toAccOwner = accountToOwner[transfer.assets[0].toAcc];
+      if (sessionKeyAddress != toAccOwner && sessionKeys[sessionKeyAddress][toAccOwner] < block.timestamp) {
+        revert M_SessionKeyInvalid(sessionKeyAddress);
+      }
+      // Return normal asset transfer using transfer details
+      for (uint i = 0; i < transfer.assets.length; i++) {
+        verifiedTransfers[i] = IAccounts.AssetTransfer({
+          fromAcc: transfer.assets[i].fromAcc,
+          toAcc: transfer.assets[i].toAcc,
+          asset: assets[i],
+          subId: subIds[i],
+          amount: transfer.assets[i].amount.toInt256(),
+          assetData: bytes32(0)
+        });
+      }
+    } else if (newId != 0) {
+      // Return asset transfer to the newly minted account
+      for (uint i = 0; i < transfer.assets.length; i++) {
+        verifiedTransfers[i] = IAccounts.AssetTransfer({
+          fromAcc: transfer.assets[i].fromAcc,
+          toAcc: newId,
+          asset: assets[i],
+          subId: subIds[i],
+          amount: transfer.assets[i].amount.toInt256(),
+          assetData: bytes32(0)
+        });
+      }
     } else {
       revert M_TransferToZeroAccount();
     }
@@ -792,6 +868,17 @@ contract Matching is EIP712, Owned {
     return keccak256(
       abi.encode(_TRANSFER_ASSET_TYPEHASH, transfer.amount, transfer.fromAcc, transfer.toAcc, transfer.assetHash)
     );
+  }
+
+  function _getTransferManyAssetsHash(TransferManyAssets memory transferMany) internal pure returns (bytes32) {
+    bytes memory buffer;
+
+    for (uint i = 0; i < transferMany.assets.length; i++) {
+      bytes32 assetHash = _getTransferHash(transferMany.assets[i]);
+      buffer = abi.encodePacked(buffer, assetHash);
+    }
+
+    return keccak256(buffer);
   }
 
   function _getAssetHash(IAsset asset, uint subId) internal pure returns (bytes32) {
