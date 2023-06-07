@@ -359,7 +359,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       limitPrice: limitPrice,
       expirationTime: expiry,
       maxFee: maxFee,
-      salt: 0,
+      nonce: 0,
       instrumentHash: instrumentHash
     });
 
@@ -374,7 +374,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       limitPrice: order1.limitPrice,
       expirationTime: order1.expirationTime,
       maxFee: order1.maxFee,
-      salt: order1.salt,
+      nonce: order1.nonce,
       instrumentHash: order1.instrumentHash
     });
   }
@@ -398,7 +398,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       limitPrice: 1e18,
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
-      salt: 0,
+      nonce: 0,
       instrumentHash: instrumentHash
     });
 
@@ -413,7 +413,7 @@ contract UNIT_MatchingVerifyOrder is Test {
       limitPrice: order1.limitPrice,
       expirationTime: order1.expirationTime,
       maxFee: 0,
-      salt: order1.salt,
+      nonce: order1.nonce,
       instrumentHash: order1.instrumentHash
     });
   }

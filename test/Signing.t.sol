@@ -69,7 +69,7 @@ contract UNIT_MatchingSigning is Test {
       limitPrice: 1 ether,
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
-      salt: 0,
+      nonce: 0,
       instrumentHash: instrumentHash
     });
 
@@ -92,7 +92,7 @@ contract UNIT_MatchingSigning is Test {
       limitPrice: 1 ether,
       expirationTime: block.timestamp + 1 days,
       maxFee: 0,
-      salt: 0,
+      nonce: 0,
       instrumentHash: instrumentHash
     });
 

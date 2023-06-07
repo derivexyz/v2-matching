@@ -831,7 +831,7 @@ contract Matching is EIP712, Owned {
     }
   }
 
-  function _verifyNonceForOrder(uint accountId, uint nonce) internal {
+  function _verifyNonceForOrder(uint accountId, uint nonce) internal view {
     // If the nonce is used revert
     if (nonceUsed[accountId][nonce]) revert M_NonceUsed(accountId, nonce);
   }
