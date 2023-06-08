@@ -741,8 +741,7 @@ contract Matching is EIP712, Owned {
 
   // Difference between the perp Asset index price and the market price
   function _calculatePerpDelta(uint marketPrice, uint positionSize) internal pure returns (int delta) {
-    // int index = perpAsset.getIndexPriceSpot(); // implemented in proto1/sprint7
-    int index = 1800e18;
+    int index = perpAsset.getIndexPriceSpot();
     delta = (marketPrice.toInt256() - index).multiplyDecimal(positionSize.toInt256());
   }
 
