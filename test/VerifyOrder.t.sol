@@ -231,11 +231,11 @@ contract UNIT_MatchingVerifyOrder is Test {
 
   // Attempt to trade at price above limit for bid
   function testOrderAboveLimitPrice() public {
-    uint limitPriceOrder1 = 5e18;
+    uint limitPriceOrder1 = 99e18;
 
-    // Calculated price will be 50/9 = 5.56
-    uint fillAmount1 = 50 ether;
-    uint fillAmount2 = 9 ether;
+    // Calculated price will be 100 but limit is 99
+    uint fillAmount1 = 1 ether;
+    uint fillAmount2 = 100 ether;
 
     (Matching.LimitOrder memory order1, bytes memory signature1) =
       _createSignedOrder(accountId, limitPriceOrder1, 100 ether, 0, block.timestamp + 1 days, aliceKey, true);
@@ -265,7 +265,7 @@ contract UNIT_MatchingVerifyOrder is Test {
     // Revert since min price is 1.1 but fillAmounts are equal == 1
     vm.expectRevert(
       abi.encodeWithSelector(
-        Matching.M_BidPriceAboveLimit.selector, limitPriceOrder1, fillAmount1.divideDecimal(fillAmount2)
+        Matching.M_BidPriceAboveLimit.selector, limitPriceOrder1, fillAmount2.divideDecimal(fillAmount1)
       )
     );
 
@@ -275,8 +275,8 @@ contract UNIT_MatchingVerifyOrder is Test {
   // Attempt to trade at price below limit for ask
   function testOrderBelowLimitPrice() public {
     // Calculated price will be 40/10 = 4 which is less than the limit price of 5
-    uint fillAmount1 = 40 ether;
-    uint fillAmount2 = 10 ether;
+    uint fillAmount1 = 10 ether;
+    uint fillAmount2 = 40 ether;
 
     (Matching.LimitOrder memory order1, bytes memory signature1) =
       _createSignedOrder(accountId, 10e18, 100 ether, 10e18, block.timestamp + 1 days, aliceKey, true);
@@ -305,7 +305,7 @@ contract UNIT_MatchingVerifyOrder is Test {
 
     // Revert since the calculated price is below the limit price
     vm.expectRevert(
-      abi.encodeWithSelector(Matching.M_AskPriceBelowLimit.selector, 5e18, fillAmount1.divideDecimal(fillAmount2))
+      abi.encodeWithSelector(Matching.M_AskPriceBelowLimit.selector, 5e18, fillAmount2.divideDecimal(fillAmount1))
     );
     matching.submitTrades(matchDetailsArray, order1Array, order2Array);
   }

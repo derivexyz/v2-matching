@@ -457,11 +457,11 @@ contract Matching is EIP712, Owned {
     // todo if perp validateLimitPrice flow slightly different
     int perpDelta = 0;
     if (isPerpTrade) {
-      _validateLimitPrice(order1.isBid, order1.limitPrice, matchDetails.quoteAmount);
-      _validateLimitPrice(order2.isBid, order2.limitPrice, matchDetails.quoteAmount);
+      _validateLimitPrice(order1.isBid, order1.limitPrice, matchDetails.quoteAmount); // todo quoteAmount for perp is market price 
+      _validateLimitPrice(order2.isBid, order2.limitPrice, matchDetails.quoteAmount); // todo needs a generalised name
       perpDelta = _calculatePerpDelta(matchDetails.quoteAmount, matchDetails.baseAmount);
     } else {
-      uint calculatedPrice = matchDetails.baseAmount.divideDecimal(matchDetails.quoteAmount);
+      uint calculatedPrice = matchDetails.quoteAmount.divideDecimal(matchDetails.baseAmount);
       // Verify the calculated price is within the limit price
       _validateLimitPrice(order1.isBid, order1.limitPrice, calculatedPrice);
       _validateLimitPrice(order2.isBid, order2.limitPrice, calculatedPrice);
