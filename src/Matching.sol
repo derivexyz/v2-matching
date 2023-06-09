@@ -4,14 +4,15 @@ pragma solidity ^0.8.13;
 import "openzeppelin/utils/math/SafeCast.sol";
 import "openzeppelin/utils/cryptography/EIP712.sol";
 import "openzeppelin/utils/cryptography/SignatureChecker.sol";
-import "lyra-utils/ownership/Owned.sol";
+import "openzeppelin/access/Ownable2Step.sol";
 import "lyra-utils/decimals/DecimalMath.sol";
 import "lyra-utils/decimals/SignedDecimalMath.sol";
 
 import "v2-core/src/interfaces/ICashAsset.sol";
-import "v2-core/src/Accounts.sol";
+import "v2-core/src/SubAccounts.sol";
 import "v2-core/src/interfaces/IPerpAsset.sol";
 
+import "./interfaces/IMatching.sol";
 import "forge-std/console2.sol";
 
 /**
@@ -19,69 +20,10 @@ import "forge-std/console2.sol";
  * @author Lyra
  * @notice Matching contract that allows whitelisted addresses to submit trades for accounts.
  */
-contract Matching is EIP712, Owned {
+contract Matching is EIP712, IMatching, Ownable2Step {
   using DecimalMath for uint;
   using SignedDecimalMath for int;
   using SafeCast for uint;
-
-  struct Match {
-    uint bidId;
-    uint askId;
-    IAsset baseAsset; // baseAsset == perpAsset and quote == empty for perp
-    IAsset quoteAsset;
-    uint baseSubId;
-    uint quoteSubId;
-    uint baseAmount; // position size for perp
-    uint quoteAmount; // market price for perp
-    uint tradeFee;
-    bytes signature1;
-    bytes signature2;
-  } // todo another accountID recieve trade
-
-  struct LimitOrder {
-    bool isBid; // is long or short for perp
-    uint accountId1;
-    uint amount; // For bids, amount is baseAsset. For asks, amount is quoteAsset
-    uint limitPrice;
-    uint expirationTime;
-    uint maxFee;
-    uint nonce; // todo nonce, mapping nonce -> used
-    bytes32 instrumentHash;
-  }
-
-  struct VerifiedTrade {
-    uint bidId;
-    uint askId;
-    IAsset baseAsset;
-    IAsset quoteAsset;
-    uint baseSubId;
-    uint quoteSubId;
-    uint asset1Amount; // Position size for perps
-    uint asset2Amount; // Delta paid for perps
-    uint tradeFee;
-    int perpDelta;
-  }
-
-  struct TransferAsset {
-    uint amount;
-    uint fromAcc;
-    uint toAcc;
-    bytes32 assetHash;
-  }
-
-  struct TransferManyAssets {
-    TransferAsset[] assets;
-  }
-
-  struct MintAccount {
-    address owner;
-    address manager;
-  }
-
-  struct OrderFills {
-    uint filledAmount;
-    uint totalFees;
-  }
 
   ///@dev Account Id which receives all fees paid
   uint public feeAccountId;
@@ -96,7 +38,7 @@ contract Matching is EIP712, Owned {
   uint public deregisterKeyCooldownParam;
 
   ///@dev Accounts contract address
-  IAccounts public immutable accounts;
+  ISubAccounts public immutable accounts;
 
   ///@dev The cash asset used as quote and for paying fees
   address public cashAsset;
@@ -141,7 +83,7 @@ contract Matching is EIP712, Owned {
   ///@dev Asset typehash containing the IAsset and subId
   bytes32 public constant _ASSET_TYPEHASH = keccak256("address,uint256");
 
-  constructor(IAccounts _accounts, address _cashAsset, uint _feeAccountId) EIP712("Matching", "1.0") {
+  constructor(ISubAccounts _accounts, address _cashAsset, uint _feeAccountId) EIP712("Matching", "1.0") {
     accounts = _accounts;
     cashAsset = _cashAsset;
     feeAccountId = _feeAccountId;
@@ -249,7 +191,7 @@ contract Matching is EIP712, Owned {
       revert M_TransferArrayLengthMismatch(transfers.length, assets.length, subIds.length, signatures.length);
     }
 
-    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](transfers.length);
+    ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](transfers.length);
     for (uint i = 0; i < transfers.length; i++) {
       transferBatch[i] = _verifyTransferAsset(transfers[i], assets[i], subIds[i], 0, signatures[i]);
     }
@@ -267,7 +209,8 @@ contract Matching is EIP712, Owned {
       revert M_TransferArrayLengthMismatch(assets.length, subIds.length, 0, 0);
     }
 
-    IAccounts.AssetTransfer[] memory transferBatch = _verifyTransferBatchAssets(transfer, assets, subIds, 0, signature);
+    ISubAccounts.AssetTransfer[] memory transferBatch =
+      _verifyTransferBatchAssets(transfer, assets, subIds, 0, signature);
 
     accounts.submitTransfers(transferBatch, "");
   }
@@ -315,7 +258,7 @@ contract Matching is EIP712, Owned {
     address toAllow = _recoverAddress(_getTransferHash(transfer), signature);
     newId = _mintCLOBAccount(newAccount, toAllow);
 
-    IAccounts.AssetTransfer memory assetTransfer = _verifyTransferAsset(transfer, asset, subId, newId, signature);
+    ISubAccounts.AssetTransfer memory assetTransfer = _verifyTransferAsset(transfer, asset, subId, newId, signature);
     accounts.submitTransfer(assetTransfer, "");
 
     emit OpenedCLOBAccount(newId);
@@ -457,7 +400,7 @@ contract Matching is EIP712, Owned {
     // todo if perp validateLimitPrice flow slightly different
     int perpDelta = 0;
     if (isPerpTrade) {
-      _validateLimitPrice(order1.isBid, order1.limitPrice, matchDetails.quoteAmount); // todo quoteAmount for perp is market price 
+      _validateLimitPrice(order1.isBid, order1.limitPrice, matchDetails.quoteAmount); // todo quoteAmount for perp is market price
       _validateLimitPrice(order2.isBid, order2.limitPrice, matchDetails.quoteAmount); // todo needs a generalised name
       perpDelta = _calculatePerpDelta(matchDetails.quoteAmount, matchDetails.baseAmount);
     } else {
@@ -507,7 +450,7 @@ contract Matching is EIP712, Owned {
     uint subId,
     uint newId,
     bytes memory signature
-  ) internal view returns (IAccounts.AssetTransfer memory verifiedTransfer) {
+  ) internal view returns (ISubAccounts.AssetTransfer memory verifiedTransfer) {
     // Verify the asset hash
     bytes32 assetHash = _getAssetHash(asset, subId);
     if (transfer.assetHash != assetHash) revert M_InvalidAssetHash(transfer.assetHash, assetHash);
@@ -528,7 +471,7 @@ contract Matching is EIP712, Owned {
         revert M_SessionKeyInvalid(sessionKeyAddress);
       }
       // Return normal asset transfer using transfer details
-      return IAccounts.AssetTransfer({
+      return ISubAccounts.AssetTransfer({
         fromAcc: transfer.fromAcc,
         toAcc: transfer.toAcc,
         asset: asset,
@@ -538,7 +481,7 @@ contract Matching is EIP712, Owned {
       });
     } else if (newId != 0) {
       // Return asset transfer to the newly minted account
-      return IAccounts.AssetTransfer({
+      return ISubAccounts.AssetTransfer({
         fromAcc: transfer.fromAcc,
         toAcc: newId,
         asset: asset,
@@ -557,7 +500,7 @@ contract Matching is EIP712, Owned {
     uint[] memory subIds,
     uint newId,
     bytes memory signature
-  ) internal view returns (IAccounts.AssetTransfer[] memory verifiedTransfers) {
+  ) internal view returns (ISubAccounts.AssetTransfer[] memory verifiedTransfers) {
     // Verify the asset hashs
     for (uint i = 0; i < transfer.assets.length; i++) {
       bytes32 assetHash = _getAssetHash(assets[i], subIds[i]);
@@ -574,7 +517,7 @@ contract Matching is EIP712, Owned {
     address sessionKeyAddress = _recoverAddress(transferHash, signature);
 
     // If toAcc is not empty we check for permission expiry, if not empty we fill the transfer with the newId
-    verifiedTransfers = new IAccounts.AssetTransfer[](transfer.assets.length);
+    verifiedTransfers = new ISubAccounts.AssetTransfer[](transfer.assets.length);
     if (transfer.assets[0].toAcc != 0) {
       address toAccOwner = accountToOwner[transfer.assets[0].toAcc];
       if (sessionKeyAddress != toAccOwner && sessionKeys[sessionKeyAddress][toAccOwner] < block.timestamp) {
@@ -582,7 +525,7 @@ contract Matching is EIP712, Owned {
       }
       // Return normal asset transfer using transfer details
       for (uint i = 0; i < transfer.assets.length; i++) {
-        verifiedTransfers[i] = IAccounts.AssetTransfer({
+        verifiedTransfers[i] = ISubAccounts.AssetTransfer({
           fromAcc: transfer.assets[i].fromAcc,
           toAcc: transfer.assets[i].toAcc,
           asset: assets[i],
@@ -594,7 +537,7 @@ contract Matching is EIP712, Owned {
     } else if (newId != 0) {
       // Return asset transfer to the newly minted account
       for (uint i = 0; i < transfer.assets.length; i++) {
-        verifiedTransfers[i] = IAccounts.AssetTransfer({
+        verifiedTransfers[i] = ISubAccounts.AssetTransfer({
           fromAcc: transfer.assets[i].fromAcc,
           toAcc: newId,
           asset: assets[i],
@@ -746,11 +689,11 @@ contract Matching is EIP712, Owned {
   }
 
   function _submitAssetTransfers(VerifiedTrade[] memory orders) internal {
-    IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](orders.length * 4);
+    ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](orders.length * 4);
 
     for (uint i = 0; i < orders.length; i++) {
       // Transfer assets between the two accounts
-      transferBatch[i] = IAccounts.AssetTransfer({
+      transferBatch[i] = ISubAccounts.AssetTransfer({
         fromAcc: orders[i].askId,
         toAcc: orders[i].bidId,
         asset: orders[i].baseAsset,
@@ -761,7 +704,7 @@ contract Matching is EIP712, Owned {
 
       // If perp trade send delta, if option send quote asset
       if (orders[i].perpDelta != 0) {
-        transferBatch[i + 1] = IAccounts.AssetTransfer({
+        transferBatch[i + 1] = ISubAccounts.AssetTransfer({
           fromAcc: orders[i].bidId,
           toAcc: orders[i].askId,
           asset: IAsset(cashAsset),
@@ -770,7 +713,7 @@ contract Matching is EIP712, Owned {
           assetData: bytes32(0)
         });
       } else {
-        transferBatch[i + 1] = IAccounts.AssetTransfer({
+        transferBatch[i + 1] = ISubAccounts.AssetTransfer({
           fromAcc: orders[i].bidId,
           toAcc: orders[i].askId,
           asset: orders[i].quoteAsset,
@@ -781,7 +724,7 @@ contract Matching is EIP712, Owned {
       }
 
       // Charge fee from both accounts to the feeAccount
-      transferBatch[i + 2] = IAccounts.AssetTransfer({
+      transferBatch[i + 2] = ISubAccounts.AssetTransfer({
         fromAcc: orders[i].bidId,
         toAcc: feeAccountId,
         asset: IAsset(cashAsset),
@@ -790,7 +733,7 @@ contract Matching is EIP712, Owned {
         assetData: bytes32(0)
       });
 
-      transferBatch[i + 3] = IAccounts.AssetTransfer({
+      transferBatch[i + 3] = ISubAccounts.AssetTransfer({
         fromAcc: orders[i].askId,
         toAcc: feeAccountId,
         asset: IAsset(cashAsset),
@@ -932,100 +875,4 @@ contract Matching is EIP712, Owned {
     if (!isWhitelisted[msg.sender]) revert M_NotWhitelisted();
     _;
   }
-
-  ////////////
-  // Events //
-  ////////////
-
-  /**
-   * @dev Emitted when an address is added to / remove from the whitelist
-   */
-  event AddressWhitelisted(address user, bool isWhitelisted);
-
-  /**
-   * @dev Emitted when the perp asset is set
-   */
-  event PerpAssetSet(IPerpAsset perpAsset);
-
-  /**
-   * @dev Emitted when the fee account ID is set.
-   */
-  event FeeAccountIdSet(uint feeAccountId);
-
-  /**
-   * @dev Emitted when a trade is executed
-   */
-  event Trade(bytes32 indexed OrderParams, uint fillAmount);
-
-  /**
-   * @dev Emitted when a user requests account withdrawal and begins the cooldown
-   */
-  event AccountCooldown(address user);
-
-  /**
-   * @dev Emitted when a user requests cash withdrawal and begins the cooldown
-   */
-  event CashCooldown(address user);
-
-  /**
-   * @dev Emitted when a user requests to deregister a session key
-   */
-  event SessionKeyCooldown(address owner, address sessionKeyPublicAddress);
-
-  /**
-   * @dev Emitted when withdraw account cooldown is set
-   */
-  event WithdrawAccountCooldownParamSet(uint cooldown);
-
-  /**
-   * @dev Emitted when withdraw cash cooldown is set
-   */
-  event WithdrawCashCooldownParamSet(uint cooldown);
-
-  /**
-   * @dev Emitted when the deregister session key cooldown is set
-   */
-  event DeregisterKeyCooldownParamSet(uint cooldown);
-
-  /**
-   * @dev Emitted when a CLOB account is closed.
-   */
-  event OpenedCLOBAccount(uint accountId);
-
-  /**
-   * @dev Emitted when a CLOB account is closed.
-   */
-  event ClosedCLOBAccount(uint accountId);
-
-  /**
-   * @dev Emitted when a session key is registered to an owner account.
-   */
-  event SessionKeyRegistered(address owner, address sessionKey);
-
-  ////////////
-  // Errors //
-  ////////////
-
-  error M_InvalidSignature(address signer);
-  error M_InvalidTradingPair(bytes32 suppliedHash, bytes32 matchHash);
-  error M_InvalidAssetHash(bytes32 suppliedHash, bytes32 assetHash);
-  error M_NotWhitelisted();
-  error M_NotOwnerAddress(address sender, address owner);
-  error M_InvalidAccountOwner(address accountIdOwner, address inputOwner);
-  error M_CannotTradeToSelf(uint accountId);
-  error M_InsufficientFillAmount(uint orderNumber, uint remainingFill, uint requestedFill);
-  error M_OrderExpired(uint blockTimestamp, uint expirationTime);
-  error M_ZeroAmountToTrade();
-  error M_TradingSameSide();
-  error M_ArrayLengthMismatch(uint length1, uint length2, uint length3);
-  error M_TransferArrayLengthMismatch(uint transfers, uint assets, uint subIds, uint signatues);
-  error M_AskPriceBelowLimit(uint limitPrice, uint calculatedPrice);
-  error M_BidPriceAboveLimit(uint limitPrice, uint calculatedPrice);
-  error M_CannotTradeSameAsset(IAsset baseAsset, IAsset quoteAsset);
-  error M_TradeFeeExceedsMaxFee(uint tradeFee, uint maxFee);
-  error M_CooldownNotElapsed(uint secondsLeft);
-  error M_SessionKeyInvalid(address sessionKeyPublicAddress);
-  error M_TransferToZeroAccount();
-  error M_TradeSideAccountIdMisMatch(uint orderAccountId, uint matchAccountId);
-  error M_NonceUsed(uint accountId, uint nonce);
 }

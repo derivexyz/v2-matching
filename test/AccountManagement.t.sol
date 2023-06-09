@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 import "v2-core/test/shared/mocks/MockManager.sol";
-import "v2-core/test/shared/mocks/MockFeed.sol";
+import "v2-core/test/shared/mocks/MockFeeds.sol";
 import "v2-core/test/integration-tests/shared/IntegrationTestBase.sol";
 import {Matching} from "src/Matching.sol";
 

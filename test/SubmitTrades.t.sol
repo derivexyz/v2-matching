@@ -1,5 +1,5 @@
 // // SPDX-License-Identifier: UNLICENSED
-// pragma solidity ^0.8.13;
+pragma solidity ^0.8.13;
 
 // import "forge-std/console2.sol";
 // import "v2-core/test/integration-tests/shared/IntegrationTestBase.sol";
@@ -62,7 +62,6 @@
 
 //   function testSubmitMatchedTrade() public {
 //     uint callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
-
 //     // First give Charlie the call option
 //     IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
 //     transferBatch[0] = IAccounts.AssetTransfer({
@@ -122,6 +121,86 @@
 //     assertEq(getCashBalance(charlieAcc), int(DEFAULT_DEPOSIT - 1e18));
 //     assertEq(getCashBalance(daveAcc), int(DEFAULT_DEPOSIT - 1e18));
 //     console2.log(getCashBalance(charlieAcc));
+//   }
+
+//    function testCumulativeOrderFee() public {
+//     uint callId = option.getSubId(block.timestamp + 4 weeks, 2000e18, true);
+
+//     // First give Charlie the call option
+//     IAccounts.AssetTransfer[] memory transferBatch = new IAccounts.AssetTransfer[](1);
+//     transferBatch[0] = IAccounts.AssetTransfer({
+//       fromAcc: aliceAcc,
+//       toAcc: charlieAcc,
+//       asset: option,
+//       subId: callId,
+//       amount: amountOfContracts,
+//       assetData: bytes32(0)
+//     });
+//     accounts.submitTransfers(transferBatch, "");
+
+//     // Charlie trades call option for cash with dave
+//     (Matching.LimitOrder memory order1, bytes memory signature1, bytes32 memory order1Hash) =
+//       _createSignedOrder(true, charlieAcc, 1e18, 1e18, 1 days, 0, 1, option, callId, cash, 0, charlieKey);
+//     (Matching.LimitOrder memory order2, bytes memory signature2, bytes32 memory order2Hash) =
+//       _createSignedOrder(false, daveAcc, 10e18, 1e18, 1 days, 1e18, 1, option, callId, cash, 0, daveKey);
+
+//     Matching.Match memory matchDetails = Matching.Match({
+//       bidId: charlieAcc,
+//       askId: daveAcc,
+//       baseAmount: 1e18,
+//       quoteAmount: 10e18,
+//       baseAsset: option,
+//       quoteAsset: cash,
+//       baseSubId: callId,
+//       quoteSubId: 0,
+//       tradeFee: 0,
+//       signature1: signature1,
+//       signature2: signature2
+//     });
+
+//     Matching.Match[] memory matchDetailsArray = new Matching.Match[](1);
+//     matchDetailsArray[0] = matchDetails;
+
+//     Matching.LimitOrder[] memory order1Array = new Matching.LimitOrder[](1);
+//     order1Array[0] = order1;
+//     Matching.LimitOrder[] memory order2Array = new Matching.LimitOrder[](1);
+//     order2Array[0] = order2;
+
+//     // Make the trade
+//     matching.submitTrades(matchDetailsArray, order1Array, order2Array);
+
+//     (, uint totalFee) = matching.fillAmounts(order1Hash);
+//     (, uint totalFee2) = matching.fillAmounts(order2Hash);
+
+//     (Matching.LimitOrder memory order3, bytes memory signature3, bytes32 memory order3Hash) =
+//       _createSignedOrder(false, daveAcc, 10e18, 1e18, 1 days, 1e18, 1, option, callId, cash, 0, daveKey);
+
+//     Matching.Match memory matchDetails = Matching.Match({
+//       bidId: charlieAcc,
+//       askId: daveAcc,
+//       baseAmount: 1e18,
+//       quoteAmount: 10e18,
+//       baseAsset: option,
+//       quoteAsset: cash,
+//       baseSubId: callId,
+//       quoteSubId: 0,
+//       tradeFee: 0,
+//       signature1: signature1,
+//       signature2: signature2
+//     });
+
+//     Matching.Match[] memory matchDetailsArray = new Matching.Match[](1);
+//     matchDetailsArray[0] = matchDetails;
+
+//     Matching.LimitOrder[] memory order3Array = new Matching.LimitOrder[](1);
+//     order3Array[0] = order3;
+
+//     // trade again
+//     matching.submitTrades(matchDetailsArray, order1Array, order3Array);
+
+//     // Fee should increase
+//     (, totalFee) = matching.fillAmounts(order1Hash);
+//     (, totalFee2) = matching.fillAmounts(order2Hash);
 //   }
 
 //   // function testSubmitMultipleTrades() public {
@@ -345,9 +424,9 @@
 //     IAsset asset2,
 //     uint subId2,
 //     uint pk
-//   ) internal view returns (Matching.LimitOrder memory order, bytes memory signature) {
+//   ) internal view returns (Matching.LimitOrder memory order, bytes memory signature, bytes32 memory orderHash) {
 //     bytes32 instrumentHash = matching.getInstrument(asset1, asset2, subId1, subId2);
-    
+
 //     // Create LimitOrder
 //     order = Matching.LimitOrder({
 //       isBid: isBid,
@@ -361,7 +440,7 @@
 //     });
 
 //     // Sign the order
-//     bytes32 orderHash = matching.getOrderHash(order);
+//     orderHash = matching.getOrderHash(order);
 //     signature = _sign(orderHash, pk);
 //   }
 
