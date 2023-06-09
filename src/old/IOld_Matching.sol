@@ -75,7 +75,7 @@ interface IOld_Matching {
   /**
    * @dev Emitted when the perp asset is set
    */
-  event PerpAssetSet(IPerpAsset perpAsset);
+  event PerpAssetSet(address perpAsset);
 
   /**
    * @dev Emitted when the fee account ID is set.

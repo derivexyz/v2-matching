@@ -7,7 +7,7 @@ import "v2-core/src/SubAccounts.sol";
 // Handles transferring assets from one subaccount to another
 // Verifies the owner of both subaccounts is the same.
 // Only has to sign from one side (so has to call out to the
-contract WithdrawalHandler is IMatcher {
+contract WithdrawalModule is IMatcher {
   struct WithdrawalData {
     address asset;
     uint amount;

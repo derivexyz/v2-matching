@@ -11,4 +11,17 @@ interface IMatcher {
   }
 
   function matchOrders(VerifiedOrder[] memory orders, bytes memory matchData) external;
+
+  ////////////
+  // Events //
+  ////////////
+  event MatchingSet(address matching);
+  event SubAccountsManagerSet(address subAccountsManager);
+
+  ////////////
+  // Errors //
+  ////////////
+
+  error M_OddArrayLength();
+  error M_InvalidOwnership(address orderOwner, address accountOwner);
 }
