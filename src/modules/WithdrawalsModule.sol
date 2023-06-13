@@ -1,21 +1,31 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../interfaces/IMatcher.sol";
-import "v2-core/src/SubAccounts.sol";
+import "../interfaces/IMatchingModule.sol";
+import "v2-core/interfaces/ISubAccounts.sol";
+import "./BaseModule.sol";
 
-// Handles transferring assets from one subaccount to another
-// Verifies the owner of both subaccounts is the same.
-// Only has to sign from one side (so has to call out to the
-contract WithdrawalModule is IMatcher {
+interface IWithdrawableAsset {
+  function withdraw(uint accountId, uint assetAmount, address recipient) external;
+}
+
+
+contract WithdrawalModule is BaseModule {
   struct WithdrawalData {
     address asset;
-    uint amount;
+    uint assetAmount;
   }
 
-  function matchOrders(VerifiedOrder[] memory orders, bytes memory) public {
-    for (uint i = 0; i < orders.length; ++i) {
-      WithdrawalData memory data = abi.decode(orders[i].data, (WithdrawalData));
-    }
+  constructor(Matching _matching) BaseModule(_matching) {}
+
+  function matchOrders(VerifiedOrder[] memory orders, bytes memory) public returns (uint[] memory accountIds, address[] memory owners) {
+    if (orders.length != 1) revert ("Invalid withdrawal orders length");
+    _checkAndInvalidateNonce(orders[0].owner, orders[0].nonce);
+
+    WithdrawalData memory data = abi.decode(orders[0].data, (WithdrawalData));
+
+    IWithdrawableAsset(data.asset).withdraw(orders[0].accountId, data.assetAmount, orders[0].owner);
+
+    _transferAccounts(orders);
   }
 }
