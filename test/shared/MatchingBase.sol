@@ -84,4 +84,10 @@ contract MatchingBase is PMRMTestBase {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, ECDSA.toTypedDataHash(domainSeparator, orderHash));
     return bytes.concat(r, s, bytes1(v));
   }
+
+  function _encodeDepositData(uint amount, address asset, address newManager) internal returns (bytes) {
+    DepositData memory data = DepositData({amount: amount, asset: asset, managerForNewAccount: newManager});
+
+    return encodedData = abi.encode(data);
+  }
 }

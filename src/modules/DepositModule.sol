@@ -13,8 +13,8 @@ import "./BaseModule.sol";
 // Only has to sign from one side (so has to call out to the
 contract DepositModule is BaseModule {
   struct DepositData {
-    address asset;
     uint amount;
+    address asset;
     address managerForNewAccount;
   }
 
@@ -24,7 +24,7 @@ contract DepositModule is BaseModule {
     public
     returns (uint[] memory accountIds, address[] memory owners)
   {
-    if (orders.length != 1) revert("Invalid withdrawal orders length");
+    if (orders.length != 1) revert("Invalid deposit orders length");
 
     _checkAndInvalidateNonce(orders[0].owner, orders[0].nonce);
 
@@ -39,8 +39,14 @@ contract DepositModule is BaseModule {
     depositToken.transferFrom(orders[0].owner, address(this), data.amount);
     depositToken.approve(address(data.asset), data.amount);
 
-    IERC20BasedAsset(data.asset).deposit(orders[0].accountId, data.amount);
+    IERC20BasedAsset(data.asset).deposit(accountId, data.amount);
 
-    matching.accounts().transferFrom(address(this), address(matching), orders[0].accountId);
+    matching.accounts().transferFrom(address(this), address(matching), accountId);
+    
+    accountIds = new uint[](1);
+    accountIds[0] = accountId;
+
+    owners = new address[](1);
+    owners[0] = orders[0].owner;
   }
 }
