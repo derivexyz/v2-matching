@@ -3,5 +3,4 @@ openzeppelin/=lib/openzeppelin-contracts/contracts/
 openzeppelin-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 lyra-utils/=lib/lyra-utils/src/
 src/decimals/=lib/lyra-utils/src/decimals/
-v2-core/=lib/v2-core/src/
-v2-core-test/=lib/v2-core/test/
+v2-core/=lib/v2-core/

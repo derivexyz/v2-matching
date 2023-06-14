@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../interfaces/IMatchingModule.sol";
-import "v2-core/interfaces/ISubAccounts.sol";
+import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
+import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import "./BaseModule.sol";
 
 // Handles transferring assets from one subaccount to another

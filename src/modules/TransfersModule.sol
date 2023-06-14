@@ -2,8 +2,8 @@
 pragma solidity ^0.8.13;
 
 import "openzeppelin/access/Ownable2Step.sol";
-import "v2-core/interfaces/ISubAccounts.sol";
-import "../interfaces/IMatchingModule.sol";
+import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
+import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import "../SubAccountsManager.sol";
 import "../Matching.sol";
 import "./BaseModule.sol";
