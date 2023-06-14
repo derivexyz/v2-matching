@@ -20,7 +20,7 @@ contract DepositModule is MatchingBase {
 
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
     orders[0] = order;
-    matching.verifyAndMatch(orders, 0);
+    matching.verifyAndMatch(orders, "");
 
     int aliceBalAfter = subAccounts.getBalance(aliceAcc, cash, 0);
     console2.log("After:", aliceBalAfter);
@@ -33,6 +33,6 @@ contract DepositModule is MatchingBase {
 
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
     orders[0] = order;
-    matching.verifyAndMatch(orders, 0);
+    matching.verifyAndMatch(orders, "");
   }
 }

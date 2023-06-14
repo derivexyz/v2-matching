@@ -62,7 +62,7 @@ contract MatchingBase is PMRMTestBase {
       data: data,
       expiry: expiry,
       signer: signer,
-      signature: 0
+      signature: ""
     });
   }
 
