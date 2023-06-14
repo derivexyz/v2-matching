@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "v2-core/interfaces/IManager.sol";
-import "v2-core/interfaces/IERC20BasedAsset.sol";
+import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
-import "../interfaces/IMatchingModule.sol";
+import {IManager} from "v2-core/src/interfaces/IManager.sol";
+import {IERC20BasedAsset} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
+
+import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import "./BaseModule.sol";
 // import "../interfaces/IERC20BasedAsset.sol";
 
@@ -42,7 +44,7 @@ contract DepositModule is BaseModule {
     IERC20BasedAsset(data.asset).deposit(accountId, data.amount);
 
     matching.accounts().transferFrom(address(this), address(matching), accountId);
-    
+
     accountIds = new uint[](1);
     accountIds[0] = accountId;
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../interfaces/IMatchingModule.sol";
+import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {Matching} from "../Matching.sol";
 
 abstract contract BaseModule is IMatchingModule {
