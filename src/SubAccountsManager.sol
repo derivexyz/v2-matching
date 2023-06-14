@@ -10,7 +10,7 @@ import "./interfaces/IMatchingModule.sol";
 // Handle subAccounts, deposits, escape hatches etc.
 contract SubAccountsManager is Ownable2Step {
   ///@dev Cooldown seconds a user must wait before withdrawing their account
-  uint constant public WITHDRAW_COOLDOWN = 30 minutes;
+  uint public constant WITHDRAW_COOLDOWN = 30 minutes;
 
   ///@dev Accounts contract address
   ISubAccounts public immutable accounts;
@@ -58,9 +58,7 @@ contract SubAccountsManager is Ownable2Step {
   function completeWithdrawAccount(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
     if (withdrawAccountCooldownMapping[msg.sender] + WITHDRAW_COOLDOWN > block.timestamp) {
-      revert M_CooldownNotElapsed(
-        withdrawAccountCooldownMapping[msg.sender] + WITHDRAW_COOLDOWN - block.timestamp
-      );
+      revert M_CooldownNotElapsed(withdrawAccountCooldownMapping[msg.sender] + WITHDRAW_COOLDOWN - block.timestamp);
     }
 
     accounts.transferFrom(address(this), msg.sender, accountId);

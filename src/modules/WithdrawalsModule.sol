@@ -9,7 +9,6 @@ interface IWithdrawableAsset {
   function withdraw(uint accountId, uint assetAmount, address recipient) external;
 }
 
-
 contract WithdrawalModule is BaseModule {
   struct WithdrawalData {
     address asset;
@@ -18,8 +17,11 @@ contract WithdrawalModule is BaseModule {
 
   constructor(Matching _matching) BaseModule(_matching) {}
 
-  function matchOrders(VerifiedOrder[] memory orders, bytes memory) public returns (uint[] memory accountIds, address[] memory owners) {
-    if (orders.length != 1) revert ("Invalid withdrawal orders length");
+  function matchOrders(VerifiedOrder[] memory orders, bytes memory)
+    public
+    returns (uint[] memory accountIds, address[] memory owners)
+  {
+    if (orders.length != 1) revert("Invalid withdrawal orders length");
     _checkAndInvalidateNonce(orders[0].owner, orders[0].nonce);
 
     WithdrawalData memory data = abi.decode(orders[0].data, (WithdrawalData));

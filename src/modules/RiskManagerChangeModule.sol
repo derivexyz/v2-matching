@@ -15,7 +15,10 @@ contract RiskManagerChangeModule is BaseModule {
 
   constructor(Matching _matching) BaseModule(_matching) {}
 
-  function matchOrders(VerifiedOrder[] memory orders, bytes memory) public returns (uint[] memory accountIds, address[] memory owners) {
+  function matchOrders(VerifiedOrder[] memory orders, bytes memory)
+    public
+    returns (uint[] memory accountIds, address[] memory owners)
+  {
     for (uint i = 0; i < orders.length; ++i) {
       RMChangeData memory data = abi.decode(orders[i].data, (RMChangeData));
       // TODO: change risk manager

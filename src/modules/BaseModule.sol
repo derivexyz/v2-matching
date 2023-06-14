@@ -1,17 +1,22 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
 import "../interfaces/IMatchingModule.sol";
-import {Matching} from  "../Matching.sol";
+import {Matching} from "../Matching.sol";
 
 abstract contract BaseModule is IMatchingModule {
   Matching public immutable matching;
 
-  mapping(address owner => mapping (uint nonce => bool used)) public usedNonces;
+  mapping(address owner => mapping(uint nonce => bool used)) public usedNonces;
 
-  constructor (Matching _matching) {
+  constructor(Matching _matching) {
     matching = _matching;
   }
 
-
-  function _transferAccounts(VerifiedOrder[] memory orders) internal returns (uint[] memory accountIds, address[] memory owners) {
+  function _transferAccounts(VerifiedOrder[] memory orders)
+    internal
+    returns (uint[] memory accountIds, address[] memory owners)
+  {
     accountIds = new uint[](orders.length);
     owners = new address[](orders.length);
     for (uint i = 0; i < orders.length; ++i) {

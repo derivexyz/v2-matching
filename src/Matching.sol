@@ -49,7 +49,9 @@ contract Matching is OrderVerifier {
   //  Internal Functions  //
   //////////////////////////
 
-  function _submitMatch(IMatchingModule matcher, IMatchingModule.VerifiedOrder[] memory orders, bytes memory matchData) internal {
+  function _submitMatch(IMatchingModule matcher, IMatchingModule.VerifiedOrder[] memory orders, bytes memory matchData)
+    internal
+  {
     // Transfer accounts to Matcher contract
     for (uint i = 0; i < orders.length; ++i) {
       // Allow signing messages with accountId == 0, where no account needs to be transferred.

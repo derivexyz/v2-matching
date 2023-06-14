@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../interfaces/IMatchingModule.sol";
-import "../interfaces/IERC20BasedAsset.sol";
-import "v2-core/interfaces/ISubAccounts.sol";
-import "./BaseModule.sol";
+import "v2-core/interfaces/IManager.sol";
+import "v2-core/interfaces/IERC20BasedAsset.sol";
 
+import "../interfaces/IMatchingModule.sol";
+import "./BaseModule.sol";
+// import "../interfaces/IERC20BasedAsset.sol";
 
 // Handles transferring assets from one subaccount to another
 // Verifies the owner of both subaccounts is the same.
@@ -19,8 +20,11 @@ contract DepositModule is BaseModule {
 
   constructor(Matching _matching) BaseModule(_matching) {}
 
-  function matchOrders(VerifiedOrder[] memory orders, bytes memory) public returns (uint[] memory accountIds, address[] memory owners) {
-    if (orders.length != 1) revert ("Invalid withdrawal orders length");
+  function matchOrders(VerifiedOrder[] memory orders, bytes memory)
+    public
+    returns (uint[] memory accountIds, address[] memory owners)
+  {
+    if (orders.length != 1) revert("Invalid withdrawal orders length");
 
     _checkAndInvalidateNonce(orders[0].owner, orders[0].nonce);
 

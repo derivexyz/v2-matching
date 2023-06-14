@@ -10,31 +10,27 @@ import "openzeppelin/utils/cryptography/SignatureChecker.sol";
 import "v2-core/interfaces/ISubAccounts.sol";
 import "./interfaces/IMatchingModule.sol";
 
-
 import "./SubAccountsManager.sol";
 
-
 contract OrderVerifier is SubAccountsManager, EIP712 {
-
   // (accountID, signer, nonce) must be unique
   struct SignedOrder {
     uint accountId;
     uint nonce;
     IMatchingModule matcher;
-    bytes data; // todo will data here follow EIP712 structured hash standard?
+    bytes data;
     uint expiry;
     address signer;
     bytes signature;
   }
 
-  bytes32 public constant ORDER_TYPEHASH = keccak256("SignedOrder(uint256,uint,address,bytes,uint,address)");
+  bytes32 public constant ORDER_TYPEHASH = keccak256("SignedOrder(uint256,uint256,address,bytes,uint256,address)");
   uint public constant DERIGISTER_KEY_COOLDOWN = 10 minutes;
 
   ///@dev Mapping of signer address -> owner address -> expiry
   mapping(address => mapping(address => uint)) public sessionKeys; // Allows other addresses to trade on behalf of others
 
   constructor(ISubAccounts _accounts) SubAccountsManager(_accounts) EIP712("Matching", "1.0") {}
-
 
   ////////////////////
   //  Session Keys  //
@@ -64,17 +60,21 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
   }
 
   function _verifySignerPermission(address signer, address owner) internal view {
-    if (signer != owner && sessionKeys[signer][owner] < block.timestamp) revert("signer not permitted, or session key expired");
+    if (signer != owner && sessionKeys[signer][owner] < block.timestamp) {
+      revert("signer not permitted, or session key expired");
+    }
   }
-
 
   /////////////////////////////
   // Signed message checking //
   /////////////////////////////
 
-  function _verifyOrder(SignedOrder memory order, IMatchingModule matcher) internal returns (IMatchingModule.VerifiedOrder memory) {
+  function _verifyOrder(SignedOrder memory order, IMatchingModule matcher)
+    internal
+    returns (IMatchingModule.VerifiedOrder memory)
+  {
     // Repeated nonces are fine; their uniqueness will be handled by matchers (and any order limits etc for reused orders)
-    if (order.expiry > block.timestamp) revert ("Order expired");
+    if (order.expiry > block.timestamp) revert("Order expired");
     _verifySignerPermission(order.signer, accountToOwner[order.accountId]);
     _verifySignature(order.signer, _getOrderHash(order), order.signature);
 
@@ -88,9 +88,9 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
   }
 
   function _verifySignature(address signer, bytes32 structuredHash, bytes memory signature)
-  internal
-  view
-  returns (bool)
+    internal
+    view
+    returns (bool)
   {
     return SignatureChecker.isValidSignatureNow(signer, _hashTypedDataV4(structuredHash), signature);
   }
@@ -102,13 +102,7 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
   function _getOrderHash(SignedOrder memory order) internal pure returns (bytes32) {
     return keccak256(
       abi.encode(
-        ORDER_TYPEHASH,
-        order.accountId,
-        order.nonce,
-        address(order.matcher),
-        order.data,
-        order.expiry,
-        order.signer
+        ORDER_TYPEHASH, order.accountId, order.nonce, address(order.matcher), order.data, order.expiry, order.signer
       )
     );
   }

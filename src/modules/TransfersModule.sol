@@ -12,7 +12,6 @@ import "./BaseModule.sol";
 // Verifies the owner of both subaccounts is the same.
 // Only has to sign from one side (so has to call out to the
 contract TransferModule is BaseModule {
-
   struct TransferData {
     uint toAccountId;
     Transfers[] transfers;
@@ -24,14 +23,16 @@ contract TransferModule is BaseModule {
     int amount;
   }
 
-
   constructor(Matching _matching) BaseModule(_matching) {}
 
-
   /// @dev orders must be in order: [to, from]. From does not need to have any data.
-  function matchOrders(VerifiedOrder[] memory orders, bytes memory) public onlyMatching returns (uint[] memory newAccIds, address[] memory newOwners) {
-    if (orders.length != 2) revert ("Invalid transfer orders length");
-    if (orders[0].owner != orders[1].owner) revert ("Transfer must have same owner");
+  function matchOrders(VerifiedOrder[] memory orders, bytes memory)
+    public
+    onlyMatching
+    returns (uint[] memory newAccIds, address[] memory newOwners)
+  {
+    if (orders.length != 2) revert("Invalid transfer orders length");
+    if (orders[0].owner != orders[1].owner) revert("Transfer must have same owner");
 
     TransferData memory data = abi.decode(orders[0].data, (TransferData));
 

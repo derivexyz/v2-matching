@@ -71,7 +71,10 @@ contract TradeModule is BaseModule {
   /// @dev Assumes VerifiedOrders are sorted in the order: [matchedAccount, ...filledAccounts]
   /// Also trusts nonces are never repeated for the same owner. If the same nonce is received, it is assumed to be the
   /// same order.
-  function matchOrders(VerifiedOrder[] memory orders, bytes memory matchDataBytes) public returns (uint[] memory accountIds, address[] memory owners) {
+  function matchOrders(VerifiedOrder[] memory orders, bytes memory matchDataBytes)
+    public
+    returns (uint[] memory accountIds, address[] memory owners)
+  {
     MatchData memory matchData = abi.decode(matchDataBytes, (MatchData));
 
     OptionLimitOrder memory matchedOrder = OptionLimitOrder({

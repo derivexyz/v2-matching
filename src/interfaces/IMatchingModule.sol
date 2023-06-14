@@ -10,5 +10,7 @@ interface IMatchingModule {
     uint nonce;
   }
 
-  function matchOrders(VerifiedOrder[] memory orders, bytes memory matchData) external returns (uint[] memory newAccIds, address[] memory newOwners);
+  function matchOrders(VerifiedOrder[] memory orders, bytes memory matchData)
+    external
+    returns (uint[] memory newAccIds, address[] memory newOwners);
 }
