@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
-import "openzeppelin/utils/Math/Math.sol";
 import "openzeppelin/utils/Math/SignedMath.sol";
 
 import "./BaseModule.sol";
