@@ -77,6 +77,17 @@ contract Matching is OrderVerifier {
     }
   }
 
+   function getOrderHash(SignedOrder memory order) external pure returns (bytes32) {
+    return _getOrderHash(order);
+  }
+
+  /**
+   * @dev get domain separator for signing
+   */
+  function domainSeparator() external view returns (bytes32) {
+    return _domainSeparatorV4();
+  }
+
   ///////////////
   // Modifiers //
   ///////////////
