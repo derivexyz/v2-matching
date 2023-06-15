@@ -60,6 +60,9 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
   }
 
   function _verifySignerPermission(address signer, address owner) internal view {
+    console2.log("Owner", owner);
+    console2.log("Signr", signer);
+
     if (signer != owner && sessionKeys[signer][owner] < block.timestamp) {
       revert("signer not permitted, or session key expired");
     }
@@ -74,13 +77,13 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
     returns (IMatchingModule.VerifiedOrder memory)
   {
     // Repeated nonces are fine; their uniqueness will be handled by matchers (and any order limits etc for reused orders)
-    if (order.expiry > block.timestamp) revert("Order expired");
+    if (block.timestamp > order.expiry) revert("Order expired");
     _verifySignerPermission(order.signer, accountToOwner[order.accountId]);
     _verifySignature(order.signer, _getOrderHash(order), order.signature);
 
     return IMatchingModule.VerifiedOrder({
       accountId: order.accountId,
-      owner: address(0),
+      owner: accountToOwner[order.accountId],
       matcher: order.matcher,
       data: order.data,
       nonce: order.nonce

@@ -61,7 +61,9 @@ contract Matching is OrderVerifier {
       // Allow signing messages with accountId == 0, where no account needs to be transferred.
       if (orders[i].accountId == 0) continue;
 
+      console2.log("ACC OWNER", accounts.ownerOf(orders[i].accountId));
       accounts.transferFrom(address(this), address(matcher), orders[i].accountId);
+      console2.log("ACC OWNER", accounts.ownerOf(orders[i].accountId));
     }
 
     (uint[] memory newAccIds, address[] memory newOwners) = matcher.matchOrders(orders, matchData);
@@ -83,13 +85,6 @@ contract Matching is OrderVerifier {
 
    function getOrderHash(SignedOrder memory order) external pure returns (bytes32) {
     return _getOrderHash(order);
-  }
-
-  /**
-   * @dev get domain separator for signing
-   */
-  function domainSeparator() external view returns (bytes32) {
-    return _domainSeparatorV4();
   }
 
   ///////////////

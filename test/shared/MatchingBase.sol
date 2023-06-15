@@ -4,10 +4,10 @@ pragma solidity ^0.8.18;
 import "forge-std/Test.sol";
 
 import "src/Matching.sol";
+
 import {DepositModule} from "src/modules/DepositModule.sol";
 import {WithdrawalModule} from "src/modules/WithdrawalModule.sol";
 import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
-
 import {OrderVerifier} from "src/OrderVerifier.sol";
 
 /**
@@ -25,12 +25,32 @@ contract MatchingBase is PMRMTestBase {
   address internal pkOwner2;
   uint referenceTime;
 
+  address tradeExecutor;
   uint cashDeposit = 10000e18;
   bytes32 domainSeparator;
 
+  // // cannot use setup like this, cus super.setup is not overridable
+  // function _setUp() internal {
+  //   // todo: update PMRMTestBase.setup
+  //   super.setUp();
+  //   // set signer
+  //   pk2 = 0xBEEF;
+  //   pkOwner2 = vm.addr(pk2);
+  //   vm.warp(block.timestamp + 365 days);
+  //   referenceTime = block.timestamp;
+
+  //   // Setup matching contract and modules
+  //   matching = new Matching(subAccounts);
+  //   depositModule = new DepositModule(matching);
+  //   withdrawalModule = new WithdrawalModule(matching);
+
+  //   domainSeparator = matching.domainSeparator();
+
+  //   _depositCash(aliceAcc, cashDeposit);
+  //   _depositCash(bobAcc, cashDeposit);
+  // }
   // cannot use setup like this, cus super.setup is not overridable
-  function _setUp() internal {
-    // todo: update PMRMTestBase.setup
+  function setUp() public override {
     super.setUp();
     // set signer
     pk2 = 0xBEEF;
@@ -43,17 +63,38 @@ contract MatchingBase is PMRMTestBase {
     depositModule = new DepositModule(matching);
     withdrawalModule = new WithdrawalModule(matching);
 
+    console2.log("MATCHIN ADDY:", address(matching));
+    console2.log("DEPOSIT ADDY:", address(depositModule));
+    console2.log("WITHDWL ADDY:", address(withdrawalModule));
+
     domainSeparator = matching.domainSeparator();
 
     _depositCash(aliceAcc, cashDeposit);
     _depositCash(bobAcc, cashDeposit);
+
+    matching.setTradeExecutor(tradeExecutor, true);
+
+    vm.startPrank(alice);
+    subAccounts.approve(address(matching), aliceAcc);
+    matching.depositSubAccount(aliceAcc);
+    vm.stopPrank();
+    vm.startPrank(bob);
+    subAccounts.approve(address(matching), bobAcc);
+    matching.depositSubAccount(bobAcc);
+    vm.stopPrank();
+  }
+
+  function _verifyAndMatch(OrderVerifier.SignedOrder[] memory orders, bytes memory matchData) internal {
+    vm.startPrank(tradeExecutor);
+    matching.verifyAndMatch(orders, matchData);
+    vm.stopPrank();
   }
 
   // Creates SignedOrder with empty signature field. This order must be signed for.
   function _createUnsignedOrder(
     uint accountId,
     uint nonce,
-    IMatchingModule matcher,
+    address matcher,
     bytes memory data,
     uint expiry,
     address signer
@@ -61,7 +102,7 @@ contract MatchingBase is PMRMTestBase {
     order = OrderVerifier.SignedOrder({
       accountId: accountId,
       nonce: nonce,
-      matcher: matcher,
+      matcher: IMatchingModule(matcher),
       data: data,
       expiry: expiry,
       signer: signer,
