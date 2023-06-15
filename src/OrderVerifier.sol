@@ -7,8 +7,8 @@ import "openzeppelin/utils/cryptography/EIP712.sol";
 import "openzeppelin/access/Ownable2Step.sol";
 import "openzeppelin/utils/cryptography/SignatureChecker.sol";
 
-import "v2-core/interfaces/ISubAccounts.sol";
-import "./interfaces/IMatchingModule.sol";
+import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
+import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
 
 import "./SubAccountsManager.sol";
 

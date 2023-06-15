@@ -3,7 +3,8 @@ pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
 
-import "./shared/MatchingBase.sol";
+import {MatchingBase} from "./shared/MatchingBase.sol";
+import {OrderVerifier} from "src/OrderVerifier.sol";
 
 /**
  * @dev we deploy actual Account contract in these tests to simplify verification process
@@ -24,7 +25,7 @@ contract DepositModuleTest is MatchingBase {
     int aliceBalAfter = subAccounts.getBalance(aliceAcc, cash, 0);
     console2.log("After:", aliceBalAfter);
   }
-  
+
   function testDepositToNewAccount() public {
     bytes memory depositData = _encodeDepositData(1e18, address(cash), address(pmrm));
     OrderVerifier.SignedOrder memory order =
@@ -35,6 +36,4 @@ contract DepositModuleTest is MatchingBase {
     matching.verifyAndMatch(orders, bytes(""));
 
   }
-
-
 }

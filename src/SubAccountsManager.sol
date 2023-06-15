@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/console2.sol";
 
 import "openzeppelin/access/Ownable2Step.sol";
-import "v2-core/interfaces/ISubAccounts.sol";
+import "v2-core/src/interfaces/ISubAccounts.sol";
 import "./interfaces/IMatchingModule.sol";
 
 // Handle subAccounts, deposits, escape hatches etc.

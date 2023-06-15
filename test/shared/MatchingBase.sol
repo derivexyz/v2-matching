@@ -4,9 +4,11 @@ pragma solidity ^0.8.18;
 import "forge-std/Test.sol";
 
 import "src/Matching.sol";
-import "src/modules/DepositModule.sol";
-import "src/modules/WithdrawalModule.sol";
-import "v2-core-test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
+import {DepositModule} from "src/modules/DepositModule.sol";
+import {WithdrawalModule} from "src/modules/WithdrawalModule.sol";
+import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
+
+import {OrderVerifier} from "src/OrderVerifier.sol";
 
 /**
  * @dev we deploy actual Account contract in these tests to simplify verification process
@@ -19,18 +21,20 @@ contract MatchingBase is PMRMTestBase {
   WithdrawalModule withdrawalModule;
 
   // signer
-  uint private pk;
-  address private pkOwner;
+  uint internal pk2;
+  address internal pkOwner2;
   uint referenceTime;
 
   uint cashDeposit = 10000e18;
   bytes32 domainSeparator;
 
-  function setUp() public override {
+  // cannot use setup like this, cus super.setup is not overridable
+  function _setUp() internal {
+    // todo: update PMRMTestBase.setup
     super.setUp();
     // set signer
-    pk = 0xBEEF;
-    pkOwner = vm.addr(pk);
+    pk2 = 0xBEEF;
+    pkOwner2 = vm.addr(pk2);
     vm.warp(block.timestamp + 365 days);
     referenceTime = block.timestamp;
 

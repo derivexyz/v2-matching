@@ -3,10 +3,10 @@ pragma solidity ^0.8.13;
 
 import "forge-std/console2.sol";
 
-import "v2-core/interfaces/ISubAccounts.sol";
+import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
-import "./interfaces/IMatchingModule.sol";
-import "./SubAccountsManager.sol";
+import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
+import {SubAccountsManager} from "./SubAccountsManager.sol";
 import "./OrderVerifier.sol";
 
 contract Matching is OrderVerifier {
@@ -44,6 +44,10 @@ contract Matching is OrderVerifier {
   //////////////////////////
   //  External Functions  //
   //////////////////////////
+
+  function domainSeparator() external view returns (bytes32) {
+    return _domainSeparatorV4();
+  }
 
   //////////////////////////
   //  Internal Functions  //
