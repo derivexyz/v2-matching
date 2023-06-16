@@ -150,6 +150,12 @@ contract MatchingBase is PMRMTestBase {
     return abi.encode(data);
   }
 
+  function _encodeWithdrawData(uint amount, address asset) internal pure returns (bytes memory) {
+    WithdrawalModule.WithdrawalData memory data = WithdrawalModule.WithdrawalData({asset: asset, assetAmount: amount});
+
+    return abi.encode(data);
+  }
+
   function _setupAccounts() internal {
     vm.label(cam, "cam");
     vm.label(doug, "doug");

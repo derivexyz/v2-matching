@@ -40,7 +40,7 @@ contract DepositModuleTest is MatchingBase {
   }
 
   // Doug cannot deposit for Cam
-  function testCannotDepositFromRandomAddress() public {
+  function testCannotDepositWithRandomAddress() public {
     uint deposit = 1e18;
     usdc.mint(cam, deposit);
 

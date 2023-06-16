@@ -22,6 +22,8 @@ contract WithdrawalModule is BaseModule {
     returns (uint[] memory accountIds, address[] memory owners)
   {
     if (orders.length != 1) revert("Invalid withdrawal orders length");
+    if (orders[0].accountId == 0) revert("Cannot withdraw from zero account");
+
     _checkAndInvalidateNonce(orders[0].owner, orders[0].nonce);
 
     WithdrawalData memory data = abi.decode(orders[0].data, (WithdrawalData));

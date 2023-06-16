@@ -35,7 +35,8 @@ contract DepositModule is BaseModule {
     uint accountId = orders[0].accountId;
     if (accountId == 0) {
       accountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
-      console2.log("New accountId:", accountId);
+
+      // Return new accountId with owner
       accountIds = new uint[](1);
       accountIds[0] = accountId;
       owners = new address[](1);

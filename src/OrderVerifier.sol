@@ -98,10 +98,6 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
   }
 
   function _verifySignature(address signer, bytes32 structuredHash, bytes memory signature) internal view {
-    (address recovered, ECDSA.RecoverError error) = ECDSA.tryRecover(_hashTypedDataV4(structuredHash), signature);
-    console2.log("Signer", signer);
-    console2.log("Recovr", recovered);
-
     if (!SignatureChecker.isValidSignatureNow(signer, _hashTypedDataV4(structuredHash), signature)) {
       revert("Invalid Signature");
     }
