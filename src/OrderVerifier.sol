@@ -20,6 +20,7 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
     IMatchingModule matcher;
     bytes data;
     uint expiry;
+    address owner; // todo approved signing key and is owner of acc
     address signer;
     bytes signature;
   }
@@ -59,12 +60,21 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
     emit SessionKeyCooldown(msg.sender, sessionKey);
   }
 
-  function _verifySignerPermission(address signer, address owner) internal view {
-    console2.log("Owner", owner);
-    console2.log("Signr", signer);
+  function _verifySignerPermission(address signer, address accIdOwner, address owner) internal view {
+    console2.log("AccOwr", accIdOwner);
+    console2.log("Signer", signer);
 
-    if (signer != owner && sessionKeys[signer][owner] < block.timestamp) {
-      revert("signer not permitted, or session key expired");
+    if (accIdOwner != address(0)) {
+      if (accIdOwner != owner) {
+        revert("AccountId owner and owner address do not match");
+      }
+      if (signer != accIdOwner && sessionKeys[signer][accIdOwner] < block.timestamp) {
+        revert("signer not permitted, or session key expired for account ID owner");
+      }
+    } else {
+      if (signer != owner && sessionKeys[signer][owner] < block.timestamp) {
+        revert("signer not permitted, or session key expired for owner");
+      }
     }
   }
 
@@ -72,30 +82,29 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
   // Signed message checking //
   /////////////////////////////
 
-  function _verifyOrder(SignedOrder memory order, IMatchingModule matcher)
-    internal
-    returns (IMatchingModule.VerifiedOrder memory)
-  {
+  function _verifyOrder(SignedOrder memory order) internal returns (IMatchingModule.VerifiedOrder memory) {
     // Repeated nonces are fine; their uniqueness will be handled by matchers (and any order limits etc for reused orders)
     if (block.timestamp > order.expiry) revert("Order expired");
-    _verifySignerPermission(order.signer, accountToOwner[order.accountId]);
+    _verifySignerPermission(order.signer, accountToOwner[order.accountId], order.owner);
     _verifySignature(order.signer, _getOrderHash(order), order.signature);
 
     return IMatchingModule.VerifiedOrder({
       accountId: order.accountId,
-      owner: accountToOwner[order.accountId],
+      owner: order.owner,
       matcher: order.matcher,
       data: order.data,
       nonce: order.nonce
     });
   }
 
-  function _verifySignature(address signer, bytes32 structuredHash, bytes memory signature)
-    internal
-    view
-    returns (bool)
-  {
-    return SignatureChecker.isValidSignatureNow(signer, _hashTypedDataV4(structuredHash), signature);
+  function _verifySignature(address signer, bytes32 structuredHash, bytes memory signature) internal view {
+    (address recovered, ECDSA.RecoverError error) = ECDSA.tryRecover(_hashTypedDataV4(structuredHash), signature);
+    console2.log("Signer", signer);
+    console2.log("Recovr", recovered);
+
+    if (!SignatureChecker.isValidSignatureNow(signer, _hashTypedDataV4(structuredHash), signature)) {
+      revert("Invalid Signature");
+    }
   }
 
   /////////////

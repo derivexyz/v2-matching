@@ -21,40 +21,30 @@ contract MatchingBase is PMRMTestBase {
   WithdrawalModule withdrawalModule;
 
   // signer
-  uint internal pk2;
-  address internal pkOwner2;
+  uint internal camAcc;
+  uint internal camPk;
+  address internal cam;
+
+  uint internal dougAcc;
+  uint internal dougPk;
+  address internal doug;
+
   uint referenceTime;
 
   address tradeExecutor;
   uint cashDeposit = 10000e18;
   bytes32 domainSeparator;
 
-  // // cannot use setup like this, cus super.setup is not overridable
-  // function _setUp() internal {
-  //   // todo: update PMRMTestBase.setup
-  //   super.setUp();
-  //   // set signer
-  //   pk2 = 0xBEEF;
-  //   pkOwner2 = vm.addr(pk2);
-  //   vm.warp(block.timestamp + 365 days);
-  //   referenceTime = block.timestamp;
-
-  //   // Setup matching contract and modules
-  //   matching = new Matching(subAccounts);
-  //   depositModule = new DepositModule(matching);
-  //   withdrawalModule = new WithdrawalModule(matching);
-
-  //   domainSeparator = matching.domainSeparator();
-
-  //   _depositCash(aliceAcc, cashDeposit);
-  //   _depositCash(bobAcc, cashDeposit);
-  // }
-  // cannot use setup like this, cus super.setup is not overridable
   function setUp() public override {
     super.setUp();
-    // set signer
-    pk2 = 0xBEEF;
-    pkOwner2 = vm.addr(pk2);
+
+    // Setup signers
+    camPk = 0xBEEF;
+    cam = vm.addr(camPk);
+
+    dougPk = 0xEEEE;
+    doug = vm.addr(dougPk);
+
     vm.warp(block.timestamp + 365 days);
     referenceTime = block.timestamp;
 
@@ -67,21 +57,19 @@ contract MatchingBase is PMRMTestBase {
     console2.log("DEPOSIT ADDY:", address(depositModule));
     console2.log("WITHDWL ADDY:", address(withdrawalModule));
 
+    console2.log("CAM  ADDY:", address(cam));
+    console2.log("DOUG ADDY:", address(doug));
+    console2.log("-------------------------------------------------");
+
     domainSeparator = matching.domainSeparator();
-
-    _depositCash(aliceAcc, cashDeposit);
-    _depositCash(bobAcc, cashDeposit);
-
     matching.setTradeExecutor(tradeExecutor, true);
 
-    vm.startPrank(alice);
-    subAccounts.approve(address(matching), aliceAcc);
-    matching.depositSubAccount(aliceAcc);
-    vm.stopPrank();
-    vm.startPrank(bob);
-    subAccounts.approve(address(matching), bobAcc);
-    matching.depositSubAccount(bobAcc);
-    vm.stopPrank();
+    _setupAccounts();
+    _openCLOBAccount(cam, camAcc);
+    _openCLOBAccount(doug, dougAcc);
+
+    _depositCash(camAcc, cashDeposit);
+    _depositCash(dougAcc, cashDeposit);
   }
 
   function _verifyAndMatch(OrderVerifier.SignedOrder[] memory orders, bytes memory matchData) internal {
@@ -97,47 +85,89 @@ contract MatchingBase is PMRMTestBase {
     address matcher,
     bytes memory data,
     uint expiry,
+    address owner,
     address signer
-  ) internal returns (OrderVerifier.SignedOrder memory order) {
+  ) internal pure returns (OrderVerifier.SignedOrder memory order) {
     order = OrderVerifier.SignedOrder({
       accountId: accountId,
       nonce: nonce,
       matcher: IMatchingModule(matcher),
       data: data,
       expiry: expiry,
+      owner: owner,
       signer: signer,
       signature: bytes("")
     });
   }
 
   // Returns the SignedOrder with signature
-  function _createSignedOrder(OrderVerifier.SignedOrder memory unsigned, bytes memory signature)
+  function _createSignedOrder(OrderVerifier.SignedOrder memory unsigned, uint signerPk)
     internal
+    view
     returns (OrderVerifier.SignedOrder memory order)
   {
+    bytes memory signature = _signOrder(matching.getOrderHash(unsigned), signerPk);
+
     order = OrderVerifier.SignedOrder({
       accountId: unsigned.accountId,
       nonce: unsigned.nonce,
       matcher: unsigned.matcher,
       data: unsigned.data,
       expiry: unsigned.expiry,
+      owner: unsigned.owner,
       signer: unsigned.signer,
       signature: signature
     });
   }
 
-  function _getOrderHash(OrderVerifier.SignedOrder memory order) internal returns (bytes32) {
+  function _createFullSignedOrder(
+    uint accountId,
+    uint nonce,
+    address matcher,
+    bytes memory data,
+    uint expiry,
+    address owner,
+    address signer,
+    uint pk
+  ) internal view returns (OrderVerifier.SignedOrder memory order) {
+    order = _createUnsignedOrder(accountId, nonce, matcher, data, expiry, owner, signer);
+    order = _createSignedOrder(order, pk);
+  }
+
+  function _getOrderHash(OrderVerifier.SignedOrder memory order) internal view returns (bytes32) {
     return matching.getOrderHash(order);
   }
 
-  function _signOrder(bytes32 orderHash, uint signerPk) internal returns (bytes memory) {
+  function _signOrder(bytes32 orderHash, uint signerPk) internal view returns (bytes memory) {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, ECDSA.toTypedDataHash(domainSeparator, orderHash));
     return bytes.concat(r, s, bytes1(v));
   }
 
-  function _encodeDepositData(uint amount, address asset, address newManager) internal returns (bytes memory) {
-    DepositModule.DepositData memory data = DepositModule.DepositData({amount: amount, asset: asset, managerForNewAccount: newManager});
+  function _encodeDepositData(uint amount, address asset, address newManager) internal pure returns (bytes memory) {
+    DepositModule.DepositData memory data =
+      DepositModule.DepositData({amount: amount, asset: asset, managerForNewAccount: newManager});
 
     return abi.encode(data);
+  }
+
+  function _setupAccounts() internal {
+    vm.label(cam, "cam");
+    vm.label(doug, "doug");
+
+    camAcc = subAccounts.createAccount(cam, IManager(address(pmrm)));
+    dougAcc = subAccounts.createAccount(doug, IManager(address(pmrm)));
+
+    // allow this contract to submit trades
+    vm.prank(cam);
+    subAccounts.setApprovalForAll(address(this), true);
+    vm.prank(doug);
+    subAccounts.setApprovalForAll(address(this), true);
+  }
+
+  function _openCLOBAccount(address owner, uint accountId) internal {
+    vm.startPrank(owner);
+    subAccounts.approve(address(matching), accountId);
+    matching.depositSubAccount(accountId);
+    vm.stopPrank();
   }
 }

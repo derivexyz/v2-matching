@@ -14,6 +14,7 @@ import "./BaseModule.sol";
 contract TransferModule is BaseModule {
   struct TransferData {
     uint toAccountId;
+    address managerForNewAccount;
     Transfers[] transfers;
   }
 
@@ -41,11 +42,20 @@ contract TransferModule is BaseModule {
       // We should probably check that we aren't creating more OI by doing this transfer?
       // Users might for some reason create long and short options in different accounts for free by using this method...
 
+      if (data.toAccountId == 0) {
+        uint accountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
+        console2.log("New accountId:", accountId);
+        newAccIds = new uint[](data.transfers.length); // todo or iterate to find length?
+        newAccIds[i] = accountId;
+        newOwners = new address[](data.transfers.length);
+        newOwners[i] = orders[i].owner;
+      }
+
       transferBatch[i] = ISubAccounts.AssetTransfer({
         asset: IAsset(data.transfers[i].asset),
         fromAcc: orders[i].accountId,
         // TODO: allow toAccount of 0 -> create new account
-        toAcc: data.toAccountId,
+        toAcc: newAccIds[i],
         subId: data.transfers[i].subId,
         amount: data.transfers[i].amount,
         assetData: bytes32(0)

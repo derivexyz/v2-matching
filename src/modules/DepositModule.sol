@@ -35,27 +35,19 @@ contract DepositModule is BaseModule {
     uint accountId = orders[0].accountId;
     if (accountId == 0) {
       accountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
+      console2.log("New accountId:", accountId);
+      accountIds = new uint[](1);
+      accountIds[0] = accountId;
+      owners = new address[](1);
+      owners[0] = orders[0].owner;
     }
 
     IERC20Metadata depositToken = IERC20BasedAsset(data.asset).wrappedAsset();
-    console2.log("allowance", depositToken.allowance(orders[0].owner, address(this)));
-    console2.log("owner", orders[0].owner);
-    console2.log("depos", address(this));
     depositToken.transferFrom(orders[0].owner, address(this), data.amount);
 
-    console2.log("Token address", address(depositToken));
-
-    console2.log("Here two ");
     depositToken.approve(address(data.asset), data.amount);
     IERC20BasedAsset(data.asset).deposit(accountId, data.amount);
 
-    console2.log("Here three ");
     matching.accounts().transferFrom(address(this), address(matching), accountId);
-
-    // accountIds = new uint[](1);
-    // accountIds[0] = accountId;
-
-    // owners = new address[](1);
-    // owners[0] = orders[0].owner;
   }
 }

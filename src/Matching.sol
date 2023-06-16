@@ -36,7 +36,7 @@ contract Matching is OrderVerifier {
     IMatchingModule matcher = orders[0].matcher;
     IMatchingModule.VerifiedOrder[] memory verifiedOrders = new IMatchingModule.VerifiedOrder[](orders.length);
     for (uint i = 0; i < orders.length; i++) {
-      verifiedOrders[i] = _verifyOrder(orders[i], matcher);
+      verifiedOrders[i] = _verifyOrder(orders[i]);
     }
     _submitMatch(matcher, verifiedOrders, matchData);
   }
@@ -70,7 +70,9 @@ contract Matching is OrderVerifier {
 
     // Ensure accounts are transferred back,
     for (uint i = 0; i < orders.length; ++i) {
-      if (accounts.ownerOf(orders[i].accountId) != address(this)) revert("token not returned");
+      if (orders[i].accountId != 0 && accounts.ownerOf(orders[i].accountId) != address(this)) {
+        revert("token not returned");
+      }
     }
 
     // Receive back a list of new subaccounts and respective owners. This allows modules to open new accounts
@@ -83,7 +85,7 @@ contract Matching is OrderVerifier {
     }
   }
 
-   function getOrderHash(SignedOrder memory order) external pure returns (bytes32) {
+  function getOrderHash(SignedOrder memory order) external pure returns (bytes32) {
     return _getOrderHash(order);
   }
 

@@ -12,47 +12,140 @@ import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata
  * @dev we deploy actual Account contract in these tests to simplify verification process
  */
 contract DepositModuleTest is MatchingBase {
-  function testSimpleDeposit() public {
-     usdc.mint(alice, 1e18);
+  function testDeposit() public {
+    uint deposit = 1e18;
+    usdc.mint(cam, deposit);
 
-    bytes memory depositData = _encodeDepositData(1e18, address(cash), address(pmrm));
+    // Create signed order for cash deposit
+    bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
     OrderVerifier.SignedOrder memory order =
-      _createUnsignedOrder(aliceAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, alice);
+      _createFullSignedOrder(camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, cam, camPk);
 
-    int aliceBalBefore = subAccounts.getBalance(aliceAcc, cash, 0);
-    console2.log("Before:", aliceBalBefore);
-
-    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
-    orders[0] = order;
-    
+    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
     IERC20Metadata cashToken = IERC20BasedAsset(address(cash)).wrappedAsset();
-
-    vm.startPrank(alice);
-    console2.log("Cashe address", address(cashToken));
-    cashToken.approve(address(depositModule), 1e18);
-     console2.log("allowance", cashToken.allowance(alice, address(depositModule)));
-     console2.log("owner", alice);
-     console2.log("depos", address(depositModule));
-    console2.log("balance", cashToken.balanceOf(alice));
+    vm.startPrank(cam);
+    cashToken.approve(address(depositModule), deposit);
     vm.stopPrank();
 
-    address aliceOwner = subAccounts.ownerOf(aliceAcc);
-    console2.log("aliceOwner", aliceOwner);
+    // Submit Order
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
+    orders[0] = order;
     _verifyAndMatch(orders, bytes(""));
-    
-    int aliceBalAfter = subAccounts.getBalance(aliceAcc, cash, 0);
-    console2.log("After:", aliceBalAfter);
+
+    int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
+    int balanceDiff = camBalAfter - camBalBefore;
+
+    // Assert balance change
+    assertEq(uint(balanceDiff), deposit);
   }
 
-  // function testDepositToNewAccount() public {
-  //   bytes memory depositData = _encodeDepositData(1e18, address(cash), address(pmrm));
-  //   OrderVerifier.SignedOrder memory order =
-  //     _createUnsignedOrder(0, 0, depositModule, depositData, block.timestamp + 1 days, alice);
+  // Doug cannot deposit for Cam
+  function testCannotDepositFromRandomAddress() public {
+    uint deposit = 1e18;
+    usdc.mint(cam, deposit);
 
-  //   OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
-  //   orders[0] = order;
+    // Create signed order for cash deposit
+    bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
+    OrderVerifier.SignedOrder memory order = _createFullSignedOrder(
+      camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, doug, dougPk
+    );
 
-  //   _verifyAndMatch(orders, bytes(""));
+    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
+    IERC20Metadata cashToken = IERC20BasedAsset(address(cash)).wrappedAsset();
+    vm.startPrank(cam);
+    cashToken.approve(address(depositModule), deposit);
+    vm.stopPrank();
 
-  // }
+    // Submit Order
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
+    orders[0] = order;
+
+    vm.expectRevert("signer not permitted, or session key expired for account ID owner");
+    _verifyAndMatch(orders, bytes(""));
+  }
+
+  // Doug is able to call deposit on behalf of Cam's account via approved session key
+  function testDepositWithSigningKey() public {
+    uint deposit = 1e18;
+    usdc.mint(cam, deposit);
+    vm.startPrank(cam);
+    matching.registerSessionKey(doug, block.timestamp + 1 weeks);
+    vm.stopPrank();
+
+    // Create signed order for cash deposit
+    bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
+    OrderVerifier.SignedOrder memory order = _createFullSignedOrder(
+      camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, doug, dougPk
+    );
+
+    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
+    IERC20Metadata cashToken = IERC20BasedAsset(address(cash)).wrappedAsset();
+    vm.startPrank(cam);
+    cashToken.approve(address(depositModule), deposit);
+    vm.stopPrank();
+
+    // Submit Order
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
+    orders[0] = order;
+    _verifyAndMatch(orders, bytes(""));
+
+    int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
+    int balanceDiff = camBalAfter - camBalBefore;
+
+    // Assert balance change
+    assertEq(uint(balanceDiff), deposit);
+  }
+
+  // Doug CANNOT deposit on behalf of Cam's account due to EXPIRED
+  function testCannotDepositWithExpiredSigningKey() public {
+    uint deposit = 1e18;
+    usdc.mint(cam, deposit);
+    vm.startPrank(cam);
+    matching.registerSessionKey(doug, block.timestamp + 1 days);
+    vm.stopPrank();
+
+    // Create signed order for cash deposit
+    bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
+    OrderVerifier.SignedOrder memory order = _createFullSignedOrder(
+      camAcc, 0, address(depositModule), depositData, block.timestamp + 1 weeks, cam, doug, dougPk
+    );
+
+    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
+    IERC20Metadata cashToken = IERC20BasedAsset(address(cash)).wrappedAsset();
+    vm.startPrank(cam);
+    cashToken.approve(address(depositModule), deposit);
+    vm.stopPrank();
+
+    // Submit Order
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
+    orders[0] = order;
+    vm.warp(block.timestamp + 1 days + 1);
+    vm.expectRevert("signer not permitted, or session key expired for account ID owner");
+    _verifyAndMatch(orders, bytes(""));
+  }
+
+  // If no account Id is specified, deposit into a new account
+  function testDepositToNewAccount() public {
+    uint deposit = 1e18;
+    usdc.mint(cam, deposit);
+
+    // Create signed order for cash deposit to empty account
+    bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
+    OrderVerifier.SignedOrder memory order =
+      _createFullSignedOrder(0, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, cam, camPk);
+
+    IERC20Metadata cashToken = IERC20BasedAsset(address(cash)).wrappedAsset();
+    vm.startPrank(cam);
+    cashToken.approve(address(depositModule), deposit);
+    vm.stopPrank();
+
+    // Submit Order
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
+    orders[0] = order;
+    _verifyAndMatch(orders, bytes(""));
+    int newAccBal = subAccounts.getBalance(dougAcc + 1, cash, 0);
+
+    // Assert balance change
+    assertEq(uint(newAccBal), deposit);
+  }
 }
