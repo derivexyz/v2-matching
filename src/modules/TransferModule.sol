@@ -45,7 +45,7 @@ contract TransferModule is BaseModule {
       if (data.toAccountId == 0) {
         uint accountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
         console2.log("New accountId:", accountId);
-        newAccIds = new uint[](data.transfers.length); // todo or iterate to find length?
+        newAccIds = new uint[](data.transfers.length);
         newAccIds[i] = accountId;
         newOwners = new address[](data.transfers.length);
         newOwners[i] = orders[i].owner;
@@ -54,7 +54,6 @@ contract TransferModule is BaseModule {
       transferBatch[i] = ISubAccounts.AssetTransfer({
         asset: IAsset(data.transfers[i].asset),
         fromAcc: orders[i].accountId,
-        // TODO: allow toAccount of 0 -> create new account
         toAcc: newAccIds[i],
         subId: data.transfers[i].subId,
         amount: data.transfers[i].amount,

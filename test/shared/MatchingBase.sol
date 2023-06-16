@@ -7,6 +7,7 @@ import "src/Matching.sol";
 
 import {DepositModule} from "src/modules/DepositModule.sol";
 import {WithdrawalModule} from "src/modules/WithdrawalModule.sol";
+import {TransferModule} from "src/modules/TransferModule.sol";
 import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
 import {OrderVerifier} from "src/OrderVerifier.sol";
 
@@ -19,7 +20,7 @@ contract MatchingBase is PMRMTestBase {
   Matching matching;
   DepositModule depositModule;
   WithdrawalModule withdrawalModule;
-
+  TransferModule transferModule;
   // signer
   uint internal camAcc;
   uint internal camPk;
@@ -52,6 +53,7 @@ contract MatchingBase is PMRMTestBase {
     matching = new Matching(subAccounts);
     depositModule = new DepositModule(matching);
     withdrawalModule = new WithdrawalModule(matching);
+    transferModule = new TransferModule(matching);
 
     console2.log("MATCHIN ADDY:", address(matching));
     console2.log("DEPOSIT ADDY:", address(depositModule));
