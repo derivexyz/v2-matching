@@ -13,9 +13,12 @@ import {TransferModule} from "src/modules/TransferModule.sol";
 contract TransferModuleTest is MatchingBase {
   function testTransfer() public {
     uint newAccountId = subAccounts.createAccount(cam, IManager(address(pmrm)));
+    vm.startPrank(cam);
+    subAccounts.setApprovalForAll(address(matching), true);
+    matching.depositSubAccount(newAccountId);
+    vm.stopPrank();
 
-    TransferModule.Transfers memory transfer =
-      TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
+    TransferModule.Transfers memory transfer = TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
     TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](2);
     transfers[0] = transfer;
     transfers[1] = transfer;
@@ -28,16 +31,19 @@ contract TransferModuleTest is MatchingBase {
 
     bytes memory encodedData = abi.encode(transferData);
 
-    OrderVerifier.SignedOrder memory order = _createFullSignedOrder(
-      camAcc, 0, address(transferModule), encodedData, block.timestamp + 1 days, cam, cam, camPk
+    OrderVerifier.SignedOrder memory fromOrder =
+      _createFullSignedOrder(camAcc, 0, address(transferModule), encodedData, block.timestamp + 1 days, cam, cam, camPk);
+
+    OrderVerifier.SignedOrder memory toOrder = _createFullSignedOrder(
+      newAccountId, 0, address(transferModule), new bytes(0), block.timestamp + 1 days, cam, cam, camPk
     );
 
     int camBalBefore = subAccounts.getBalance(newAccountId, cash, 0);
 
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
-    orders[0] = order;
-    orders[1] = order;
+    orders[0] = fromOrder;
+    orders[1] = toOrder;
     _verifyAndMatch(orders, bytes(""));
 
     int camBalAfter = subAccounts.getBalance(newAccountId, cash, 0);

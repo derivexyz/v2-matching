@@ -38,7 +38,7 @@ contract SubAccountsManager is Ownable2Step {
     accounts.transferFrom(msg.sender, address(this), accountId);
     accountToOwner[accountId] = msg.sender;
 
-    emit OpenedCLOBAccount(accountId);
+    emit DepositedSubAccount(accountId);
   }
 
   /**
@@ -65,7 +65,7 @@ contract SubAccountsManager is Ownable2Step {
     withdrawAccountCooldownMapping[msg.sender] = 0;
     delete accountToOwner[accountId];
 
-    emit ClosedCLOBAccount(accountId);
+    emit WithdrewSubAccount(accountId);
   }
 
   ////////////
@@ -75,12 +75,12 @@ contract SubAccountsManager is Ownable2Step {
   /**
    * @dev Emitted when a CLOB account is closed.
    */
-  event OpenedCLOBAccount(uint accountId);
+  event DepositedSubAccount(uint accountId);
 
   /**
    * @dev Emitted when a CLOB account is closed.
    */
-  event ClosedCLOBAccount(uint accountId);
+  event WithdrewSubAccount(uint accountId);
 
   /**
    * @dev Emitted when a session key is registered to an owner account.

@@ -26,35 +26,40 @@ contract TransferModule is BaseModule {
 
   constructor(Matching _matching) BaseModule(_matching) {}
 
-  /// @dev orders must be in order: [to, from]. From does not need to have any data.
+  /// @dev orders must be in order: [from, to]. From data field is ignored.
   function matchOrders(VerifiedOrder[] memory orders, bytes memory)
     public
     onlyMatching
-    returns (uint[] memory newAccIds, address[] memory newOwners)
+    returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
     if (orders.length != 2) revert("Invalid transfer orders length");
     if (orders[0].owner != orders[1].owner) revert("Transfer must have same owner");
 
     TransferData memory data = abi.decode(orders[0].data, (TransferData));
 
+    uint fromAccountId = orders[0].accountId;
+    if (fromAccountId == 0) {
+      revert("Transfer from account 0 not allowed");
+    }
+
+    uint toAccountId = orders[1].accountId;
+    if (toAccountId == 0) {
+      toAccountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
+      console2.log("New accountId:", toAccountId);
+      newAccIds = new uint[](1);
+      newAccIds[0] = toAccountId;
+      newAccOwners = new address[](1);
+      newAccOwners[0] = orders[1].owner;
+    }
+
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](data.transfers.length);
     for (uint i = 0; i < data.transfers.length; ++i) {
       // We should probably check that we aren't creating more OI by doing this transfer?
       // Users might for some reason create long and short options in different accounts for free by using this method...
-
-      if (data.toAccountId == 0) {
-        uint accountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
-        console2.log("New accountId:", accountId);
-        newAccIds = new uint[](data.transfers.length);
-        newAccIds[i] = accountId;
-        newOwners = new address[](data.transfers.length);
-        newOwners[i] = orders[i].owner;
-      }
-
       transferBatch[i] = ISubAccounts.AssetTransfer({
         asset: IAsset(data.transfers[i].asset),
-        fromAcc: orders[i].accountId,
-        toAcc: newAccIds[i],
+        fromAcc: fromAccountId,
+        toAcc: toAccountId,
         subId: data.transfers[i].subId,
         amount: data.transfers[i].amount,
         assetData: bytes32(0)
@@ -64,6 +69,6 @@ contract TransferModule is BaseModule {
     matching.accounts().submitTransfers(transferBatch, "");
 
     // Transfer accounts back to matching
-    _transferAccounts(orders);
+    _returnAccounts(orders, newAccIds);
   }
 }

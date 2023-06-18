@@ -73,7 +73,7 @@ contract TradeModule is BaseModule {
   /// same order.
   function matchOrders(VerifiedOrder[] memory orders, bytes memory matchDataBytes)
     public
-    returns (uint[] memory accountIds, address[] memory owners)
+    returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
     MatchData memory matchData = abi.decode(matchDataBytes, (MatchData));
 
@@ -132,7 +132,8 @@ contract TradeModule is BaseModule {
       matchData.isBidder
     );
 
-    // submitTransfers(transferBatch, matchData.managerData);
+    accounts.submitTransfers(transferBatch, matchData.managerData);
+    _returnAccounts(orders, newAccIds);
   }
 
   function _fillLimitOrder(OptionLimitOrder memory order, FillDetails memory fill, bool isBidder) internal {

@@ -25,7 +25,7 @@ contract DepositModule is BaseModule {
 
   function matchOrders(VerifiedOrder[] memory orders, bytes memory)
     public
-    returns (uint[] memory accountIds, address[] memory owners)
+    returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
     if (orders.length != 1) revert("Invalid deposit orders length");
 
@@ -35,12 +35,13 @@ contract DepositModule is BaseModule {
     uint accountId = orders[0].accountId;
     if (accountId == 0) {
       accountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
+      console2.log("accountId", accountId);
 
       // Return new accountId with owner
-      accountIds = new uint[](1);
-      accountIds[0] = accountId;
-      owners = new address[](1);
-      owners[0] = orders[0].owner;
+      newAccIds = new uint[](1);
+      newAccIds[0] = accountId;
+      newAccOwners = new address[](1);
+      newAccOwners[0] = orders[0].owner;
     }
 
     IERC20Metadata depositToken = IERC20BasedAsset(data.asset).wrappedAsset();
@@ -49,6 +50,6 @@ contract DepositModule is BaseModule {
     depositToken.approve(address(data.asset), data.amount);
     IERC20BasedAsset(data.asset).deposit(accountId, data.amount);
 
-    matching.accounts().transferFrom(address(this), address(matching), accountId);
+    _returnAccounts(orders, newAccIds);
   }
 }

@@ -19,7 +19,7 @@ contract WithdrawalModule is BaseModule {
 
   function matchOrders(VerifiedOrder[] memory orders, bytes memory)
     public
-    returns (uint[] memory accountIds, address[] memory owners)
+    returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
     if (orders.length != 1) revert("Invalid withdrawal orders length");
     if (orders[0].accountId == 0) revert("Cannot withdraw from zero account");
@@ -30,6 +30,6 @@ contract WithdrawalModule is BaseModule {
 
     IWithdrawableAsset(data.asset).withdraw(orders[0].accountId, data.assetAmount, orders[0].owner);
 
-    _transferAccounts(orders);
+    _returnAccounts(orders, newAccIds);
   }
 }
