@@ -5,7 +5,7 @@ import "forge-std/console2.sol";
 import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
-import "openzeppelin/utils/Math/SignedMath.sol";
+import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 
 import "./BaseModule.sol";
 
