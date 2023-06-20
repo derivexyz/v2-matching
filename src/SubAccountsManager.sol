@@ -62,8 +62,8 @@ contract SubAccountsManager is Ownable2Step {
     }
 
     accounts.transferFrom(address(this), msg.sender, accountId);
-    withdrawAccountCooldown[msg.sender] = 0;
-    accountToOwner[accountId] = 0;
+    delete withdrawAccountCooldown[msg.sender];
+    delete accountToOwner[accountId];
 
     emit WithdrewSubAccount(accountId);
   }
