@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
+
 import "forge-std/console2.sol";
 
 import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
@@ -58,7 +59,7 @@ contract TradeModule is BaseModule {
   //  deployment
   IAsset public immutable quoteAsset;
   address feeSetter; // permissioned address for setting fee recipient
-  uint feeRecipient; 
+  uint feeRecipient;
 
   /// @dev we trust the nonce is unique for the given "VerifiedOrder" for the owner
   mapping(address owner => mapping(uint nonce => uint filled)) public filled;
@@ -132,7 +133,7 @@ contract TradeModule is BaseModule {
       assetData: bytes32(0)
     });
 
-      console2.log("Transfer fee done ");
+    console2.log("Transfer fee done ");
     _fillLimitOrder(
       matchedOrder,
       FillDetails({
@@ -199,7 +200,7 @@ contract TradeModule is BaseModule {
     });
   }
 
-    ///////////////
+  ///////////////
   // Modifiers //
   ///////////////
 

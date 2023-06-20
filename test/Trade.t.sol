@@ -29,19 +29,25 @@ contract TradeModuleTest is MatchingBase {
     bytes memory matchData = abi.encode(matched);
 
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
-    TradeModule.TradeData memory tradeData = TradeModule.TradeData({asset: address(option), subId: callId, worstPrice: 5e18, desiredAmount: 10e18, recipientId: dougAcc});
+    TradeModule.TradeData memory tradeData = TradeModule.TradeData({
+      asset: address(option),
+      subId: callId,
+      worstPrice: 5e18,
+      desiredAmount: 10e18,
+      recipientId: dougAcc
+    });
     bytes memory encodedTrade = abi.encode(tradeData);
 
     OrderVerifier.SignedOrder memory trade =
-      // _createFullSignedOrder(dougAcc, 0, address(tradeModule), encodedTrade, block.timestamp + 1 days, doug, doug, dougPk);
-      _createFullSignedOrder(camAcc, 0, address(tradeModule), encodedTrade, block.timestamp + 1 days, cam, cam, camPk);
+    // _createFullSignedOrder(dougAcc, 0, address(tradeModule), encodedTrade, block.timestamp + 1 days, doug, doug, dougPk);
+     _createFullSignedOrder(camAcc, 0, address(tradeModule), encodedTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
 
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
     orders[0] = trade;
-  
+
     _verifyAndMatch(orders, matchData);
 
     int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
