@@ -19,7 +19,7 @@ contract SubAccountsManager is Ownable2Step {
   mapping(uint => address) public accountToOwner;
 
   ///@dev Mapping of owner to account withdraw cooldown start time
-  mapping(address => uint) public withdrawAccountCooldownMapping;
+  mapping(address => uint) public withdrawAccountCooldown;
 
   constructor(ISubAccounts _accounts) {
     accounts = _accounts;
@@ -46,7 +46,7 @@ contract SubAccountsManager is Ownable2Step {
    */
   function requestWithdrawAccount(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
-    withdrawAccountCooldownMapping[msg.sender] = block.timestamp;
+    withdrawAccountCooldown[msg.sender] = block.timestamp;
     emit WithdrawAccountCooldown(msg.sender);
   }
 
@@ -57,13 +57,13 @@ contract SubAccountsManager is Ownable2Step {
    */
   function completeWithdrawAccount(uint accountId) external {
     if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
-    if (withdrawAccountCooldownMapping[msg.sender] + WITHDRAW_COOLDOWN > block.timestamp) {
-      revert M_CooldownNotElapsed(withdrawAccountCooldownMapping[msg.sender] + WITHDRAW_COOLDOWN - block.timestamp);
+    if (withdrawAccountCooldown[msg.sender] + WITHDRAW_COOLDOWN > block.timestamp) {
+      revert M_CooldownNotElapsed(withdrawAccountCooldown[msg.sender] + WITHDRAW_COOLDOWN - block.timestamp);
     }
 
     accounts.transferFrom(address(this), msg.sender, accountId);
-    withdrawAccountCooldownMapping[msg.sender] = 0;
-    delete accountToOwner[accountId];
+    withdrawAccountCooldown[msg.sender] = 0;
+    accountToOwner[accountId] = 0;
 
     emit WithdrewSubAccount(accountId);
   }
