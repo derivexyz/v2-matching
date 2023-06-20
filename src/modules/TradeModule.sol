@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
+import "forge-std/console2.sol";
 
 import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
@@ -56,16 +57,21 @@ contract TradeModule is BaseModule {
   // @dev we fix the quoteAsset for the contracts so we can support eth/usdc etc as quoteAsset, but only one per
   //  deployment
   IAsset public immutable quoteAsset;
-  uint feeRecipient; // TODO: setter
+  address feeSetter; // permissioned address for setting fee recipient
+  uint feeRecipient; 
 
   /// @dev we trust the nonce is unique for the given "VerifiedOrder" for the owner
   mapping(address owner => mapping(uint nonce => uint filled)) public filled;
   /// @dev in the case of recipient being 0, create new recipient and store the id here
   mapping(address owner => mapping(uint nonce => uint recipientId)) public recipientId;
 
-  constructor(IAsset _quoteAsset, uint _feeRecipient, Matching _matching) BaseModule(_matching) {
+  constructor(IAsset _quoteAsset, address feeSetter, uint _feeRecipient, Matching _matching) BaseModule(_matching) {
     quoteAsset = _quoteAsset;
     feeRecipient = _feeRecipient;
+  }
+
+  function setFeeRecipient(uint newFeeRecipient) external onlyFeeSetter {
+    feeRecipient = newFeeRecipient;
   }
 
   /// @dev Assumes VerifiedOrders are sorted in the order: [matchedAccount, ...filledAccounts]
@@ -91,8 +97,10 @@ contract TradeModule is BaseModule {
 
     uint totalFilled;
     int worstPrice = matchData.isBidder ? int(0) : type(int).max;
-    for (uint i = 1; i < orders.length; i++) {
-      FillDetails memory fillDetails = matchData.fillDetails[i - 1];
+
+    console2.log("orders length", orders.length);
+    for (uint i = 0; i < orders.length; i++) {
+      FillDetails memory fillDetails = matchData.fillDetails[i];
       OptionLimitOrder memory filledOrder = OptionLimitOrder({
         accountId: orders[i].accountId,
         owner: orders[i].owner,
@@ -101,8 +109,11 @@ contract TradeModule is BaseModule {
       });
       if (filledOrder.accountId != fillDetails.filledAccount) revert("filled account does not match");
 
+      console2.log("Fill limit order");
       _fillLimitOrder(filledOrder, fillDetails, !matchData.isBidder);
+      console2.log("Fill limit order done");
       _addAssetTransfers(transferBatch, fillDetails, matchedOrder, filledOrder, matchData.isBidder, i * 3 - 3);
+      console2.log("asset transfers done");
 
       totalFilled += fillDetails.amountFilled;
       if (matchData.isBidder) {
@@ -121,6 +132,7 @@ contract TradeModule is BaseModule {
       assetData: bytes32(0)
     });
 
+      console2.log("Transfer fee done ");
     _fillLimitOrder(
       matchedOrder,
       FillDetails({
@@ -155,6 +167,7 @@ contract TradeModule is BaseModule {
     bool isBidder,
     uint startIndex
   ) internal view {
+    console2.log("--- ADD ASSET TRANSFER ---");
     int amtQuote = int(fillDetails.amountFilled) * fillDetails.price / 1e18;
 
     transferBatch[startIndex] = ISubAccounts.AssetTransfer({
@@ -184,5 +197,14 @@ contract TradeModule is BaseModule {
       toAcc: feeRecipient,
       assetData: bytes32(0)
     });
+  }
+
+    ///////////////
+  // Modifiers //
+  ///////////////
+
+  modifier onlyFeeSetter() {
+    require(msg.sender == feeSetter, "Only fee setter can call this");
+    _;
   }
 }
