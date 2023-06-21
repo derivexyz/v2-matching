@@ -13,7 +13,7 @@ import "./BaseModule.sol";
 // Only has to sign from one side (so has to call out to the
 contract TransferModule is BaseModule {
   struct TransferData {
-    uint toAccountId;
+    uint toAccountId; // not used?
     address managerForNewAccount;
     Transfers[] transfers;
   }
@@ -35,17 +35,19 @@ contract TransferModule is BaseModule {
     if (orders.length != 2) revert("Invalid transfer orders length");
     if (orders[0].owner != orders[1].owner) revert("Transfer must have same owner");
 
+    // only the from order encode the detail of transfers
     TransferData memory data = abi.decode(orders[0].data, (TransferData));
+
+    if (orders[1].accountId != data.toAccountId) revert("not match");
 
     uint fromAccountId = orders[0].accountId;
     if (fromAccountId == 0) {
       revert("Transfer from account 0 not allowed");
     }
 
-    uint toAccountId = orders[1].accountId;
+    uint toAccountId = data.toAccountId;
     if (toAccountId == 0) {
       toAccountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
-      console2.log("New accountId:", toAccountId);
       newAccIds = new uint[](1);
       newAccIds[0] = toAccountId;
       newAccOwners = new address[](1);
