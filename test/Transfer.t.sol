@@ -28,13 +28,10 @@ contract TransferModuleTest is MatchingBase {
       transfers: transfers
     });
 
-    // sign both side of the order:
-    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    // sign order and submit
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
     orders[0] = _createFullSignedOrder(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
-    );
-    orders[1] = _createFullSignedOrder(
-      newAccountId, 0, address(transferModule), new bytes(0), block.timestamp + 1 days, cam, cam, camPk
     );
 
     _verifyAndMatch(orders, bytes(""));

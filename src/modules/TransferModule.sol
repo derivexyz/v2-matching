@@ -32,13 +32,10 @@ contract TransferModule is BaseModule {
     onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
-    if (orders.length != 2) revert("Invalid transfer orders length");
-    if (orders[0].owner != orders[1].owner) revert("Transfer must have same owner");
+    if (orders.length != 1) revert("Invalid transfer orders length");
 
     // only the from order encode the detail of transfers
     TransferData memory data = abi.decode(orders[0].data, (TransferData));
-
-    if (orders[1].accountId != data.toAccountId) revert("not match");
 
     uint fromAccountId = orders[0].accountId;
     if (fromAccountId == 0) {
@@ -46,12 +43,18 @@ contract TransferModule is BaseModule {
     }
 
     uint toAccountId = data.toAccountId;
+    
+    // todo: make sure Matching.accountToOwner(toAccountId) is the same
+
     if (toAccountId == 0) {
       toAccountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
       newAccIds = new uint[](1);
       newAccIds[0] = toAccountId;
       newAccOwners = new address[](1);
-      newAccOwners[0] = orders[1].owner;
+      newAccOwners[0] = orders[0].owner;
+    } else {
+      address owner = matching.accountToOwner(toAccountId);
+      if (owner != orders[0].owner) revert("Transfer must have same owner");
     }
 
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](data.transfers.length);
