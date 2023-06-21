@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {MatchingBase} from "./shared/MatchingBase.sol";
 import {OrderVerifier} from "src/OrderVerifier.sol";
+import {DepositModule} from "src/modules/DepositModule.sol";
 import {IERC20BasedAsset} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
@@ -39,6 +40,16 @@ contract DepositModuleTest is MatchingBase {
     assertEq(uint(balanceDiff), deposit);
   }
 
+  function testCannotCallDepositWithWrongOrderLength() public {
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    orders[0] = _createFullSignedOrder(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    orders[1] =
+      _createFullSignedOrder(dougAcc, 0, address(depositModule), "", block.timestamp + 1 days, doug, doug, dougPk);
+
+    vm.expectRevert(DepositModule.DM_InvalidDepositOrderLength.selector);
+    _verifyAndMatch(orders, bytes(""));
+  }
+
   // Doug cannot deposit for Cam
   function testCannotDepositWithRandomAddress() public {
     uint deposit = 1e18;
@@ -50,7 +61,6 @@ contract DepositModuleTest is MatchingBase {
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, doug, dougPk
     );
 
-    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
     IERC20Metadata cashToken = IERC20BasedAsset(address(cash)).wrappedAsset();
     vm.startPrank(cam);
     cashToken.approve(address(depositModule), deposit);
@@ -110,7 +120,6 @@ contract DepositModuleTest is MatchingBase {
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 weeks, cam, doug, dougPk
     );
 
-    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
     IERC20Metadata cashToken = IERC20BasedAsset(address(cash)).wrappedAsset();
     vm.startPrank(cam);
     cashToken.approve(address(depositModule), deposit);

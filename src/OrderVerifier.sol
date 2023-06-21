@@ -61,9 +61,6 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
   }
 
   function _verifySignerPermission(address signer, address accIdOwner, address owner) internal view {
-    console2.log("AccOwr", accIdOwner);
-    console2.log("Signer", signer);
-
     if (accIdOwner != address(0)) {
       if (accIdOwner != owner) {
         revert("AccountId owner and owner address do not match");
@@ -82,7 +79,7 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
   // Signed message checking //
   /////////////////////////////
 
-  function _verifyOrder(SignedOrder memory order) internal returns (IMatchingModule.VerifiedOrder memory) {
+  function _verifyOrder(SignedOrder memory order) internal view returns (IMatchingModule.VerifiedOrder memory) {
     // Repeated nonces are fine; their uniqueness will be handled by matchers (and any order limits etc for reused orders)
     if (block.timestamp > order.expiry) revert("Order expired");
     _verifySignerPermission(order.signer, accountToOwner[order.accountId], order.owner);

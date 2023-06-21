@@ -35,7 +35,7 @@ contract MatchingBase is PMRMTestBase {
 
   uint referenceTime;
 
-  address tradeExecutor;
+  address tradeExecutor = address(0xaaaa);
   uint cashDeposit = 10000e18;
   bytes32 domainSeparator;
 
@@ -59,13 +59,13 @@ contract MatchingBase is PMRMTestBase {
     transferModule = new TransferModule(matching);
     tradeModule = new TradeModule(IAsset(address(cash)), alice, aliceAcc, matching);
 
-    console2.log("MATCHIN ADDY:", address(matching));
-    console2.log("DEPOSIT ADDY:", address(depositModule));
-    console2.log("WITHDWL ADDY:", address(withdrawalModule));
+    // console2.log("MATCHIN ADDY:", address(matching));
+    // console2.log("DEPOSIT ADDY:", address(depositModule));
+    // console2.log("WITHDWL ADDY:", address(withdrawalModule));
 
-    console2.log("CAM  ADDY:", address(cam));
-    console2.log("DOUG ADDY:", address(doug));
-    console2.log("-------------------------------------------------");
+    // console2.log("CAM  ADDY:", address(cam));
+    // console2.log("DOUG ADDY:", address(doug));
+    // console2.log("-------------------------------------------------");
 
     domainSeparator = matching.domainSeparator();
     matching.setTradeExecutor(tradeExecutor, true);
