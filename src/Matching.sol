@@ -12,6 +12,7 @@ import "./OrderVerifier.sol";
 contract Matching is OrderVerifier {
   ///@dev Permissioned address to execute trades
   mapping(address tradeExecutor => bool canExecuteTrades) public tradeExecutors;
+  // todo whitelist module
 
   constructor(ISubAccounts _accounts) OrderVerifier(_accounts) {}
 

@@ -17,8 +17,8 @@ contract TradeModule is BaseModule {
     // TODO: is using int here enough to cover perps use case?
     int worstPrice;
     int desiredAmount;
-    uint recipientId; // if 0 -> spin up new account
-  }
+    uint recipientId; // todo cannot be 0 -> this account needs to be sent from matching
+  } // todo short collat, transferred before ?
 
   struct OptionLimitOrder {
     uint accountId;
@@ -66,8 +66,9 @@ contract TradeModule is BaseModule {
   /// @dev in the case of recipient being 0, create new recipient and store the id here
   mapping(address owner => mapping(uint nonce => uint recipientId)) public recipientId;
 
-  constructor(IAsset _quoteAsset, address feeSetter, uint _feeRecipient, Matching _matching) BaseModule(_matching) {
+  constructor(IAsset _quoteAsset, address _feeSetter, uint _feeRecipient, Matching _matching) BaseModule(_matching) {
     quoteAsset = _quoteAsset;
+    feeSetter = _feeSetter;
     feeRecipient = _feeRecipient;
   }
 
@@ -100,16 +101,18 @@ contract TradeModule is BaseModule {
     int worstPrice = matchData.isBidder ? int(0) : type(int).max;
 
     console2.log("orders length", orders.length);
-    for (uint i = 0; i < orders.length; i++) {
-      FillDetails memory fillDetails = matchData.fillDetails[i];
+    for (uint i = 1; i < orders.length; i++) {
+      FillDetails memory fillDetails = matchData.fillDetails[i - 1];
       OptionLimitOrder memory filledOrder = OptionLimitOrder({
         accountId: orders[i].accountId,
         owner: orders[i].owner,
         nonce: orders[i].nonce,
         data: abi.decode(orders[i].data, (TradeData))
       });
-      if (filledOrder.accountId != fillDetails.filledAccount) revert("filled account does not match");
 
+      if (filledOrder.data.recipientId == 0) revert("Recipient Id canont be zero");
+      if (filledOrder.accountId != fillDetails.filledAccount) revert("filled account does not match");
+      // todo amountQuote need to change for perp
       console2.log("Fill limit order");
       _fillLimitOrder(filledOrder, fillDetails, !matchData.isBidder);
       console2.log("Fill limit order done");
@@ -151,6 +154,9 @@ contract TradeModule is BaseModule {
 
   function _fillLimitOrder(OptionLimitOrder memory order, FillDetails memory fill, bool isBidder) internal {
     int finalPrice = fill.price + int(fill.fee * fill.amountFilled / SignedMath.abs(order.data.desiredAmount));
+    console2.log("finalprice", finalPrice);
+    console2.log("worstprice", order.data.worstPrice);
+    console2.log("isBidder:", isBidder);
     if (isBidder) {
       if (finalPrice > order.data.worstPrice) revert("price too high");
     } else {
@@ -169,7 +175,7 @@ contract TradeModule is BaseModule {
     uint startIndex
   ) internal view {
     console2.log("--- ADD ASSET TRANSFER ---");
-    int amtQuote = int(fillDetails.amountFilled) * fillDetails.price / 1e18;
+    int amtQuote = int(fillDetails.amountFilled) * fillDetails.price / 1e18; // todo for perp include in struct?
 
     transferBatch[startIndex] = ISubAccounts.AssetTransfer({
       asset: quoteAsset,
