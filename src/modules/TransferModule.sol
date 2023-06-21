@@ -43,8 +43,8 @@ contract TransferModule is BaseModule {
     // only the from order encode the detail of transfers
     TransferData memory data = abi.decode(orders[0].data, (TransferData));
 
+    // this is verified by the matching contract that cannot be zero
     uint fromAccountId = orders[0].accountId;
-    if (fromAccountId == 0) revert TM_InvalidFromAccount();
 
     uint toAccountId = data.toAccountId;
     if (toAccountId == 0) {

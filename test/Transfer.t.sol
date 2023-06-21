@@ -45,11 +45,8 @@ contract TransferModuleTest is MatchingBase {
     TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
     transfers[0] = TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
 
-    TransferModule.TransferData memory transferData = TransferModule.TransferData({
-      toAccountId: 0,
-      managerForNewAccount: address(pmrm),
-      transfers: transfers
-    });
+    TransferModule.TransferData memory transferData =
+      TransferModule.TransferData({toAccountId: 0, managerForNewAccount: address(pmrm), transfers: transfers});
 
     // sign order and submit
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
@@ -63,5 +60,52 @@ contract TransferModuleTest is MatchingBase {
     int newAccAfter = subAccounts.getBalance(newAccountId, cash, 0);
     // Assert balance change
     assertEq(newAccAfter, 1e18);
+  }
+
+  function testCannotCallModuleWith2Order() public {
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    orders[0] =
+      _createFullSignedOrder(camAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    orders[1] =
+      _createFullSignedOrder(dougAcc, 0, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
+
+    vm.expectRevert(TransferModule.TM_InvalidTransferOrderLength.selector);
+    _verifyAndMatch(orders, bytes(""));
+  }
+
+  function testCannotTransferBetweenSubAccountsWithDiffUser() public {
+    TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
+    transfers[0] = TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
+
+    // transfer to doug!!
+    TransferModule.TransferData memory transferData =
+      TransferModule.TransferData({toAccountId: dougAcc, managerForNewAccount: address(0), transfers: transfers});
+
+    // sign order and submit
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
+    orders[0] = _createFullSignedOrder(
+      camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
+    );
+
+    vm.expectRevert(TransferModule.TM_InvalidRecipientOwner.selector);
+    _verifyAndMatch(orders, bytes(""));
+  }
+
+  function testCannotTransferFrom0() public {
+    TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
+    transfers[0] = TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
+
+    // transfer to doug!!
+    TransferModule.TransferData memory transferData =
+      TransferModule.TransferData({toAccountId: dougAcc, managerForNewAccount: address(0), transfers: transfers});
+
+    // sign order and submit
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
+    orders[0] = _createFullSignedOrder(
+      camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
+    );
+
+    vm.expectRevert(TransferModule.TM_InvalidRecipientOwner.selector);
+    _verifyAndMatch(orders, bytes(""));
   }
 }

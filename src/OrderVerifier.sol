@@ -82,6 +82,8 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
   function _verifyOrder(SignedOrder memory order) internal view returns (IMatchingModule.VerifiedOrder memory) {
     // Repeated nonces are fine; their uniqueness will be handled by matchers (and any order limits etc for reused orders)
     if (block.timestamp > order.expiry) revert("Order expired");
+
+    // todo: make sure order.accountId cannot be 0
     _verifySignerPermission(order.signer, accountToOwner[order.accountId], order.owner);
     _verifySignature(order.signer, _getOrderHash(order), order.signature);
 
