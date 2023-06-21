@@ -97,11 +97,15 @@ contract WithdrawalModuleTest is MatchingBase {
   function testCannotWithdrawWithMoreThanOneOrders() public {
     // Create signed order for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(0, address(cash));
-    
+
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
-    orders[0] = _createFullSignedOrder(camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk);
-    orders[1] = _createFullSignedOrder(dougAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, doug, doug, dougPk);
+    orders[0] = _createFullSignedOrder(
+      camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk
+    );
+    orders[1] = _createFullSignedOrder(
+      dougAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, doug, doug, dougPk
+    );
 
     vm.expectRevert(WithdrawalModule.WM_InvalidWithdrawalOrderLength.selector);
     _verifyAndMatch(orders, bytes(""));
