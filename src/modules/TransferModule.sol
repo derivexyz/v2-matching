@@ -43,7 +43,7 @@ contract TransferModule is BaseModule {
     }
 
     uint toAccountId = data.toAccountId;
-    
+
     // todo: make sure Matching.accountToOwner(toAccountId) is the same
 
     if (toAccountId == 0) {
