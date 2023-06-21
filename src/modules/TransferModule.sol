@@ -13,7 +13,7 @@ import "./BaseModule.sol";
 // Only has to sign from one side (so has to call out to the
 contract TransferModule is BaseModule {
   struct TransferData {
-    uint toAccountId; // not used?
+    uint toAccountId;
     address managerForNewAccount;
     Transfers[] transfers;
   }
@@ -24,28 +24,29 @@ contract TransferModule is BaseModule {
     int amount;
   }
 
+  error TM_InvalidFromAccount();
+
+  error TM_InvalidTransferOrderLength();
+
+  error TM_InvalidRecipientOwner();
+
   constructor(Matching _matching) BaseModule(_matching) {}
 
-  /// @dev orders must be in order: [from, to]. From data field is ignored.
+  /// transfer asset between multiple subAccounts
   function matchOrders(VerifiedOrder[] memory orders, bytes memory)
     public
     onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
-    if (orders.length != 1) revert("Invalid transfer orders length");
+    if (orders.length != 1) revert TM_InvalidTransferOrderLength();
 
     // only the from order encode the detail of transfers
     TransferData memory data = abi.decode(orders[0].data, (TransferData));
 
     uint fromAccountId = orders[0].accountId;
-    if (fromAccountId == 0) {
-      revert("Transfer from account 0 not allowed");
-    }
+    if (fromAccountId == 0) revert TM_InvalidFromAccount();
 
     uint toAccountId = data.toAccountId;
-
-    // todo: make sure Matching.accountToOwner(toAccountId) is the same
-
     if (toAccountId == 0) {
       toAccountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
       newAccIds = new uint[](1);
@@ -54,7 +55,7 @@ contract TransferModule is BaseModule {
       newAccOwners[0] = orders[0].owner;
     } else {
       address owner = matching.accountToOwner(toAccountId);
-      if (owner != orders[0].owner) revert("Transfer must have same owner");
+      if (owner != orders[0].owner) revert TM_InvalidRecipientOwner();
     }
 
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](data.transfers.length);

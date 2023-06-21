@@ -12,15 +12,15 @@ import {TransferModule} from "src/modules/TransferModule.sol";
 
 contract TransferModuleTest is MatchingBase {
   function testTransferSingleAsset() public {
+    // create a new account
     uint newAccountId = subAccounts.createAccount(cam, IManager(address(pmrm)));
     vm.startPrank(cam);
     subAccounts.setApprovalForAll(address(matching), true);
     matching.depositSubAccount(newAccountId);
     vm.stopPrank();
 
-    TransferModule.Transfers memory transfer = TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
     TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
-    transfers[0] = transfer;
+    transfers[0] = TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
 
     TransferModule.TransferData memory transferData = TransferModule.TransferData({
       toAccountId: newAccountId,
@@ -36,6 +36,30 @@ contract TransferModuleTest is MatchingBase {
 
     _verifyAndMatch(orders, bytes(""));
 
+    int newAccAfter = subAccounts.getBalance(newAccountId, cash, 0);
+    // Assert balance change
+    assertEq(newAccAfter, 1e18);
+  }
+
+  function testTransferToNewAccount() public {
+    TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
+    transfers[0] = TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
+
+    TransferModule.TransferData memory transferData = TransferModule.TransferData({
+      toAccountId: 0,
+      managerForNewAccount: address(pmrm),
+      transfers: transfers
+    });
+
+    // sign order and submit
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
+    orders[0] = _createFullSignedOrder(
+      camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
+    );
+
+    _verifyAndMatch(orders, bytes(""));
+
+    uint newAccountId = subAccounts.lastAccountId();
     int newAccAfter = subAccounts.getBalance(newAccountId, cash, 0);
     // Assert balance change
     assertEq(newAccAfter, 1e18);
