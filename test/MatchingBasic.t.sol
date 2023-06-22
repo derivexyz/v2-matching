@@ -12,7 +12,6 @@ contract MatchingBasicTest is MatchingBase {
   uint public newKey = 909886112;
   address public newSigner = vm.addr(newKey);
 
-  
   function testGetDomainSeparator() public {
     matching.domainSeparator();
   }
