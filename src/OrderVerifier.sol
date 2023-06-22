@@ -26,12 +26,21 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
   }
 
   bytes32 public constant ORDER_TYPEHASH = keccak256("SignedOrder(uint256,uint256,address,bytes,uint256,address)");
+
   uint public constant DERIGISTER_KEY_COOLDOWN = 10 minutes;
 
   ///@dev Mapping of signer address -> owner address -> expiry
-  mapping(address => mapping(address => uint)) public sessionKeys; // Allows other addresses to trade on behalf of others
+  mapping(address signer => mapping(address owner => uint)) public sessionKeys; // Allows other addresses to trade on behalf of others
 
-  error M_SessionKeyInvalid(address sessionKey);
+  error M_SessionKeyInvalid();
+
+  error M_OrderExpired();
+
+  error M_InvalidSignature();
+
+  error M_InvalidOrderOwner();
+
+  error M_SignerNotOwnerOrSessionKeyExpired();
 
   constructor(ISubAccounts _accounts) SubAccountsManager(_accounts) EIP712("Matching", "1.0") {}
 
@@ -56,24 +65,23 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
    */
   function requestDeregisterSessionKey(address sessionKey) external {
     // Ensure the session key has not expired
-    if (sessionKeys[sessionKey][msg.sender] < block.timestamp) revert M_SessionKeyInvalid(sessionKey);
+    if (sessionKeys[sessionKey][msg.sender] < block.timestamp) revert M_SessionKeyInvalid();
 
     sessionKeys[sessionKey][msg.sender] = block.timestamp + DERIGISTER_KEY_COOLDOWN;
     emit SessionKeyCooldown(msg.sender, sessionKey);
   }
 
+  /**
+   * @notice verify that the signer is the owner or has been permitted to trade on behalf of the owner
+   * @param signer The address that signed the order
+   * @param accIdOwner the original owner of the subaccount stored by matching contract
+   * @param owner specified owner in the order
+   */
   function _verifySignerPermission(address signer, address accIdOwner, address owner) internal view {
-    if (accIdOwner != address(0)) {
-      if (accIdOwner != owner) {
-        revert("AccountId owner and owner address do not match");
-      }
-      if (signer != accIdOwner && sessionKeys[signer][accIdOwner] < block.timestamp) {
-        revert("signer not permitted, or session key expired for account ID owner");
-      }
-    } else {
-      if (signer != owner && sessionKeys[signer][owner] < block.timestamp) {
-        revert("signer not permitted, or session key expired for owner");
-      }
+    if (accIdOwner != address(0) && accIdOwner != owner) revert M_InvalidOrderOwner();
+
+    if (signer != owner && sessionKeys[signer][owner] < block.timestamp) {
+      revert M_SignerNotOwnerOrSessionKeyExpired();
     }
   }
 
@@ -83,10 +91,12 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
 
   function _verifyOrder(SignedOrder memory order) internal view returns (IMatchingModule.VerifiedOrder memory) {
     // Repeated nonces are fine; their uniqueness will be handled by matchers (and any order limits etc for reused orders)
-    if (block.timestamp > order.expiry) revert("Order expired");
+    if (block.timestamp > order.expiry) revert M_OrderExpired();
 
     // todo: make sure order.accountId cannot be 0
+
     _verifySignerPermission(order.signer, accountToOwner[order.accountId], order.owner);
+
     _verifySignature(order.signer, _getOrderHash(order), order.signature);
 
     return IMatchingModule.VerifiedOrder({
@@ -100,7 +110,7 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
 
   function _verifySignature(address signer, bytes32 structuredHash, bytes memory signature) internal view {
     if (!SignatureChecker.isValidSignatureNow(signer, _hashTypedDataV4(structuredHash), signature)) {
-      revert("Invalid Signature");
+      revert M_InvalidSignature();
     }
   }
 

@@ -101,7 +101,6 @@ contract SubAccountsManager is Ownable2Step {
   // Errors //
   ////////////
   error M_NotOwnerAddress();
-  
-  error M_CooldownNotElapsed(uint secondsLeft);
 
+  error M_CooldownNotElapsed(uint secondsLeft);
 }

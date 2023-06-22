@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.18;
 
@@ -7,7 +6,6 @@ import {OrderVerifier} from "src/OrderVerifier.sol";
 import {SubAccountsManager} from "src/SubAccountsManager.sol";
 
 contract SubAccountManagementTest is MatchingBase {
-
   function testCanDepositAccount() public {
     uint newAcc = subAccounts.createAccount(cam, pmrm);
 

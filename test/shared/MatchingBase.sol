@@ -143,6 +143,17 @@ contract MatchingBase is PMRMTestBase {
     order = _createSignedOrder(order, pk);
   }
 
+  function _createNewAccount(address owner) internal returns (uint) {
+    // create a new account
+    uint newAccountId = subAccounts.createAccount(owner, IManager(address(pmrm)));
+    vm.startPrank(owner);
+    subAccounts.setApprovalForAll(address(matching), true);
+    matching.depositSubAccount(newAccountId);
+    vm.stopPrank();
+
+    return newAccountId;
+  }
+
   function _getOrderHash(OrderVerifier.SignedOrder memory order) internal view returns (bytes32) {
     return matching.getOrderHash(order);
   }

@@ -11,16 +11,6 @@ import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata
 import {TransferModule} from "src/modules/TransferModule.sol";
 
 contract TransferModuleTest is MatchingBase {
-  function _createNewAccount(address owner) internal returns (uint) {
-    // create a new account
-    uint newAccountId = subAccounts.createAccount(owner, IManager(address(pmrm)));
-    vm.startPrank(owner);
-    subAccounts.setApprovalForAll(address(matching), true);
-    matching.depositSubAccount(newAccountId);
-    vm.stopPrank();
-
-    return newAccountId;
-  }
 
   function testTransferSingleAsset() public {
     // create a new account

@@ -70,7 +70,7 @@ contract DepositModuleTest is MatchingBase {
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
     orders[0] = order;
 
-    vm.expectRevert("signer not permitted, or session key expired for account ID owner");
+    vm.expectRevert(OrderVerifier.M_SignerNotOwnerOrSessionKeyExpired.selector);
     _verifyAndMatch(orders, bytes(""));
   }
 
@@ -129,7 +129,7 @@ contract DepositModuleTest is MatchingBase {
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
     orders[0] = order;
     vm.warp(block.timestamp + 1 days + 1);
-    vm.expectRevert("signer not permitted, or session key expired for account ID owner");
+    vm.expectRevert(OrderVerifier.M_SignerNotOwnerOrSessionKeyExpired.selector);
     _verifyAndMatch(orders, bytes(""));
   }
 

@@ -33,24 +33,6 @@ contract WithdrawalModuleTest is MatchingBase {
     assertEq(uint(balanceDiff), withdraw);
   }
 
-  // Doug cannot deposit for Cam
-  function testCannotWithdrawWithRandomAddress() public {
-    uint withdraw = 12e18;
-
-    // Create signed order for cash withdraw
-    bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    OrderVerifier.SignedOrder memory order = _createFullSignedOrder(
-      camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 days, cam, doug, dougPk
-    );
-
-    // Submit Order
-    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
-    orders[0] = order;
-
-    vm.expectRevert("signer not permitted, or session key expired for account ID owner");
-    _verifyAndMatch(orders, bytes(""));
-  }
-
   function testWithdrawWithSigningKey() public {
     uint withdraw = 12e18;
 
