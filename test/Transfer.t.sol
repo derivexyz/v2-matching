@@ -11,7 +11,6 @@ import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata
 import {TransferModule} from "src/modules/TransferModule.sol";
 
 contract TransferModuleTest is MatchingBase {
-
   function _createNewAccount(address owner) internal returns (uint) {
     // create a new account
     uint newAccountId = subAccounts.createAccount(owner, IManager(address(pmrm)));
@@ -102,15 +101,14 @@ contract TransferModuleTest is MatchingBase {
 
     TransferModule.TransferData memory transferData =
       TransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
-    
+
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
     orders[0] = _createFullSignedOrder(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
     // second order to move the new account to module
-    orders[1] = _createFullSignedOrder(
-      camNewAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk
-    );
+    orders[1] =
+      _createFullSignedOrder(camNewAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
 
     // cannot go through because transfer module doesn't have enough allownace
     _verifyAndMatch(orders, bytes(""));
@@ -128,15 +126,14 @@ contract TransferModuleTest is MatchingBase {
 
     TransferModule.TransferData memory transferData =
       TransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
-    
+
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
     orders[0] = _createFullSignedOrder(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
     // second order is random (signed by another person)
-    orders[1] = _createFullSignedOrder(
-      dougAcc, 0, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk
-    );
+    orders[1] =
+      _createFullSignedOrder(dougAcc, 0, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
 
     vm.expectRevert(TransferModule.TM_InvalidSecondOrder.selector);
     _verifyAndMatch(orders, bytes(""));
@@ -148,8 +145,7 @@ contract TransferModuleTest is MatchingBase {
       _createFullSignedOrder(camAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
     orders[1] =
       _createFullSignedOrder(dougAcc, 0, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
-    orders[2] =
-      _createFullSignedOrder(0, 0, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
+    orders[2] = _createFullSignedOrder(0, 0, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
 
     vm.expectRevert(TransferModule.TM_InvalidTransferOrderLength.selector);
     _verifyAndMatch(orders, bytes(""));

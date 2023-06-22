@@ -9,6 +9,7 @@ import {DepositModule} from "src/modules/DepositModule.sol";
 import {WithdrawalModule} from "src/modules/WithdrawalModule.sol";
 import {TransferModule} from "src/modules/TransferModule.sol";
 import {TradeModule} from "src/modules/TradeModule.sol";
+import {RiskManagerChangeModule} from "src/modules/RiskManagerChangeModule.sol";
 import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
 import {OrderVerifier} from "src/OrderVerifier.sol";
 
@@ -18,11 +19,12 @@ import {OrderVerifier} from "src/OrderVerifier.sol";
 contract MatchingBase is PMRMTestBase {
   // SubAccounts subAccounts;
 
-  Matching matching;
-  DepositModule depositModule;
-  WithdrawalModule withdrawalModule;
-  TransferModule transferModule;
-  TradeModule tradeModule;
+  Matching public matching;
+  DepositModule public depositModule;
+  WithdrawalModule public withdrawalModule;
+  TransferModule public transferModule;
+  TradeModule public tradeModule;
+  RiskManagerChangeModule public changeModule;
 
   // signer
   uint internal camAcc;
@@ -58,6 +60,7 @@ contract MatchingBase is PMRMTestBase {
     withdrawalModule = new WithdrawalModule(matching);
     transferModule = new TransferModule(matching);
     tradeModule = new TradeModule(IAsset(address(cash)), alice, aliceAcc, matching);
+    changeModule = new RiskManagerChangeModule(matching);
 
     // console2.log("MATCHIN ADDY:", address(matching));
     // console2.log("DEPOSIT ADDY:", address(depositModule));
