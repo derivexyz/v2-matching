@@ -53,11 +53,15 @@ contract TradeModule is BaseModule {
     int price;
     // total fee for filler
     uint fee;
+    uint perpDelta;
   }
 
   // @dev we fix the quoteAsset for the contracts so we can support eth/usdc etc as quoteAsset, but only one per
   //  deployment
   IAsset public immutable quoteAsset;
+
+  IAsset public perpAsset;
+
   address feeSetter; // permissioned address for setting fee recipient
   uint feeRecipient;
 
@@ -66,14 +70,19 @@ contract TradeModule is BaseModule {
   /// @dev in the case of recipient being 0, create new recipient and store the id here
   mapping(address owner => mapping(uint nonce => uint recipientId)) public recipientId;
 
-  constructor(IAsset _quoteAsset, address _feeSetter, uint _feeRecipient, Matching _matching) BaseModule(_matching) {
+  constructor(IAsset _quoteAsset, IAsset _perpAsset, address _feeSetter, uint _feeRecipient, Matching _matching) BaseModule(_matching) {
     quoteAsset = _quoteAsset;
+    perpAsset = _perpAsset;
     feeSetter = _feeSetter;
     feeRecipient = _feeRecipient;
   }
 
-  function setFeeRecipient(uint newFeeRecipient) external onlyFeeSetter {
-    feeRecipient = newFeeRecipient;
+  function setFeeRecipient(uint _feeRecipient) external onlyFeeSetter {
+    feeRecipient = _feeRecipient;
+  }
+  
+  function setPerpAsset(IAsset _perpAsset) external onlyFeeSetter {
+    perpAsset = _perpAsset;
   }
 
   /// @dev Assumes VerifiedOrders are sorted in the order: [matchedAccount, ...filledAccounts]
@@ -103,12 +112,18 @@ contract TradeModule is BaseModule {
     console2.log("orders length", orders.length);
     for (uint i = 1; i < orders.length; i++) {
       FillDetails memory fillDetails = matchData.fillDetails[i - 1];
+
       OptionLimitOrder memory filledOrder = OptionLimitOrder({
         accountId: orders[i].accountId,
         owner: orders[i].owner,
         nonce: orders[i].nonce,
-        data: abi.decode(orders[i].data, (TradeData))
+        data: abi.decode(orders[i].data, (TradeData)),
+        perpDelta: 0
       });
+      
+      if (_isPerpTrade(filledOrder.data.asset)) {
+        filledOrder.perpDelta = _calculatePerpDelta(fillDetails.price, fillDetails.amountFilled);
+      }
 
       if (filledOrder.data.recipientId == 0) revert("Recipient Id canont be zero");
       if (filledOrder.accountId != fillDetails.filledAccount) revert("filled account does not match");
@@ -154,9 +169,6 @@ contract TradeModule is BaseModule {
 
   function _fillLimitOrder(OptionLimitOrder memory order, FillDetails memory fill, bool isBidder) internal {
     int finalPrice = fill.price + int(fill.fee * fill.amountFilled / SignedMath.abs(order.data.desiredAmount));
-    console2.log("finalprice", finalPrice);
-    console2.log("worstprice", order.data.worstPrice);
-    console2.log("isBidder:", isBidder);
     if (isBidder) {
       if (finalPrice > order.data.worstPrice) revert("price too high");
     } else {
@@ -175,7 +187,13 @@ contract TradeModule is BaseModule {
     uint startIndex
   ) internal view {
     console2.log("--- ADD ASSET TRANSFER ---");
-    int amtQuote = int(fillDetails.amountFilled) * fillDetails.price / 1e18; // todo for perp include in struct?
+    console2.log("isBidder", isBidder);
+    console2.log("matchedOrder.accountId", matchedOrder.accountId);
+    console2.log("matchedOrder.recipient", matchedOrder.data.recipientId);
+    console2.log("filledOrder.accountId ", filledOrder.accountId);
+    console2.log("filledOrder.recipient ", filledOrder.data.recipientId);
+    console2.log("amount filled", isBidder ? int(fillDetails.amountFilled) : -int(fillDetails.amountFilled));
+    int amtQuote = (int(fillDetails.amountFilled) * fillDetails.price / 1e18) + int(fillDetails.perpDelta); 
 
     transferBatch[startIndex] = ISubAccounts.AssetTransfer({
       asset: quoteAsset,
@@ -191,8 +209,8 @@ contract TradeModule is BaseModule {
       asset: IAsset(matchedOrder.data.asset),
       subId: matchedOrder.data.subId,
       amount: isBidder ? int(fillDetails.amountFilled) : -int(fillDetails.amountFilled),
-      fromAcc: isBidder ? matchedOrder.data.recipientId : matchedOrder.accountId,
-      toAcc: isBidder ? filledOrder.accountId : filledOrder.data.recipientId,
+      fromAcc: isBidder ? filledOrder.accountId : filledOrder.data.recipientId,
+      toAcc: isBidder ? matchedOrder.data.recipientId : matchedOrder.accountId,
       assetData: bytes32(0)
     });
 
@@ -204,6 +222,17 @@ contract TradeModule is BaseModule {
       toAcc: feeRecipient,
       assetData: bytes32(0)
     });
+  }
+
+  // Difference between the perp Asset index price and the market price
+  function _calculatePerpDelta(uint marketPrice, uint positionSize) internal pure returns (int delta) {
+    int index = perpAsset.getIndexPriceSpot();
+    delta = (marketPrice.toInt256() - index).multiplyDecimal(positionSize.toInt256());
+  }
+
+  function _isPerpTrade(address baseAsset) internal view returns (bool) {
+    if (baseAsset == address(perpAsset)) return true;
+    return false;
   }
 
   ///////////////

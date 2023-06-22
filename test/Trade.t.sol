@@ -61,7 +61,7 @@ contract TradeModuleTest is MatchingBase {
 
     // Assert balance change
     assertEq(uint(camCashDiff), 1e18);
-    // assertEq(uint(dougOptionDiff), -1e18); // todo call should be +?
+    assertEq(uint(dougOptionDiff), 1e18);
   }
 
   function testCannotTradeHighPrice() public {
@@ -95,7 +95,6 @@ contract TradeModuleTest is MatchingBase {
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
     int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
-    console2.log("dougBefore", dougBalBefore);
 
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
@@ -138,7 +137,6 @@ contract TradeModuleTest is MatchingBase {
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
     int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
-    console2.log("dougBefore", dougBalBefore);
 
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
@@ -148,6 +146,59 @@ contract TradeModuleTest is MatchingBase {
     // doug price 1/10, cam price 1
     vm.expectRevert("price too low");
     _verifyAndMatch(orders, encodedMatch);
+  }
+
+  function testPerpTrade() public {
+    mockPerp.setMockPerpPrice(2500e18, 1);
+
+    uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
+
+    TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
+      asset: address(mockPerp),
+      subId: callId,
+      worstPrice: 1e18,
+      desiredAmount: 1e18,
+      recipientId: dougAcc
+    });
+    bytes memory dougTrade = abi.encode(dougTradeData);
+
+    TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
+      asset: address(mockPerp),
+      subId: callId,
+      worstPrice: 1e18,
+      desiredAmount: 1e18,
+      recipientId: camAcc
+    });
+    bytes memory camTrade = abi.encode(camTradeData);
+
+    OrderVerifier.SignedOrder memory trade1 =
+      _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
+    OrderVerifier.SignedOrder memory trade2 =
+      _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
+
+    // Match data submitted by the orderbook
+    bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, 1e18, 1e18, 0);
+
+    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
+    int dougBalBefore = subAccounts.getBalance(dougAcc, mockPerp, callId);
+    console2.log("dougBefore", dougBalBefore);
+    // Submit Order
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    orders[0] = trade1;
+    orders[1] = trade2;
+    _verifyAndMatch(orders, encodedMatch);
+
+    int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
+    int dougBalAfter = subAccounts.getBalance(dougAcc, mockPerp, callId);
+    int camCashDiff = camBalAfter - camBalBefore;
+    int dougOptionDiff = dougBalAfter - dougBalBefore;
+    console2.log("dougAfter", dougBalAfter);
+    console2.log("Balance diff", camCashDiff);
+    console2.log("Balance diff", dougOptionDiff);
+
+    // Assert balance change
+    assertEq(uint(camCashDiff), 1e18);
+    // assertEq(uint(dougOptionDiff), -1e18); // todo call should be +?
   }
 
   function _createMatchData(
