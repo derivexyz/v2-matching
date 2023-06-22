@@ -50,6 +50,15 @@ contract MatchingSignatureTest is MatchingBase {
     _verifyAndMatch(orders, "");
   }
 
+  function testCanUseInvalidKey() public {
+    uint camNewAcc = _createNewAccount(cam);
+    // pretend to be cam
+    OrderVerifier.SignedOrder[] memory orders = _getTransferOrder(camAcc, camNewAcc, cam, cam, newKey);
+
+    vm.expectRevert(OrderVerifier.M_InvalidSignature.selector);
+    _verifyAndMatch(orders, "");
+  }
+
   function testDeregisterSessionKey() public {
     vm.startPrank(cam);
 
