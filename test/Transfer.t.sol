@@ -11,13 +11,21 @@ import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata
 import {TransferModule} from "src/modules/TransferModule.sol";
 
 contract TransferModuleTest is MatchingBase {
-  function testTransferSingleAsset() public {
+
+  function _createNewAccount(address owner) internal returns (uint) {
     // create a new account
-    uint newAccountId = subAccounts.createAccount(cam, IManager(address(pmrm)));
-    vm.startPrank(cam);
+    uint newAccountId = subAccounts.createAccount(owner, IManager(address(pmrm)));
+    vm.startPrank(owner);
     subAccounts.setApprovalForAll(address(matching), true);
     matching.depositSubAccount(newAccountId);
     vm.stopPrank();
+
+    return newAccountId;
+  }
+
+  function testTransferSingleAsset() public {
+    // create a new account
+    uint newAccountId = _createNewAccount(cam);
 
     TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
     transfers[0] = TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
@@ -62,12 +70,86 @@ contract TransferModuleTest is MatchingBase {
     assertEq(newAccAfter, 1e18);
   }
 
-  function testCannotCallModuleWith2Order() public {
+  function testCannotTransferDebtWithoutAttachingSecondOwner() public {
+    // create a new account to receipt debt
+    uint camNewAcc = _createNewAccount(cam);
+    _depositCash(camNewAcc, cashDeposit);
+
+    TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
+    transfers[0] = TransferModule.Transfers({asset: address(cash), subId: 0, amount: -1e18});
+
+    TransferModule.TransferData memory transferData =
+      TransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
+
+    // sign order and submit
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
+    orders[0] = _createFullSignedOrder(
+      camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
+    );
+
+    // cannot go through because transfer module doesn't have enough allownace
+    vm.expectRevert();
+    _verifyAndMatch(orders, bytes(""));
+  }
+
+  function testCanTransferDebtWithSecondOrder() public {
+    // create a new account to receipt debt
+    uint camNewAcc = _createNewAccount(cam);
+    _depositCash(camNewAcc, cashDeposit);
+
+    TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
+    transfers[0] = TransferModule.Transfers({asset: address(cash), subId: 0, amount: -1e18});
+
+    TransferModule.TransferData memory transferData =
+      TransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
+    
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    orders[0] = _createFullSignedOrder(
+      camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
+    );
+    // second order to move the new account to module
+    orders[1] = _createFullSignedOrder(
+      camNewAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk
+    );
+
+    // cannot go through because transfer module doesn't have enough allownace
+    _verifyAndMatch(orders, bytes(""));
+
+    // debt transferred to camNewAcc
+    assertEq(subAccounts.getBalance(camNewAcc, cash, 0), int(cashDeposit) - 1e18);
+    assertEq(subAccounts.getBalance(camAcc, cash, 0), int(cashDeposit) + 1e18);
+  }
+
+  function testCannotAttachInvalidSecondOrder() public {
+    uint camNewAcc = _createNewAccount(cam);
+
+    TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
+    transfers[0] = TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
+
+    TransferModule.TransferData memory transferData =
+      TransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
+    
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    orders[0] = _createFullSignedOrder(
+      camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
+    );
+    // second order is random (signed by another person)
+    orders[1] = _createFullSignedOrder(
+      dougAcc, 0, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk
+    );
+
+    vm.expectRevert(TransferModule.TM_InvalidSecondOrder.selector);
+    _verifyAndMatch(orders, bytes(""));
+  }
+
+  function testCannotCallModuleWithThreeOrders() public {
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](3);
     orders[0] =
       _createFullSignedOrder(camAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
     orders[1] =
       _createFullSignedOrder(dougAcc, 0, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
+    orders[2] =
+      _createFullSignedOrder(0, 0, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
 
     vm.expectRevert(TransferModule.TM_InvalidTransferOrderLength.selector);
     _verifyAndMatch(orders, bytes(""));

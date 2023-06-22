@@ -30,15 +30,22 @@ contract TransferModule is BaseModule {
 
   error TM_InvalidRecipientOwner();
 
+  error TM_InvalidSecondOrder();
+
   constructor(Matching _matching) BaseModule(_matching) {}
 
-  /// transfer asset between multiple subAccounts
+  /**
+   * @notice transfer asset between multiple subAccounts
+   * @dev in normal cases, orders array should be length of 1
+   *      the second order is only attached when transferring debt
+   *      so the recipient account will be moved to this module
+   */
   function matchOrders(VerifiedOrder[] memory orders, bytes memory)
     public
     onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
-    if (orders.length != 1) revert TM_InvalidTransferOrderLength();
+    if (orders.length > 2) revert TM_InvalidTransferOrderLength();
 
     // only the from order encode the detail of transfers
     TransferData memory data = abi.decode(orders[0].data, (TransferData));
@@ -47,6 +54,9 @@ contract TransferModule is BaseModule {
     uint fromAccountId = orders[0].accountId;
 
     uint toAccountId = data.toAccountId;
+    // if there is a second order, it should be signed by the recipient account to move to this module
+    if (orders.length == 2 && orders[1].accountId != toAccountId) revert TM_InvalidSecondOrder();
+
     if (toAccountId == 0) {
       toAccountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
       newAccIds = new uint[](1);
@@ -54,6 +64,7 @@ contract TransferModule is BaseModule {
       newAccOwners = new address[](1);
       newAccOwners[0] = orders[0].owner;
     } else {
+      // make sure the recipient account has the same owner
       address owner = matching.accountToOwner(toAccountId);
       if (owner != orders[0].owner) revert TM_InvalidRecipientOwner();
     }
