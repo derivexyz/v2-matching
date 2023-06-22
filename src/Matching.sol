@@ -102,4 +102,6 @@ contract Matching is OrderVerifier {
   ////////////
 
   event TradeExecutorSet(address executor, bool canExecute);
+
+  error M_ArrayLengthMismatch(uint length1, uint length2);
 }

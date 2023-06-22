@@ -31,6 +31,8 @@ contract OrderVerifier is SubAccountsManager, EIP712 {
   ///@dev Mapping of signer address -> owner address -> expiry
   mapping(address => mapping(address => uint)) public sessionKeys; // Allows other addresses to trade on behalf of others
 
+  error M_SessionKeyInvalid(address sessionKey);
+
   constructor(ISubAccounts _accounts) SubAccountsManager(_accounts) EIP712("Matching", "1.0") {}
 
   ////////////////////
