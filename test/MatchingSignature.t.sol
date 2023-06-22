@@ -10,7 +10,6 @@ import {TransferModule} from "src/modules/TransferModule.sol";
  * @notice tests around signature verification
  */
 contract MatchingSignatureTest is MatchingBase {
-
   uint public newKey = 909886112;
   address public newSigner = vm.addr(newKey);
 
@@ -55,7 +54,7 @@ contract MatchingSignatureTest is MatchingBase {
     vm.startPrank(cam);
 
     matching.registerSessionKey(newSigner, block.timestamp + 1 days);
-    
+
     matching.requestDeregisterSessionKey(newSigner);
 
     vm.warp(block.timestamp + 12 minutes);
@@ -73,15 +72,15 @@ contract MatchingSignatureTest is MatchingBase {
     matching.requestDeregisterSessionKey(newSigner);
   }
 
-  function _getTransferOrder(uint from, uint to, address specifiedOwner, address signer, uint pk) internal returns (OrderVerifier.SignedOrder[] memory) {
+  function _getTransferOrder(uint from, uint to, address specifiedOwner, address signer, uint pk)
+    internal
+    returns (OrderVerifier.SignedOrder[] memory)
+  {
     TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
     transfers[0] = TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
 
-    TransferModule.TransferData memory transferData = TransferModule.TransferData({
-      toAccountId: to,
-      managerForNewAccount: address(0),
-      transfers: transfers
-    });
+    TransferModule.TransferData memory transferData =
+      TransferModule.TransferData({toAccountId: to, managerForNewAccount: address(0), transfers: transfers});
 
     // sign order and submit
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);

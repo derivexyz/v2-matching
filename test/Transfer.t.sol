@@ -11,7 +11,6 @@ import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata
 import {TransferModule} from "src/modules/TransferModule.sol";
 
 contract TransferModuleTest is MatchingBase {
-
   function testTransferSingleAsset() public {
     // create a new account
     uint newAccountId = _createNewAccount(cam);
