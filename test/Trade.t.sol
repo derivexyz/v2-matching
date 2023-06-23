@@ -64,6 +64,127 @@ contract TradeModuleTest is MatchingBase {
     assertEq(uint(dougOptionDiff), 1e18);
   }
 
+  // function testOneToManyTrade() public {
+  //   uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
+
+  //   // Doug wants to buy call from cam
+  //   TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
+  //     asset: address(option),
+  //     subId: callId,
+  //     worstPrice: 1e18,
+  //     desiredAmount: 10e18,
+  //     recipientId: dougAcc
+  //   });
+  //   bytes memory dougTrade = abi.encode(dougTradeData);
+
+  //   TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
+  //     asset: address(option),
+  //     subId: callId,
+  //     worstPrice: 1e18,
+  //     desiredAmount: 1e18,
+  //     recipientId: camAcc
+  //   });
+  //   bytes memory camTrade = abi.encode(camTradeData);
+
+  //   TradeModule.TradeData memory camTradeData2 = TradeModule.TradeData({
+  //     asset: address(option),
+  //     subId: callId,
+  //     worstPrice: 1e18,
+  //     desiredAmount: 1e18,
+  //     recipientId: camAcc
+  //   });
+  //   bytes memory camTrade2 = abi.encode(camTradeData)2;
+
+  //   OrderVerifier.SignedOrder memory trade1 =
+  //     _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
+  //   OrderVerifier.SignedOrder memory trade2 =
+  //     _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
+  //   OrderVerifier.SignedOrder memory trade3 =
+  //     _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
+
+  //   // Match data submitted by the orderbook
+  //   bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, 1e18, 1e18, 0); //todo match data for many fills
+
+  //   int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
+  //   int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
+  //   console2.log("dougBefore", dougBalBefore);
+  //   // Submit Order
+  //   OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+  //   orders[0] = trade1;
+  //   orders[1] = trade2;
+  //   _verifyAndMatch(orders, encodedMatch);
+
+  //   int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
+  //   int dougBalAfter = subAccounts.getBalance(dougAcc, option, callId);
+  //   int camCashDiff = camBalAfter - camBalBefore;
+  //   int dougOptionDiff = dougBalAfter - dougBalBefore;
+  //   console2.log("dougAfter", dougBalAfter);
+  //   console2.log("Balance diff", camCashDiff);
+  //   console2.log("Balance diff", dougOptionDiff);
+
+  //   // Assert balance change
+  //   assertEq(uint(camCashDiff), 1e18);
+  //   assertEq(uint(dougOptionDiff), 1e18);
+  // }
+
+  function testFillAmount() public {
+    uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
+    uint singleFill = 1e18;
+
+    // Doug wants to buy call from cam
+    TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
+      asset: address(option),
+      subId: callId,
+      worstPrice: 1e18,
+      desiredAmount: 10e18,
+      recipientId: dougAcc
+    });
+    bytes memory dougTrade = abi.encode(dougTradeData);
+
+    TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
+      asset: address(option),
+      subId: callId,
+      worstPrice: 1e18,
+      desiredAmount: 10e18,
+      recipientId: camAcc
+    });
+    bytes memory camTrade = abi.encode(camTradeData);
+
+    OrderVerifier.SignedOrder memory trade1 =
+      _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
+    OrderVerifier.SignedOrder memory trade2 =
+      _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
+
+    // Match data submitted by the orderbook
+    bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, singleFill, 1e18, 0);
+
+    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
+    int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
+    console2.log("dougBefore", dougBalBefore);
+    // Submit Order
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    orders[0] = trade1;
+    orders[1] = trade2;
+    _verifyAndMatch(orders, encodedMatch);
+
+    int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
+    int dougBalAfter = subAccounts.getBalance(dougAcc, option, callId);
+    int camCashDiff = camBalAfter - camBalBefore;
+    int dougOptionDiff = dougBalAfter - dougBalBefore;
+    console2.log("dougAfter", dougBalAfter);
+    console2.log("Balance diff", camCashDiff);
+    console2.log("Balance diff", dougOptionDiff);
+
+    // Assert balance change
+    assertEq(uint(camCashDiff), 1e18);
+    assertEq(uint(dougOptionDiff), singleFill);
+
+    assertEq(tradeModule.filled(doug, 0), singleFill);
+
+    _verifyAndMatch(orders, encodedMatch);
+    assertEq(tradeModule.filled(doug, 0), singleFill * 2);
+  }
+
   function testCannotTradeHighPrice() public {
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
 
@@ -189,15 +310,15 @@ contract TradeModuleTest is MatchingBase {
     int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
     int dougBalAfter = subAccounts.getBalance(dougAcc, mockPerp, 0);
     int camCashDiff = camBalAfter - camBalBefore;
-    int dougOptionDiff = dougBalAfter - dougBalBefore;
+    int dougPerpDiff = dougBalAfter - dougBalBefore;
     console2.log("dougAfter", dougBalAfter);
-    console2.log("cam After", subAccounts.getBalance(camAcc, cash, 0));
+    console2.log("cam After", subAccounts.getBalance(camAcc, mockPerp, 0));
     console2.log("Balance diff", camCashDiff);
-    console2.log("Balance diff", dougOptionDiff);
+    console2.log("Balance diff", dougPerpDiff);
 
     // Assert balance change
-    // assertEq(uint(camCashDiff), 1e18);
-    // assertEq(uint(dougOptionDiff), -1e18); // todo call should be +?
+    assertEq(uint(camCashDiff), 2e18); // 1 for perp + 1 for delta 
+    assertEq(uint(dougPerpDiff), 1e18); 
   }
 
   function _createMatchData(

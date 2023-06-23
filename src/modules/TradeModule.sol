@@ -237,6 +237,9 @@ contract TradeModule is BaseModule {
   // Difference between the perp Asset index price and the market price
   function _calculatePerpDelta(uint marketPrice, uint positionSize) internal view returns (int delta) {
     (uint index,) = perpAsset.getIndexPrice();
+    console2.log("Market price", marketPrice);
+    console2.log("Index  price", index);
+    console2.log("Positionsize", positionSize);
     delta = (marketPrice.toInt256() - index.toInt256()).multiplyDecimal(positionSize.toInt256());
     console2.log("Delta:", delta);
   }
