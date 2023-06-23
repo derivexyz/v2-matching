@@ -23,11 +23,13 @@ contract DepositModule is BaseModule {
 
   constructor(Matching _matching) BaseModule(_matching) {}
 
+  error DM_InvalidDepositOrderLength();
+
   function matchOrders(VerifiedOrder[] memory orders, bytes memory)
     public
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
-    if (orders.length != 1) revert("Invalid deposit orders length");
+    if (orders.length != 1) revert DM_InvalidDepositOrderLength();
 
     _checkAndInvalidateNonce(orders[0].owner, orders[0].nonce);
 
@@ -35,7 +37,6 @@ contract DepositModule is BaseModule {
     uint accountId = orders[0].accountId;
     if (accountId == 0) {
       accountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
-      console2.log("accountId", accountId);
 
       // Return new accountId with owner
       newAccIds = new uint[](1);

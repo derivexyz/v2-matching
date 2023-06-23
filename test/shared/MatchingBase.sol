@@ -9,6 +9,8 @@ import {DepositModule} from "src/modules/DepositModule.sol";
 import {WithdrawalModule} from "src/modules/WithdrawalModule.sol";
 import {TransferModule} from "src/modules/TransferModule.sol";
 import {TradeModule} from "src/modules/TradeModule.sol";
+import {RiskManagerChangeModule} from "src/modules/RiskManagerChangeModule.sol";
+import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
 import {OrderVerifier} from "src/OrderVerifier.sol";
 import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
@@ -19,11 +21,12 @@ import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 contract MatchingBase is PMRMTestBase {
   // SubAccounts subAccounts;
 
-  Matching matching;
-  DepositModule depositModule;
-  WithdrawalModule withdrawalModule;
-  TransferModule transferModule;
-  TradeModule tradeModule;
+  Matching public matching;
+  DepositModule public depositModule;
+  WithdrawalModule public withdrawalModule;
+  TransferModule public transferModule;
+  TradeModule public tradeModule;
+  RiskManagerChangeModule public changeModule;
 
   // signer
   uint internal camAcc;
@@ -36,7 +39,7 @@ contract MatchingBase is PMRMTestBase {
 
   uint referenceTime;
 
-  address tradeExecutor;
+  address tradeExecutor = address(0xaaaa);
   uint cashDeposit = 10000e18;
   bytes32 domainSeparator;
 
@@ -59,14 +62,15 @@ contract MatchingBase is PMRMTestBase {
     withdrawalModule = new WithdrawalModule(matching);
     transferModule = new TransferModule(matching);
     tradeModule = new TradeModule(IAsset(address(cash)), IPerpAsset(address(mockPerp)), alice, aliceAcc, matching);
+    changeModule = new RiskManagerChangeModule(matching);
 
-    console2.log("MATCHIN ADDY:", address(matching));
-    console2.log("DEPOSIT ADDY:", address(depositModule));
-    console2.log("WITHDWL ADDY:", address(withdrawalModule));
+    // console2.log("MATCHIN ADDY:", address(matching));
+    // console2.log("DEPOSIT ADDY:", address(depositModule));
+    // console2.log("WITHDWL ADDY:", address(withdrawalModule));
 
-    console2.log("CAM  ADDY:", address(cam));
-    console2.log("DOUG ADDY:", address(doug));
-    console2.log("-------------------------------------------------");
+    // console2.log("CAM  ADDY:", address(cam));
+    // console2.log("DOUG ADDY:", address(doug));
+    // console2.log("-------------------------------------------------");
 
     domainSeparator = matching.domainSeparator();
     matching.setTradeExecutor(tradeExecutor, true);
@@ -139,6 +143,17 @@ contract MatchingBase is PMRMTestBase {
   ) internal view returns (OrderVerifier.SignedOrder memory order) {
     order = _createUnsignedOrder(accountId, nonce, matcher, data, expiry, owner, signer);
     order = _createSignedOrder(order, pk);
+  }
+
+  function _createNewAccount(address owner) internal returns (uint) {
+    // create a new account
+    uint newAccountId = subAccounts.createAccount(owner, IManager(address(pmrm)));
+    vm.startPrank(owner);
+    subAccounts.setApprovalForAll(address(matching), true);
+    matching.depositSubAccount(newAccountId);
+    vm.stopPrank();
+
+    return newAccountId;
   }
 
   function _getOrderHash(OrderVerifier.SignedOrder memory order) internal view returns (bytes32) {

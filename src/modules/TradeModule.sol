@@ -16,7 +16,7 @@ import "./BaseModule.sol";
 
 contract TradeModule is BaseModule {
   using SafeCast for uint;
-  using SafeCast for int256;
+  using SafeCast for int;
   using SignedDecimalMath for int;
 
   struct TradeData {
@@ -78,7 +78,9 @@ contract TradeModule is BaseModule {
   /// @dev in the case of recipient being 0, create new recipient and store the id here
   mapping(address owner => mapping(uint nonce => uint recipientId)) public recipientId;
 
-  constructor(IAsset _quoteAsset, IPerpAsset _perpAsset, address _feeSetter, uint _feeRecipient, Matching _matching) BaseModule(_matching) {
+  constructor(IAsset _quoteAsset, IPerpAsset _perpAsset, address _feeSetter, uint _feeRecipient, Matching _matching)
+    BaseModule(_matching)
+  {
     quoteAsset = _quoteAsset;
     perpAsset = _perpAsset;
     feeSetter = _feeSetter;
@@ -88,7 +90,7 @@ contract TradeModule is BaseModule {
   function setFeeRecipient(uint _feeRecipient) external onlyFeeSetter {
     feeRecipient = _feeRecipient;
   }
-  
+
   function setPerpAsset(IPerpAsset _perpAsset) external onlyFeeSetter {
     perpAsset = _perpAsset;
   }
@@ -201,7 +203,7 @@ contract TradeModule is BaseModule {
     console2.log("filledOrder.accountId ", filledOrder.accountId);
     console2.log("filledOrder.recipient ", filledOrder.data.recipientId);
     console2.log("amount filled", isBidder ? int(fillDetails.amountFilled) : -int(fillDetails.amountFilled));
-    int amtQuote = (int(fillDetails.amountFilled) * fillDetails.price / 1e18) + int(fillDetails.perpDelta); 
+    int amtQuote = (int(fillDetails.amountFilled) * fillDetails.price / 1e18) + int(fillDetails.perpDelta);
 
     transferBatch[startIndex] = ISubAccounts.AssetTransfer({
       asset: quoteAsset,

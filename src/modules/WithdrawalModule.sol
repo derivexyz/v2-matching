@@ -15,14 +15,17 @@ contract WithdrawalModule is BaseModule {
     uint assetAmount;
   }
 
+  error WM_InvalidWithdrawalOrderLength();
+  error WM_InvalidFromAccount();
+
   constructor(Matching _matching) BaseModule(_matching) {}
 
   function matchOrders(VerifiedOrder[] memory orders, bytes memory)
     public
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
-    if (orders.length != 1) revert("Invalid withdrawal orders length");
-    if (orders[0].accountId == 0) revert("Cannot withdraw from zero account");
+    if (orders.length != 1) revert WM_InvalidWithdrawalOrderLength();
+    if (orders[0].accountId == 0) revert WM_InvalidFromAccount();
 
     _checkAndInvalidateNonce(orders[0].owner, orders[0].nonce);
 

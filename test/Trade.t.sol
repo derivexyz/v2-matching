@@ -209,8 +209,13 @@ contract TradeModuleTest is MatchingBase {
     int price,
     uint fee
   ) internal returns (bytes memory) {
-    TradeModule.FillDetails memory fillDetails =
-      TradeModule.FillDetails({filledAccount: filledAcc, amountFilled: amountFilled, price: price, fee: fee, perpDelta: 0});
+    TradeModule.FillDetails memory fillDetails = TradeModule.FillDetails({
+      filledAccount: filledAcc,
+      amountFilled: amountFilled,
+      price: price,
+      fee: fee,
+      perpDelta: 0
+    });
 
     TradeModule.FillDetails[] memory fills = new TradeModule.FillDetails[](1);
     fills[0] = fillDetails;

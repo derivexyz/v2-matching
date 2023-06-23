@@ -16,6 +16,8 @@ contract Matching is OrderVerifier {
 
   constructor(ISubAccounts _accounts) OrderVerifier(_accounts) {}
 
+  error M_AccountNotReturned();
+
   ////////////////////////////
   //  Onwer-only Functions  //
   ////////////////////////////
@@ -62,9 +64,7 @@ contract Matching is OrderVerifier {
       // Allow signing messages with accountId == 0, where no account needs to be transferred.
       if (orders[i].accountId == 0) continue;
 
-      console2.log("ACC OWNER", accounts.ownerOf(orders[i].accountId));
       accounts.transferFrom(address(this), address(matcher), orders[i].accountId);
-      console2.log("ACC OWNER", accounts.ownerOf(orders[i].accountId));
     }
 
     (uint[] memory newAccIds, address[] memory newOwners) = matcher.matchOrders(orders, matchData);
@@ -72,14 +72,14 @@ contract Matching is OrderVerifier {
     // Ensure accounts are transferred back,
     for (uint i = 0; i < orders.length; ++i) {
       if (orders[i].accountId != 0 && accounts.ownerOf(orders[i].accountId) != address(this)) {
-        revert("token not returned");
+        revert M_AccountNotReturned();
       }
     }
 
     // Receive back a list of new subaccounts and respective owners. This allows modules to open new accounts
     if (newAccIds.length != newOwners.length) revert M_ArrayLengthMismatch(newAccIds.length, newOwners.length);
     for (uint i = 0; i < newAccIds.length; ++i) {
-      if (accounts.ownerOf(newAccIds[i]) != address(this)) revert("new account not returned");
+      if (accounts.ownerOf(newAccIds[i]) != address(this)) revert M_AccountNotReturned();
       if (accountToOwner[newAccIds[i]] != address(0)) revert("account already exists");
 
       accountToOwner[newAccIds[i]] = newOwners[i];
@@ -104,4 +104,6 @@ contract Matching is OrderVerifier {
   ////////////
 
   event TradeExecutorSet(address executor, bool canExecute);
+
+  error M_ArrayLengthMismatch(uint length1, uint length2);
 }
