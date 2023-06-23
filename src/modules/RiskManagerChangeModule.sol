@@ -1,18 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
-import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import "./BaseModule.sol";
 
-// Handles transferring assets from one subaccount to another
-// Verifies the owner of both subaccounts is the same.
-// Only has to sign from one side (so has to call out to the
+/**
+ * Helper module to change manager from one to another
+ */
 contract RiskManagerChangeModule is BaseModule {
-  struct RMChangeData {
-    address newRM;
-  }
+  error RMCM_InvalidOrderLength();
 
   constructor(Matching _matching) BaseModule(_matching) {}
 
@@ -20,10 +16,10 @@ contract RiskManagerChangeModule is BaseModule {
     public
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
-    if (orders.length != 1) revert("Invalid rm change orders length");
+    if (orders.length != 1) revert RMCM_InvalidOrderLength();
 
-    RMChangeData memory data = abi.decode(orders[0].data, (RMChangeData));
-    accounts.changeManager(orders[0].accountId, IManager(data.newRM), new bytes(0));
+    address newRM = abi.decode(orders[0].data, (address));
+    accounts.changeManager(orders[0].accountId, IManager(newRM), new bytes(0));
 
     _returnAccounts(orders, newAccIds);
   }

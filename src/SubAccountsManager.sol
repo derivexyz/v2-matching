@@ -18,8 +18,8 @@ contract SubAccountsManager is Ownable2Step {
   ///@dev Mapping of accountId to address
   mapping(uint => address) public accountToOwner;
 
-  ///@dev Mapping of owner to account withdraw cooldown start time
-  mapping(address => uint) public withdrawAccountCooldown;
+  ///@dev Mapping of account to withdraw cooldown start time
+  mapping(uint => uint) public withdrawTimestamp;
 
   constructor(ISubAccounts _accounts) {
     accounts = _accounts;
@@ -45,8 +45,8 @@ contract SubAccountsManager is Ownable2Step {
    * @notice Activates the cooldown period to withdraw account.
    */
   function requestWithdrawAccount(uint accountId) external {
-    if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
-    withdrawAccountCooldown[msg.sender] = block.timestamp;
+    if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress();
+    withdrawTimestamp[accountId] = block.timestamp;
     emit WithdrawAccountCooldown(msg.sender);
   }
 
@@ -56,13 +56,13 @@ contract SubAccountsManager is Ownable2Step {
    * @param accountId The users' accountId
    */
   function completeWithdrawAccount(uint accountId) external {
-    if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress(msg.sender, accountToOwner[accountId]);
-    if (withdrawAccountCooldown[msg.sender] + WITHDRAW_COOLDOWN > block.timestamp) {
-      revert M_CooldownNotElapsed(withdrawAccountCooldown[msg.sender] + WITHDRAW_COOLDOWN - block.timestamp);
+    if (accountToOwner[accountId] != msg.sender) revert M_NotOwnerAddress();
+    if (withdrawTimestamp[accountId] + WITHDRAW_COOLDOWN > block.timestamp) {
+      revert M_CooldownNotElapsed(withdrawTimestamp[accountId] + WITHDRAW_COOLDOWN - block.timestamp);
     }
 
     accounts.transferFrom(address(this), msg.sender, accountId);
-    delete withdrawAccountCooldown[msg.sender];
+    delete withdrawTimestamp[accountId];
     delete accountToOwner[accountId];
 
     emit WithdrewSubAccount(accountId);
@@ -100,9 +100,7 @@ contract SubAccountsManager is Ownable2Step {
   ////////////
   // Errors //
   ////////////
-  error M_NotOwnerAddress(address sender, address owner);
-  error M_NotTokenOwner(uint accountId, address tokenOwner);
+  error M_NotOwnerAddress();
+
   error M_CooldownNotElapsed(uint secondsLeft);
-  error M_SessionKeyInvalid(address sessionKeyPublicAddress);
-  error M_ArrayLengthMismatch(uint length1, uint length2);
 }
