@@ -2,8 +2,6 @@
 pragma solidity ^0.8.18;
 
 import {MatchingBase} from "./shared/MatchingBase.sol";
-import {OrderVerifier} from "src/OrderVerifier.sol";
-import {TransferModule} from "src/modules/TransferModule.sol";
 
 /**
  * @notice basic test for matching core contract

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.18;
 
 import {MatchingBase} from "./shared/MatchingBase.sol";
-import {OrderVerifier} from "src/OrderVerifier.sol";
 import {SubAccountsManager} from "src/SubAccountsManager.sol";
 
 contract SubAccountManagementTest is MatchingBase {

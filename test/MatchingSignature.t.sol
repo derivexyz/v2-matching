@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.18;
 
+import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {MatchingBase} from "./shared/MatchingBase.sol";
 import {OrderVerifier} from "src/OrderVerifier.sol";
-import {SubAccountsManager} from "src/SubAccountsManager.sol";
 import {TransferModule} from "src/modules/TransferModule.sol";
 
 /**
@@ -56,6 +56,21 @@ contract MatchingSignatureTest is MatchingBase {
     OrderVerifier.SignedOrder[] memory orders = _getTransferOrder(camAcc, camNewAcc, cam, cam, newKey);
 
     vm.expectRevert(OrderVerifier.M_InvalidSignature.selector);
+    _verifyAndMatch(orders, "");
+  }
+
+  function testCannotUseUnDepositedAccount() public {
+    vm.startPrank(cam);
+    subAccounts.setApprovalForAll(address(matching), true);
+    vm.stopPrank();
+
+    uint newCamAcc = subAccounts.createAccount(cam, IManager(address(pmrm)));
+    _depositCash(newCamAcc, cashDeposit);
+
+    // specify cam as owner, transfer from new owner to cam
+    OrderVerifier.SignedOrder[] memory orders = _getTransferOrder(newCamAcc, camAcc, cam, cam, camPk);
+
+    vm.expectRevert("ERC721: transfer from incorrect owner");
     _verifyAndMatch(orders, "");
   }
 

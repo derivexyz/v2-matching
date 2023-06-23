@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.18;
 
-import "forge-std/Test.sol";
+import {IManager} from "v2-core/src/interfaces/IManager.sol";
 
 import {MatchingBase} from "./shared/MatchingBase.sol";
 import {OrderVerifier} from "src/OrderVerifier.sol";
-import {IERC20BasedAsset} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
-import {IManager} from "v2-core/src/interfaces/IManager.sol";
-import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {TransferModule} from "src/modules/TransferModule.sol";
 
 contract TransferModuleTest is MatchingBase {
@@ -126,6 +123,28 @@ contract TransferModuleTest is MatchingBase {
 
     vm.expectRevert(TransferModule.TM_InvalidSecondOrder.selector);
     _verifyAndMatch(orders, bytes(""));
+  }
+
+  function testCannotTransferToUnDepositedSubaccount() public {
+    vm.startPrank(cam);
+    subAccounts.setApprovalForAll(address(matching), true);
+    vm.stopPrank();
+
+    // created but not deposited into matching contract!
+    uint camNewAcc = subAccounts.createAccount(cam, IManager(address(pmrm)));
+
+    // specify cam as owner, transfer to newly created account
+    TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
+    transfers[0] = TransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
+    TransferModule.TransferData memory transferData =
+      TransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
+    orders[0] = _createFullSignedOrder(
+      camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
+    );
+
+    vm.expectRevert(TransferModule.TM_InvalidRecipientOwner.selector);
+    _verifyAndMatch(orders, "");
   }
 
   function testCannotCallModuleWithThreeOrders() public {

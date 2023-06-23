@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.18;
 
-import "forge-std/Test.sol";
-
 import {MatchingBase} from "./shared/MatchingBase.sol";
 import {OrderVerifier} from "src/OrderVerifier.sol";
 import {WithdrawalModule} from "src/modules/WithdrawalModule.sol";
-import {IERC20BasedAsset} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
-import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract WithdrawalModuleTest is MatchingBase {
   function testWithdraw() public {
