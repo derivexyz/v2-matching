@@ -2,6 +2,9 @@
 pragma solidity ^0.8.18;
 
 import {MatchingBase} from "./shared/MatchingBase.sol";
+import {OrderVerifier} from "../src/OrderVerifier.sol";
+import {Matching} from "../src/Matching.sol";
+import {BadModule} from "./mock/BadModule.sol";
 
 /**
  * @notice basic test for matching core contract
@@ -10,7 +13,7 @@ contract MatchingBasicTest is MatchingBase {
   uint public newKey = 909886112;
   address public newSigner = vm.addr(newKey);
 
-  function testGetDomainSeparator() public {
+  function testGetDomainSeparator() public view {
     matching.domainSeparator();
   }
 
@@ -21,5 +24,15 @@ contract MatchingBasicTest is MatchingBase {
 
     matching.setTradeExecutor(newExecutor, false);
     assertEq(matching.tradeExecutors(newExecutor), false);
+  }
+
+  function testCannotUseModuleThatDoesNotReturnAccounts() public {
+    BadModule badModule = new BadModule();
+
+    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](1);
+    orders[0] = _createFullSignedOrder(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
+
+    vm.expectRevert(Matching.M_AccountNotReturned.selector);
+    _verifyAndMatch(orders, "");
   }
 }

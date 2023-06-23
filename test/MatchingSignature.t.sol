@@ -98,6 +98,7 @@ contract MatchingSignatureTest is MatchingBase {
 
   function _getTransferOrder(uint from, uint to, address specifiedOwner, address signer, uint pk)
     internal
+    view
     returns (OrderVerifier.SignedOrder[] memory)
   {
     TransferModule.Transfers[] memory transfers = new TransferModule.Transfers[](1);
