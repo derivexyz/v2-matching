@@ -3,14 +3,22 @@ pragma solidity ^0.8.13;
 
 import "forge-std/console2.sol";
 
+import "openzeppelin/utils/math/SafeCast.sol";
+import "lyra-utils/decimals/SignedDecimalMath.sol";
+
 import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
+import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 
 import "./BaseModule.sol";
 
 contract TradeModule is BaseModule {
+  using SafeCast for uint;
+  using SafeCast for int256;
+  using SignedDecimalMath for int;
+
   struct TradeData {
     address asset;
     uint subId;
@@ -53,14 +61,14 @@ contract TradeModule is BaseModule {
     int price;
     // total fee for filler
     uint fee;
-    uint perpDelta;
+    int perpDelta;
   }
 
   // @dev we fix the quoteAsset for the contracts so we can support eth/usdc etc as quoteAsset, but only one per
   //  deployment
   IAsset public immutable quoteAsset;
 
-  IAsset public perpAsset;
+  IPerpAsset public perpAsset;
 
   address feeSetter; // permissioned address for setting fee recipient
   uint feeRecipient;
@@ -70,7 +78,7 @@ contract TradeModule is BaseModule {
   /// @dev in the case of recipient being 0, create new recipient and store the id here
   mapping(address owner => mapping(uint nonce => uint recipientId)) public recipientId;
 
-  constructor(IAsset _quoteAsset, IAsset _perpAsset, address _feeSetter, uint _feeRecipient, Matching _matching) BaseModule(_matching) {
+  constructor(IAsset _quoteAsset, IPerpAsset _perpAsset, address _feeSetter, uint _feeRecipient, Matching _matching) BaseModule(_matching) {
     quoteAsset = _quoteAsset;
     perpAsset = _perpAsset;
     feeSetter = _feeSetter;
@@ -81,7 +89,7 @@ contract TradeModule is BaseModule {
     feeRecipient = _feeRecipient;
   }
   
-  function setPerpAsset(IAsset _perpAsset) external onlyFeeSetter {
+  function setPerpAsset(IPerpAsset _perpAsset) external onlyFeeSetter {
     perpAsset = _perpAsset;
   }
 
@@ -117,12 +125,11 @@ contract TradeModule is BaseModule {
         accountId: orders[i].accountId,
         owner: orders[i].owner,
         nonce: orders[i].nonce,
-        data: abi.decode(orders[i].data, (TradeData)),
-        perpDelta: 0
+        data: abi.decode(orders[i].data, (TradeData))
       });
-      
+
       if (_isPerpTrade(filledOrder.data.asset)) {
-        filledOrder.perpDelta = _calculatePerpDelta(fillDetails.price, fillDetails.amountFilled);
+        fillDetails.perpDelta = _calculatePerpDelta(fillDetails.price.toUint256(), fillDetails.amountFilled);
       }
 
       if (filledOrder.data.recipientId == 0) revert("Recipient Id canont be zero");
@@ -158,7 +165,8 @@ contract TradeModule is BaseModule {
         filledAccount: matchedOrder.accountId,
         amountFilled: totalFilled,
         price: worstPrice,
-        fee: matchData.matcherFee
+        fee: matchData.matcherFee,
+        perpDelta: 0
       }),
       matchData.isBidder
     );
@@ -225,9 +233,10 @@ contract TradeModule is BaseModule {
   }
 
   // Difference between the perp Asset index price and the market price
-  function _calculatePerpDelta(uint marketPrice, uint positionSize) internal pure returns (int delta) {
-    int index = perpAsset.getIndexPriceSpot();
-    delta = (marketPrice.toInt256() - index).multiplyDecimal(positionSize.toInt256());
+  function _calculatePerpDelta(uint marketPrice, uint positionSize) internal view returns (int delta) {
+    (uint index,) = perpAsset.getIndexPrice();
+    delta = (marketPrice.toInt256() - index.toInt256()).multiplyDecimal(positionSize.toInt256());
+    console2.log("Delta:", delta);
   }
 
   function _isPerpTrade(address baseAsset) internal view returns (bool) {

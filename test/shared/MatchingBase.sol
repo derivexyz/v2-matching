@@ -9,8 +9,9 @@ import {DepositModule} from "src/modules/DepositModule.sol";
 import {WithdrawalModule} from "src/modules/WithdrawalModule.sol";
 import {TransferModule} from "src/modules/TransferModule.sol";
 import {TradeModule} from "src/modules/TradeModule.sol";
-import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
 import {OrderVerifier} from "src/OrderVerifier.sol";
+import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
+import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 
 /**
  * @dev we deploy actual Account contract in these tests to simplify verification process
@@ -57,7 +58,7 @@ contract MatchingBase is PMRMTestBase {
     depositModule = new DepositModule(matching);
     withdrawalModule = new WithdrawalModule(matching);
     transferModule = new TransferModule(matching);
-    tradeModule = new TradeModule(IAsset(address(cash)), IAsset(address(mockPerp)), alice, aliceAcc, matching);
+    tradeModule = new TradeModule(IAsset(address(cash)), IPerpAsset(address(mockPerp)), alice, aliceAcc, matching);
 
     console2.log("MATCHIN ADDY:", address(matching));
     console2.log("DEPOSIT ADDY:", address(depositModule));
