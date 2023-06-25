@@ -14,7 +14,6 @@ import "lyra-utils/encoding/OptionEncoding.sol";
 contract TradeModuleTest is MatchingBase {
   function testTrade() public {
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
-
     // Doug wants to buy call from cam
     TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
       asset: address(option),
@@ -25,14 +24,17 @@ contract TradeModuleTest is MatchingBase {
     });
     bytes memory dougTrade = abi.encode(dougTradeData);
 
-    TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
-      asset: address(option),
-      subId: callId,
-      worstPrice: 1e18,
-      desiredAmount: 1e18,
-      recipientId: camAcc
-    });
-    bytes memory camTrade = abi.encode(camTradeData);
+    bytes memory camTrade;
+    {
+      TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
+        asset: address(option),
+        subId: callId,
+        worstPrice: 1e18,
+        desiredAmount: 1e18,
+        recipientId: camAcc
+      });
+      camTrade = abi.encode(camTradeData);
+    }
 
     OrderVerifier.SignedOrder memory trade1 =
       _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
@@ -44,7 +46,6 @@ contract TradeModuleTest is MatchingBase {
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
     int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
-    console2.log("dougBefore", dougBalBefore);
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
     orders[0] = trade1;
@@ -55,9 +56,6 @@ contract TradeModuleTest is MatchingBase {
     int dougBalAfter = subAccounts.getBalance(dougAcc, option, callId);
     int camCashDiff = camBalAfter - camBalBefore;
     int dougOptionDiff = dougBalAfter - dougBalBefore;
-    console2.log("dougAfter", dougBalAfter);
-    console2.log("Balance diff", camCashDiff);
-    console2.log("Balance diff", dougOptionDiff);
 
     // Assert balance change
     assertEq(uint(camCashDiff), 1e18);
@@ -129,7 +127,6 @@ contract TradeModuleTest is MatchingBase {
 
   function testFillAmount() public {
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
-    uint singleFill = 1e18;
 
     // Doug wants to buy call from cam
     TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
@@ -156,38 +153,21 @@ contract TradeModuleTest is MatchingBase {
       _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     // Match data submitted by the orderbook
-    bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, singleFill, 1e18, 0);
+    bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, 1e18, 1e18, 0);
 
-    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
-    int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
-    console2.log("dougBefore", dougBalBefore);
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
     orders[0] = trade1;
     orders[1] = trade2;
     _verifyAndMatch(orders, encodedMatch);
-
-    int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
-    int dougBalAfter = subAccounts.getBalance(dougAcc, option, callId);
-    int camCashDiff = camBalAfter - camBalBefore;
-    int dougOptionDiff = dougBalAfter - dougBalBefore;
-    console2.log("dougAfter", dougBalAfter);
-    console2.log("Balance diff", camCashDiff);
-    console2.log("Balance diff", dougOptionDiff);
-
-    // Assert balance change
-    assertEq(uint(camCashDiff), 1e18);
-    assertEq(uint(dougOptionDiff), singleFill);
-
-    assertEq(tradeModule.filled(doug, 0), singleFill);
+    assertEq(tradeModule.filled(doug, 0), 1e18);
 
     _verifyAndMatch(orders, encodedMatch);
-    assertEq(tradeModule.filled(doug, 0), singleFill * 2);
+    assertEq(tradeModule.filled(doug, 0), 1e18 * 2);
   }
 
   function testCannotTradeHighPrice() public {
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
-
     TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
       asset: address(option),
       subId: callId,
@@ -214,9 +194,6 @@ contract TradeModuleTest is MatchingBase {
     // Match data submitted by the orderbook
     bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, 1e18, 2e18, 0);
 
-    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
-    int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
-
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
     orders[0] = trade1;
@@ -229,7 +206,6 @@ contract TradeModuleTest is MatchingBase {
 
   function testCannotTradeLowPrice() public {
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
-
     TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
       asset: address(option),
       subId: callId,
@@ -255,9 +231,6 @@ contract TradeModuleTest is MatchingBase {
 
     // Match data submitted by the orderbook
     bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, 1e18, 1e18, 0);
-
-    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
-    int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
 
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
@@ -300,7 +273,7 @@ contract TradeModuleTest is MatchingBase {
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
     int dougBalBefore = subAccounts.getBalance(dougAcc, mockPerp, 0);
-    console2.log("dougBefore", dougBalBefore);
+
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
     orders[0] = trade1;
@@ -311,14 +284,10 @@ contract TradeModuleTest is MatchingBase {
     int dougBalAfter = subAccounts.getBalance(dougAcc, mockPerp, 0);
     int camCashDiff = camBalAfter - camBalBefore;
     int dougPerpDiff = dougBalAfter - dougBalBefore;
-    console2.log("dougAfter", dougBalAfter);
-    console2.log("cam After", subAccounts.getBalance(camAcc, mockPerp, 0));
-    console2.log("Balance diff", camCashDiff);
-    console2.log("Balance diff", dougPerpDiff);
 
     // Assert balance change
-    assertEq(uint(camCashDiff), 2e18); // 1 for perp + 1 for delta 
-    assertEq(uint(dougPerpDiff), 1e18); 
+    assertEq(uint(camCashDiff), 2e18); // 1 for perp + 1 for delta
+    assertEq(uint(dougPerpDiff), 1e18);
   }
 
   function _createMatchData(
@@ -329,7 +298,7 @@ contract TradeModuleTest is MatchingBase {
     uint amountFilled,
     int price,
     uint fee
-  ) internal returns (bytes memory) {
+  ) internal pure returns (bytes memory) {
     TradeModule.FillDetails memory fillDetails = TradeModule.FillDetails({
       filledAccount: filledAcc,
       amountFilled: amountFilled,
