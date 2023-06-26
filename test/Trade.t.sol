@@ -20,7 +20,9 @@ contract TradeModuleTest is MatchingBase {
       subId: callId,
       worstPrice: 1e18,
       desiredAmount: 1e18,
-      recipientId: dougAcc
+      worstFee: 1e18,
+      recipientId: dougAcc,
+      isBid: true
     });
     bytes memory dougTrade = abi.encode(dougTradeData);
 
@@ -31,7 +33,9 @@ contract TradeModuleTest is MatchingBase {
         subId: callId,
         worstPrice: 1e18,
         desiredAmount: 1e18,
-        recipientId: camAcc
+        worstFee: 1e18,
+        recipientId: camAcc,
+        isBid: false
       });
       camTrade = abi.encode(camTradeData);
     }
@@ -42,7 +46,7 @@ contract TradeModuleTest is MatchingBase {
       _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     // Match data submitted by the orderbook
-    bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, 1e18, 1e18, 0);
+    bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 1e18, 0);
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
     int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
@@ -101,7 +105,7 @@ contract TradeModuleTest is MatchingBase {
   //     _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
   //   // Match data submitted by the orderbook
-  //   bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, 1e18, 1e18, 0); //todo match data for many fills
+  //   bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 1e18, 0); //todo match data for many fills
 
   //   int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
   //   int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
@@ -134,7 +138,9 @@ contract TradeModuleTest is MatchingBase {
       subId: callId,
       worstPrice: 1e18,
       desiredAmount: 10e18,
-      recipientId: dougAcc
+      worstFee: 1e18,
+      recipientId: dougAcc,
+      isBid: true
     });
     bytes memory dougTrade = abi.encode(dougTradeData);
 
@@ -143,7 +149,9 @@ contract TradeModuleTest is MatchingBase {
       subId: callId,
       worstPrice: 1e18,
       desiredAmount: 10e18,
-      recipientId: camAcc
+      worstFee: 1e18,
+      recipientId: camAcc,
+      isBid: false
     });
     bytes memory camTrade = abi.encode(camTradeData);
 
@@ -153,7 +161,7 @@ contract TradeModuleTest is MatchingBase {
       _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     // Match data submitted by the orderbook
-    bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, 1e18, 1e18, 0);
+    bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 1e18, 0);
 
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
@@ -173,7 +181,9 @@ contract TradeModuleTest is MatchingBase {
       subId: callId,
       worstPrice: 1e18,
       desiredAmount: 1e18,
-      recipientId: dougAcc
+      worstFee: 1e18,
+      recipientId: dougAcc,
+      isBid: true
     });
     bytes memory dougTrade = abi.encode(dougTradeData);
 
@@ -182,7 +192,9 @@ contract TradeModuleTest is MatchingBase {
       subId: callId,
       worstPrice: 1e18,
       desiredAmount: 1e18,
-      recipientId: camAcc
+      worstFee: 1e18,
+      recipientId: camAcc,
+      isBid: false
     });
     bytes memory camTrade = abi.encode(camTradeData);
 
@@ -192,7 +204,7 @@ contract TradeModuleTest is MatchingBase {
       _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     // Match data submitted by the orderbook
-    bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, 1e18, 2e18, 0);
+    bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 2e18, 0);
 
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
@@ -211,7 +223,9 @@ contract TradeModuleTest is MatchingBase {
       subId: callId,
       worstPrice: 1e18,
       desiredAmount: 10e18,
-      recipientId: dougAcc
+      worstFee: 1e18,
+      recipientId: dougAcc,
+      isBid: true
     });
     bytes memory dougTrade = abi.encode(dougTradeData);
 
@@ -220,7 +234,9 @@ contract TradeModuleTest is MatchingBase {
       subId: callId,
       worstPrice: 10e18,
       desiredAmount: 10e18,
-      recipientId: camAcc
+      worstFee: 1e18,
+      recipientId: camAcc,
+      isBid: false
     });
     bytes memory camTrade = abi.encode(camTradeData);
 
@@ -230,7 +246,7 @@ contract TradeModuleTest is MatchingBase {
       _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     // Match data submitted by the orderbook
-    bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, 1e18, 1e18, 0);
+    bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 1e18, 0);
 
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
@@ -243,23 +259,27 @@ contract TradeModuleTest is MatchingBase {
   }
 
   function testPerpTrade() public {
-    mockPerp.setMockPerpPrice(2500e18, 1);
+    mockPerp.setMockPerpPrice(2500e18, 1e18);
 
     TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
       asset: address(mockPerp),
       subId: 0,
-      worstPrice: 1e18,
+      worstPrice: 2502e18,
       desiredAmount: 1e18,
-      recipientId: dougAcc
+      worstFee: 1e18,
+      recipientId: dougAcc,
+      isBid: true
     });
     bytes memory dougTrade = abi.encode(dougTradeData);
 
     TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
       asset: address(mockPerp),
       subId: 0,
-      worstPrice: 1e18,
+      worstPrice: 2500e18,
       desiredAmount: 1e18,
-      recipientId: camAcc
+      worstFee: 1e18,
+      recipientId: camAcc,
+      isBid: false
     });
     bytes memory camTrade = abi.encode(camTradeData);
 
@@ -269,10 +289,10 @@ contract TradeModuleTest is MatchingBase {
       _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     // Match data submitted by the orderbook
-    bytes memory encodedMatch = _createMatchData(dougAcc, true, 0, camAcc, 1e18, 1e18, 0);
+    bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 2502e18, 0);
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
-    int dougBalBefore = subAccounts.getBalance(dougAcc, mockPerp, 0);
+    int dougBalBefore = subAccounts.getBalance(dougAcc, cash, 0);
 
     // Submit Order
     OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
@@ -281,18 +301,17 @@ contract TradeModuleTest is MatchingBase {
     _verifyAndMatch(orders, encodedMatch);
 
     int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
-    int dougBalAfter = subAccounts.getBalance(dougAcc, mockPerp, 0);
-    int camCashDiff = camBalAfter - camBalBefore;
-    int dougPerpDiff = dougBalAfter - dougBalBefore;
+    int dougBalAfter = subAccounts.getBalance(dougAcc, cash, 0);
+    int camCashDiff = camBalBefore - camBalAfter;
+    int dougCashDiff = dougBalBefore - dougBalAfter;
 
     // Assert balance change
-    assertEq(uint(camCashDiff), 2e18); // 1 for perp + 1 for delta
-    assertEq(uint(dougPerpDiff), 1e18);
+    assertEq(camCashDiff, -2e18);
+    assertEq(dougCashDiff, 2e18);
   }
 
   function _createMatchData(
     uint matchedAccount,
-    bool isBidder,
     uint matcherFee,
     uint filledAcc,
     uint amountFilled,
@@ -312,7 +331,6 @@ contract TradeModuleTest is MatchingBase {
 
     TradeModule.MatchData memory matchData = TradeModule.MatchData({
       matchedAccount: matchedAccount,
-      isBidder: isBidder,
       matcherFee: matcherFee,
       fillDetails: fills,
       managerData: bytes("")

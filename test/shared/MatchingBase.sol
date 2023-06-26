@@ -61,7 +61,8 @@ contract MatchingBase is PMRMTestBase {
     depositModule = new DepositModule(matching);
     withdrawalModule = new WithdrawalModule(matching);
     transferModule = new TransferModule(matching);
-    tradeModule = new TradeModule(IAsset(address(cash)), IPerpAsset(address(mockPerp)), alice, aliceAcc, matching);
+    tradeModule = new TradeModule(matching, IAsset(address(cash)), aliceAcc);
+    tradeModule.setPerpAsset(IPerpAsset(address(mockPerp)), true);
     changeModule = new RiskManagerChangeModule(matching);
 
     // console2.log("MATCHIN ADDY:", address(matching));

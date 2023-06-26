@@ -12,9 +12,11 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 
-import "./BaseModule.sol";
+import {BaseModule} from "./BaseModule.sol";
+import {Matching} from "../Matching.sol";
+import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 
-contract TradeModule is BaseModule {
+contract TradeModule is BaseModule, Ownable2Step {
   using SafeCast for uint;
   using SafeCast for int;
   using SignedDecimalMath for int;
@@ -22,11 +24,12 @@ contract TradeModule is BaseModule {
   struct TradeData {
     address asset;
     uint subId;
-    // TODO: is using int here enough to cover perps use case?
     int worstPrice;
     int desiredAmount;
-    uint recipientId; // todo cannot be 0 -> this account needs to be sent from matching
-  } // todo short collat, transferred before ?
+    uint worstFee;
+    uint recipientId;
+    bool isBid;
+  }
 
   struct OptionLimitOrder {
     uint accountId;
@@ -48,7 +51,6 @@ contract TradeModule is BaseModule {
 
   struct MatchData {
     uint matchedAccount;
-    bool isBidder;
     uint matcherFee;
     FillDetails[] fillDetails;
     bytes managerData;
@@ -61,6 +63,8 @@ contract TradeModule is BaseModule {
     int price;
     // total fee for filler
     uint fee;
+    // for perp trades, the difference in the fill price and the perp price
+    // users will only transfer this amount for a perp trade
     int perpDelta;
   }
 
@@ -68,31 +72,26 @@ contract TradeModule is BaseModule {
   //  deployment
   IAsset public immutable quoteAsset;
 
-  IPerpAsset public perpAsset;
+  mapping(IPerpAsset => bool) public perpAssets;
 
-  address feeSetter; // permissioned address for setting fee recipient
-  uint feeRecipient;
+  uint public feeRecipient;
 
   /// @dev we trust the nonce is unique for the given "VerifiedOrder" for the owner
   mapping(address owner => mapping(uint nonce => uint filled)) public filled;
   /// @dev in the case of recipient being 0, create new recipient and store the id here
   mapping(address owner => mapping(uint nonce => uint recipientId)) public recipientId;
 
-  constructor(IAsset _quoteAsset, IPerpAsset _perpAsset, address _feeSetter, uint _feeRecipient, Matching _matching)
-    BaseModule(_matching)
-  {
+  constructor(Matching _matching, IAsset _quoteAsset, uint _feeRecipient) BaseModule(_matching) Ownable2Step() {
     quoteAsset = _quoteAsset;
-    perpAsset = _perpAsset;
-    feeSetter = _feeSetter;
     feeRecipient = _feeRecipient;
   }
 
-  function setFeeRecipient(uint _feeRecipient) external onlyFeeSetter {
+  function setFeeRecipient(uint _feeRecipient) external onlyOwner {
     feeRecipient = _feeRecipient;
   }
 
-  function setPerpAsset(IPerpAsset _perpAsset) external onlyFeeSetter {
-    perpAsset = _perpAsset;
+  function setPerpAsset(IPerpAsset _perpAsset, bool isPerp) external onlyOwner {
+    perpAssets[_perpAsset] = isPerp;
   }
 
   /// @dev Assumes VerifiedOrders are sorted in the order: [matchedAccount, ...filledAccounts]
@@ -117,9 +116,8 @@ contract TradeModule is BaseModule {
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](orders.length * 3 - 2);
 
     uint totalFilled;
-    int worstPrice = matchData.isBidder ? int(0) : type(int).max;
+    int worstPrice = matchedOrder.data.isBid ? int(0) : type(int).max;
 
-    console2.log("orders length", orders.length);
     for (uint i = 1; i < orders.length; i++) {
       FillDetails memory fillDetails = matchData.fillDetails[i - 1];
 
@@ -130,21 +128,15 @@ contract TradeModule is BaseModule {
         data: abi.decode(orders[i].data, (TradeData))
       });
 
-      if (_isPerpTrade(filledOrder.data.asset)) {
-        fillDetails.perpDelta = _calculatePerpDelta(fillDetails.price.toUint256(), fillDetails.amountFilled);
-      }
-
       if (filledOrder.data.recipientId == 0) revert("Recipient Id canont be zero");
       if (filledOrder.accountId != fillDetails.filledAccount) revert("filled account does not match");
-      // todo amountQuote need to change for perp
-      console2.log("Fill limit order");
-      _fillLimitOrder(filledOrder, fillDetails, !matchData.isBidder);
-      console2.log("Fill limit order done");
-      _addAssetTransfers(transferBatch, fillDetails, matchedOrder, filledOrder, matchData.isBidder, i * 3 - 3);
-      console2.log("asset transfers done");
+      if (filledOrder.data.isBid == matchedOrder.data.isBid) revert("isBid mismatch");
+
+      _fillLimitOrder(filledOrder, fillDetails);
+      _addAssetTransfers(transferBatch, fillDetails, matchedOrder, filledOrder, i * 3 - 3);
 
       totalFilled += fillDetails.amountFilled;
-      if (matchData.isBidder) {
+      if (matchedOrder.data.isBid) {
         if (fillDetails.price > worstPrice) worstPrice = fillDetails.price;
       } else {
         if (fillDetails.price < worstPrice) worstPrice = fillDetails.price;
@@ -160,7 +152,6 @@ contract TradeModule is BaseModule {
       assetData: bytes32(0)
     });
 
-    console2.log("Transfer fee done ");
     _fillLimitOrder(
       matchedOrder,
       FillDetails({
@@ -169,17 +160,19 @@ contract TradeModule is BaseModule {
         price: worstPrice,
         fee: matchData.matcherFee,
         perpDelta: 0
-      }),
-      matchData.isBidder
+      })
     );
 
     accounts.submitTransfers(transferBatch, matchData.managerData);
     _returnAccounts(orders, newAccIds);
   }
 
-  function _fillLimitOrder(OptionLimitOrder memory order, FillDetails memory fill, bool isBidder) internal {
-    int finalPrice = fill.price + int(fill.fee * fill.amountFilled / SignedMath.abs(order.data.desiredAmount));
-    if (isBidder) {
+  function _fillLimitOrder(OptionLimitOrder memory order, FillDetails memory fill) internal {
+    int finalPrice = fill.price;
+
+    if (fill.fee > order.data.worstFee) revert("fee too high");
+
+    if (order.data.isBid) {
       if (finalPrice > order.data.worstPrice) revert("price too high");
     } else {
       if (finalPrice < order.data.worstPrice) revert("price too low");
@@ -193,17 +186,19 @@ contract TradeModule is BaseModule {
     FillDetails memory fillDetails,
     OptionLimitOrder memory matchedOrder,
     OptionLimitOrder memory filledOrder,
-    bool isBidder,
     uint startIndex
   ) internal view {
-    console2.log("--- ADD ASSET TRANSFER ---");
-    console2.log("isBidder", isBidder);
-    console2.log("matchedOrder.accountId", matchedOrder.accountId);
-    console2.log("matchedOrder.recipient", matchedOrder.data.recipientId);
-    console2.log("filledOrder.accountId ", filledOrder.accountId);
-    console2.log("filledOrder.recipient ", filledOrder.data.recipientId);
-    console2.log("amount filled", isBidder ? int(fillDetails.amountFilled) : -int(fillDetails.amountFilled));
-    int amtQuote = (int(fillDetails.amountFilled) * fillDetails.price / 1e18) + int(fillDetails.perpDelta);
+    int amtQuote;
+    if (_isPerp(matchedOrder.data.asset)) {
+      int perpDelta = _getPerpDelta(matchedOrder.data.asset, fillDetails.price);
+      amtQuote = perpDelta.multiplyDecimal(int(fillDetails.amountFilled));
+      console2.log("perpDelta", perpDelta);
+      console2.log("fillDetails.price", fillDetails.price);
+    } else {
+      amtQuote = fillDetails.price.multiplyDecimal(int(fillDetails.amountFilled));
+    }
+
+    bool isBidder = matchedOrder.data.isBid;
 
     transferBatch[startIndex] = ISubAccounts.AssetTransfer({
       asset: quoteAsset,
@@ -234,27 +229,13 @@ contract TradeModule is BaseModule {
     });
   }
 
-  // Difference between the perp Asset index price and the market price
-  function _calculatePerpDelta(uint marketPrice, uint positionSize) internal view returns (int delta) {
-    (uint index,) = perpAsset.getIndexPrice();
-    console2.log("Market price", marketPrice);
-    console2.log("Index  price", index);
-    console2.log("Positionsize", positionSize);
-    delta = (marketPrice.toInt256() - index.toInt256()).multiplyDecimal(positionSize.toInt256());
-    console2.log("Delta:", delta);
+  function _isPerp(address baseAsset) internal view returns (bool) {
+    return perpAssets[IPerpAsset(baseAsset)];
   }
 
-  function _isPerpTrade(address baseAsset) internal view returns (bool) {
-    if (baseAsset == address(perpAsset)) return true;
-    return false;
-  }
-
-  ///////////////
-  // Modifiers //
-  ///////////////
-
-  modifier onlyFeeSetter() {
-    require(msg.sender == feeSetter, "Only fee setter can call this");
-    _;
+  // Difference between the perp price and the traded price
+  function _getPerpDelta(address perpAsset, int marketPrice) internal view returns (int delta) {
+    (uint perpPrice,) = IPerpAsset(perpAsset).getPerpPrice();
+    return (marketPrice - perpPrice.toInt256());
   }
 }
