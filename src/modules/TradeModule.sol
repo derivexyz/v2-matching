@@ -70,24 +70,28 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
     // Verify
     if (orders.length <= 1) revert TM_InvalidOrdersLength();
 
+    _checkOrderNonce(orders[0]);
+
     ActionData memory actionData = abi.decode(actionDataBytes, (ActionData));
 
-    OptionLimitOrder memory matchedOrder = OptionLimitOrder({
+    OptionLimitOrder memory takerOrder = OptionLimitOrder({
       accountId: orders[0].accountId,
       owner: orders[0].owner,
       nonce: orders[0].nonce,
       data: abi.decode(orders[0].data, (TradeData))
     });
 
-    if (matchedOrder.accountId != actionData.takerAccount) revert TM_SignedAccountMismatch();
+    if (takerOrder.accountId != actionData.takerAccount) revert TM_SignedAccountMismatch();
 
     // We can prepare the transfers as we iterate over the data
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](orders.length * 3 - 2);
 
     uint totalFilled;
-    int worstPrice = matchedOrder.data.isBid ? int(0) : type(int).max;
+    int worstPrice = takerOrder.data.isBid ? int(0) : type(int).max;
 
     for (uint i = 1; i < orders.length; i++) {
+      _checkOrderNonce(orders[i]);
+
       FillDetails memory fillDetails = actionData.fillDetails[i - 1];
 
       OptionLimitOrder memory makerOrder = OptionLimitOrder({
@@ -98,13 +102,13 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
       });
 
       _verifyFilledAccount(makerOrder, fillDetails.filledAccount);
-      if (makerOrder.data.isBid == matchedOrder.data.isBid) revert TM_IsBidMismatch();
+      if (makerOrder.data.isBid == takerOrder.data.isBid) revert TM_IsBidMismatch();
 
       _fillLimitOrder(makerOrder, fillDetails);
-      _addAssetTransfers(transferBatch, fillDetails, matchedOrder, makerOrder, i * 3 - 3);
+      _addAssetTransfers(transferBatch, fillDetails, takerOrder, makerOrder, i * 3 - 3);
 
       totalFilled += fillDetails.amountFilled;
-      if (matchedOrder.data.isBid) {
+      if (takerOrder.data.isBid) {
         if (fillDetails.price > worstPrice) worstPrice = fillDetails.price;
       } else {
         if (fillDetails.price < worstPrice) worstPrice = fillDetails.price;
@@ -115,19 +119,18 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
       asset: quoteAsset,
       subId: 0,
       amount: int(actionData.takerFee),
-      fromAcc: matchedOrder.accountId,
+      fromAcc: takerOrder.accountId,
       toAcc: feeRecipient,
       assetData: bytes32(0)
     });
 
     _fillLimitOrder(
-      matchedOrder,
+      takerOrder,
       FillDetails({
-        filledAccount: matchedOrder.accountId,
+        filledAccount: takerOrder.accountId,
         amountFilled: totalFilled,
         price: worstPrice,
-        fee: actionData.takerFee,
-        perpDelta: 0
+        fee: actionData.takerFee
       })
     );
 
@@ -152,15 +155,15 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
   function _fillLimitOrder(OptionLimitOrder memory order, FillDetails memory fill) internal {
     int finalPrice = fill.price;
 
-    if (fill.fee.divideDecimal(fill.amountFilled) > order.data.worstFee) revert("fee too high");
+    if (fill.fee.divideDecimal(fill.amountFilled) > order.data.worstFee) revert TM_FeeTooHigh();
 
     if (order.data.isBid) {
-      if (finalPrice > order.data.worstPrice) revert("price too high");
+      if (finalPrice > order.data.worstPrice) revert TM_PriceTooHigh();
     } else {
-      if (finalPrice < order.data.worstPrice) revert("price too low");
+      if (finalPrice < order.data.worstPrice) revert TM_PriceTooLow();
     }
     filled[order.owner][order.nonce] += fill.amountFilled;
-    if (filled[order.owner][order.nonce] > uint(order.data.desiredAmount)) revert("too much filled");
+    if (filled[order.owner][order.nonce] > uint(order.data.desiredAmount)) revert TM_FillLimitCrossed();
   }
 
   function _addAssetTransfers(
@@ -174,8 +177,6 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
     if (_isPerp(matchedOrder.data.asset)) {
       int perpDelta = _getPerpDelta(matchedOrder.data.asset, fillDetails.price);
       amtQuote = perpDelta.multiplyDecimal(int(fillDetails.amountFilled));
-      console2.log("perpDelta", perpDelta);
-      console2.log("fillDetails.price", fillDetails.price);
     } else {
       amtQuote = fillDetails.price.multiplyDecimal(int(fillDetails.amountFilled));
     }

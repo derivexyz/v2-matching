@@ -51,9 +51,6 @@ interface ITradeModule is IBaseModule {
     int price;
     // total fee for maker
     uint fee;
-    // for perp trades, the difference in the fill price and the perp price
-    // users will only transfer this amount for a perp trade
-    int perpDelta;
   }
 
   function quoteAsset() external view returns (IAsset);
@@ -69,4 +66,8 @@ interface ITradeModule is IBaseModule {
   error TM_IsBidMismatch();
   error TM_InvalidRecipientId();
   error TM_InvalidNonce();
+  error TM_FeeTooHigh();
+  error TM_PriceTooHigh();
+  error TM_PriceTooLow();
+  error TM_FillLimitCrossed();
 }

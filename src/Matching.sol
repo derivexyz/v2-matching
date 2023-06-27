@@ -70,6 +70,9 @@ contract Matching is IMatching, OrderVerifier {
       // Allow signing messages with accountId == 0, where no account needs to be transferred.
       if (orders[i].accountId == 0) continue;
 
+      // If the account has been previously sent (orders can share accounts), skip it.
+      if (subAccounts.ownerOf(orders[i].accountId) == address(module)) continue;
+
       subAccounts.transferFrom(address(this), address(module), orders[i].accountId);
     }
 

@@ -23,6 +23,8 @@ abstract contract BaseModule is IBaseModule {
   function _returnAccounts(VerifiedOrder[] memory orders, uint[] memory newAccIds) internal {
     for (uint i = 0; i < orders.length; ++i) {
       if (orders[i].accountId == 0) continue;
+      if (subAccounts.ownerOf(orders[i].accountId) == address(matching)) continue;
+
       subAccounts.transferFrom(address(this), address(matching), orders[i].accountId);
     }
     for (uint i = 0; i < newAccIds.length; ++i) {

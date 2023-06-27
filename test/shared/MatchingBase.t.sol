@@ -18,6 +18,7 @@ import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {ECDSA} from "openzeppelin/utils/cryptography/ECDSA.sol";
+import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
 
 /**
  * @dev we deploy actual Account contract in these tests to simplify verification process
@@ -42,6 +43,7 @@ contract MatchingBase is PMRMTestBase {
   address internal doug;
 
   uint referenceTime;
+  uint defaultCallId;
 
   address tradeExecutor = address(0xaaaa);
   uint cashDeposit = 10000e18;
@@ -59,6 +61,7 @@ contract MatchingBase is PMRMTestBase {
 
     vm.warp(block.timestamp + 365 days);
     referenceTime = block.timestamp;
+    defaultCallId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
 
     // Setup matching contract and modules
     matching = new Matching(subAccounts);
