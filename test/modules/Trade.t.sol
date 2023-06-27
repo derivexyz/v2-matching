@@ -12,6 +12,32 @@ import {TradeModule, ITradeModule} from "src/modules/TradeModule.sol";
 import "lyra-utils/encoding/OptionEncoding.sol";
 
 contract TradeModuleTest is MatchingBase {
+
+  // Test trading
+  // - Trade from 1 => 1 full limit amount
+  // - Trade from 1 taker => 3 maker
+  // - Reverts in different cases
+  //  - mismatch of signed orders and trade data
+  //  - cannot trade if the order is expired
+  //  -
+  // Test trade price bounds
+  // - can trade successfully at two different (txs) prices as long as within the bounds of taker and maker
+  // - cannot trade if the bounds are not crossed, even if it satisfies the taker
+  // - perp bounds work the same way
+  // Test filling order limits
+  // - cannot trade more than the limit
+  // - fills are preserved across multiple (txs); limit = 10; fill 4, fill 4, fill 4 (reverts)
+  // Test trade fees
+  // - trade fees are taken from the maker
+  // - trade fees are taken from the taker
+  // - trade fees are taken from the maker and taker
+  // - reverts if fee limit is crossed
+  // Misc
+  // - cannot reuse nonce with different params
+  // - can reuse nonce if all params are equal (but expiry is different)
+
+
+
   function testTrade() public {
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
     // Doug wants to buy call from cam
@@ -311,15 +337,15 @@ contract TradeModuleTest is MatchingBase {
   }
 
   function _createActionData(
-    uint matchedAccount,
+    uint takerAccount,
     uint matcherFee,
-    uint filledAcc,
+    uint makerAcc,
     uint amountFilled,
     int price,
     uint fee
   ) internal pure returns (bytes memory) {
     ITradeModule.FillDetails memory fillDetails = ITradeModule.FillDetails({
-      filledAccount: filledAcc,
+      filledAccount: makerAcc,
       amountFilled: amountFilled,
       price: price,
       fee: fee,
@@ -330,8 +356,8 @@ contract TradeModuleTest is MatchingBase {
     fills[0] = fillDetails;
 
     ITradeModule.ActionData memory actionData = ITradeModule.ActionData({
-      matchedAccount: matchedAccount,
-      matcherFee: matcherFee,
+      takerAccount: takerAccount,
+      takerFee: matcherFee,
       fillDetails: fills,
       managerData: bytes("")
     });

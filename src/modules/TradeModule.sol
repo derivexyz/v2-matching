@@ -64,7 +64,7 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
   // Action Handler //
   ////////////////////
 
-  /// @dev Assumes VerifiedOrders are sorted in the order: [matchedAccount, ...filledAccounts]
+  /// @dev Assumes VerifiedOrders are sorted in the order: [takerAccount, ...makerAccounts]
   function executeAction(VerifiedOrder[] memory orders, bytes memory actionDataBytes)
     public
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
@@ -81,7 +81,7 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
       data: abi.decode(orders[0].data, (TradeData))
     });
 
-    if (matchedOrder.accountId != actionData.matchedAccount) revert TM_SignedAccountMismatch();
+    if (matchedOrder.accountId != actionData.takerAccount) revert TM_SignedAccountMismatch();
 
     // We can prepare the transfers as we iterate over the data
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](orders.length * 3 - 2);
@@ -92,18 +92,18 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
     for (uint i = 1; i < orders.length; i++) {
       FillDetails memory fillDetails = actionData.fillDetails[i - 1];
 
-      OptionLimitOrder memory filledOrder = OptionLimitOrder({
+      OptionLimitOrder memory makerOrder = OptionLimitOrder({
         accountId: orders[i].accountId,
         owner: orders[i].owner,
         nonce: orders[i].nonce,
         data: abi.decode(orders[i].data, (TradeData))
       });
 
-      _verifyFilledAccount(filledOrder, fillDetails.filledAccount);
-      if (filledOrder.data.isBid == matchedOrder.data.isBid) revert TM_IsBidMismatch();
+      _verifyFilledAccount(makerOrder, fillDetails.filledAccount);
+      if (makerOrder.data.isBid == matchedOrder.data.isBid) revert TM_IsBidMismatch();
 
-      _fillLimitOrder(filledOrder, fillDetails);
-      _addAssetTransfers(transferBatch, fillDetails, matchedOrder, filledOrder, i * 3 - 3);
+      _fillLimitOrder(makerOrder, fillDetails);
+      _addAssetTransfers(transferBatch, fillDetails, matchedOrder, makerOrder, i * 3 - 3);
 
       totalFilled += fillDetails.amountFilled;
       if (matchedOrder.data.isBid) {
@@ -116,7 +116,7 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
     transferBatch[transferBatch.length - 1] = ISubAccounts.AssetTransfer({
       asset: quoteAsset,
       subId: 0,
-      amount: int(actionData.matcherFee),
+      amount: int(actionData.takerFee),
       fromAcc: matchedOrder.accountId,
       toAcc: feeRecipient,
       assetData: bytes32(0)
@@ -128,7 +128,7 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
         filledAccount: matchedOrder.accountId,
         amountFilled: totalFilled,
         price: worstPrice,
-        fee: actionData.matcherFee,
+        fee: actionData.takerFee,
         perpDelta: 0
       })
     );

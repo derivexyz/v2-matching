@@ -27,19 +27,20 @@ interface ITradeModule is IBaseModule {
 
   /**
    * @dev A "Fill" is a trade that occurs when a market is crossed. A single new order can result in multiple fills.
-   * The matcher is the account that is crossing the market. The filledAccounts are those being filled.
+   * The taker is the account that is crossing the market. The makerAccounts are those with orders being filled.
    *
    * If the order is a bid;
-   * the matcher is sending the filled accounts quoteAsset, and receiving the asset from the filled accounts.
+   * the taker is sending the maker accounts quoteAsset, and receiving the asset from the maker accounts.
    *
    * If the order is an ask;
-   * the matcher is sending the filled accounts asset, and receiving the quoteAsset from the filled accounts.
+   * the taker is sending the maker accounts asset, and receiving the quoteAsset from the maker accounts.
    */
 
   struct ActionData {
-    uint matchedAccount;
-    // total fee for matcher
-    uint matcherFee;
+    uint takerAccount;
+    // total fee for taker
+    uint takerFee;
+    // maker details
     FillDetails[] fillDetails;
     bytes managerData;
   }
@@ -49,7 +50,7 @@ interface ITradeModule is IBaseModule {
     uint amountFilled;
     // price per asset
     int price;
-    // total fee for filler
+    // total fee for maker
     uint fee;
     // for perp trades, the difference in the fill price and the perp price
     // users will only transfer this amount for a perp trade
