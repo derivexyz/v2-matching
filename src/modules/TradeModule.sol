@@ -21,13 +21,11 @@ import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
-
 contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
   using SafeCast for uint;
   using SafeCast for int;
   using SignedDecimalMath for int;
   using DecimalMath for uint;
-
 
   // @dev we fix the quoteAsset for the contracts so we only support one quoteAsset per deployment
   IAsset public immutable quoteAsset;
@@ -145,10 +143,8 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
     if (order.data.recipientId == 0) revert TM_InvalidRecipientId();
     if (order.accountId != filledAccount) revert TM_SignedAccountMismatch();
     // If the recipient isn't the signed account, verify the owner matches
-    if (
-      order.data.recipientId != order.accountId
-      && matching.subAccountToOwner(order.data.recipientId) != order.owner
-    ) {
+    if (order.data.recipientId != order.accountId && matching.subAccountToOwner(order.data.recipientId) != order.owner)
+    {
       revert TM_InvalidRecipientId();
     }
   }

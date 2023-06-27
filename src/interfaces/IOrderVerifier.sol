@@ -17,7 +17,6 @@ interface IOrderVerifier is ISubAccountsManager {
     bytes signature;
   }
 
-
   function ORDER_TYPEHASH() external pure returns (bytes32);
   function DEREGISTER_KEY_COOLDOWN() external pure returns (uint);
 
@@ -25,12 +24,10 @@ interface IOrderVerifier is ISubAccountsManager {
   /// @dev Mapping of signer address -> owner address -> expiry
   function sessionKeys(address signer, address owner) external view returns (uint expiry);
 
-
   function registerSessionKey(address toAllow, uint expiry) external;
   function deregisterSessionKey(address sessionKey) external;
   function domainSeparator() external view returns (bytes32);
   function getOrderHash(SignedOrder memory order) external pure returns (bytes32);
-
 
   /**
    * @dev Emitted when a session key is registered to an owner account.
@@ -41,7 +38,6 @@ interface IOrderVerifier is ISubAccountsManager {
    * @dev Emitted when a user requests to deregister a session key.
    */
   event SessionKeyCooldown(address owner, address sessionKeyPublicAddress);
-
 
   error OV_SessionKeyInvalid();
   error OV_OrderExpired();

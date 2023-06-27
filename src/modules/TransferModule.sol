@@ -13,7 +13,6 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
-
 // Handles transferring assets from one subaccount to another
 // Verifies the owner of both subaccounts is the same.
 // Only has to sign from one side (so has to call out to the

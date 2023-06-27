@@ -15,16 +15,14 @@ import {IOrderVerifier} from "./interfaces/IOrderVerifier.sol";
 import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
-
 contract OrderVerifier is IOrderVerifier, SubAccountsManager, EIP712 {
-
   bytes32 public constant ORDER_TYPEHASH = keccak256("SignedOrder(uint256,uint256,address,bytes,uint256,address)");
 
   uint public constant DEREGISTER_KEY_COOLDOWN = 10 minutes;
 
   /// @notice Allows other addresses to trade on behalf of others
   /// @dev Mapping of signer address -> owner address -> expiry
-  mapping(address signer => mapping(address owner => uint)) public sessionKeys; 
+  mapping(address signer => mapping(address owner => uint)) public sessionKeys;
 
   constructor(ISubAccounts _accounts) SubAccountsManager(_accounts) EIP712("Matching", "1.0") {}
 

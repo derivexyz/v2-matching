@@ -49,12 +49,10 @@ contract TransferModuleTest is MatchingBase {
     orders[0] = _createFullSignedOrder(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
-    orders[1] = _createFullSignedOrder(
-      0, 1, address(transferModule), new bytes(0), block.timestamp + 1 days, cam, cam, camPk
-    );
+    orders[1] =
+      _createFullSignedOrder(0, 1, address(transferModule), new bytes(0), block.timestamp + 1 days, cam, cam, camPk);
 
-
-  _verifyAndMatch(orders, bytes(""));
+    _verifyAndMatch(orders, bytes(""));
 
     uint newAccountId = subAccounts.lastAccountId();
     int newAccAfter = subAccounts.getBalance(newAccountId, cash, 0);
@@ -108,7 +106,7 @@ contract TransferModuleTest is MatchingBase {
     _verifyAndMatch(orders, bytes(""));
 
     orders[1] =
-    _createFullSignedOrder(camNewAcc, 1, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
+      _createFullSignedOrder(camNewAcc, 1, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
 
     // cannot go through because transfer module doesn't have enough allownace
     _verifyAndMatch(orders, bytes(""));

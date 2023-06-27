@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 import {IBaseModule} from "./IBaseModule.sol";
 
-
 interface IDepositModule is IBaseModule {
   struct DepositData {
     uint amount;

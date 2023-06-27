@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 import {IBaseModule} from "./IBaseModule.sol";
 
-
 interface IWithdrawalModule is IBaseModule {
   struct WithdrawalData {
     address asset;

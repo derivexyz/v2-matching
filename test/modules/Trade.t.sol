@@ -12,7 +12,6 @@ import {TradeModule, ITradeModule} from "src/modules/TradeModule.sol";
 import "lyra-utils/encoding/OptionEncoding.sol";
 
 contract TradeModuleTest is MatchingBase {
-
   // Test trading
   // - Trade from 1 => 1 full limit amount
   // - Trade from 1 taker => 3 maker
@@ -35,8 +34,6 @@ contract TradeModuleTest is MatchingBase {
   // Misc
   // - cannot reuse nonce with different params
   // - can reuse nonce if all params are equal (but expiry is different)
-
-
 
   function testTrade() public {
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
@@ -336,14 +333,11 @@ contract TradeModuleTest is MatchingBase {
     assertEq(dougCashDiff, 2e18);
   }
 
-  function _createActionData(
-    uint takerAccount,
-    uint matcherFee,
-    uint makerAcc,
-    uint amountFilled,
-    int price,
-    uint fee
-  ) internal pure returns (bytes memory) {
+  function _createActionData(uint takerAccount, uint matcherFee, uint makerAcc, uint amountFilled, int price, uint fee)
+    internal
+    pure
+    returns (bytes memory)
+  {
     ITradeModule.FillDetails memory fillDetails = ITradeModule.FillDetails({
       filledAccount: makerAcc,
       amountFilled: amountFilled,

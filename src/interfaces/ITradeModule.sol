@@ -5,7 +5,6 @@ import {IBaseModule} from "./IBaseModule.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 
-
 interface ITradeModule is IBaseModule {
   struct OptionLimitOrder {
     uint accountId;
@@ -64,7 +63,6 @@ interface ITradeModule is IBaseModule {
   function seenNonces(address owner, uint nonce) external view returns (bytes32);
   function setFeeRecipient(uint _feeRecipient) external;
   function setPerpAsset(IPerpAsset _perpAsset, bool isPerp) external;
-
 
   error TM_InvalidOrdersLength();
   error TM_SignedAccountMismatch();

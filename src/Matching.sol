@@ -11,7 +11,6 @@ import {IMatching} from "./interfaces/IMatching.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
 
-
 contract Matching is IMatching, OrderVerifier {
   /// @dev Permissioned address to execute trades
   mapping(address tradeExecutor => bool canExecuteTrades) public tradeExecutors;
@@ -61,9 +60,11 @@ contract Matching is IMatching, OrderVerifier {
   //  Internal Functions  //
   //////////////////////////
 
-  function _submitModuleAction(IMatchingModule module, IMatchingModule.VerifiedOrder[] memory orders, bytes memory actionData)
-    internal
-  {
+  function _submitModuleAction(
+    IMatchingModule module,
+    IMatchingModule.VerifiedOrder[] memory orders,
+    bytes memory actionData
+  ) internal {
     // Transfer accounts to the module contract
     for (uint i = 0; i < orders.length; ++i) {
       // Allow signing messages with accountId == 0, where no account needs to be transferred.
@@ -102,7 +103,7 @@ contract Matching is IMatching, OrderVerifier {
   ///////////////
 
   modifier onlyTradeExecutor() {
-    if(!tradeExecutors[msg.sender]) revert M_OnlyTradeExecutor();
+    if (!tradeExecutors[msg.sender]) revert M_OnlyTradeExecutor();
     _;
   }
 }

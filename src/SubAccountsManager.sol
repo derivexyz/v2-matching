@@ -11,7 +11,6 @@ import {ISubAccountsManager} from "./interfaces/ISubAccountsManager.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 
-
 // Handle subAccounts, deposits, escape hatches etc.
 contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
   ///@dev Cooldown seconds a user must wait before withdrawing their account

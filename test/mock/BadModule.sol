@@ -10,4 +10,8 @@ contract BadModule is IMatchingModule {
   {
     // does not return accounts
   }
+
+  function test() external {
+    // to skip coverage
+  }
 }

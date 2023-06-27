@@ -13,7 +13,6 @@ import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {IERC20BasedAsset} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
-
 // Handles transferring assets from one subaccount to another
 // Verifies the owner of both subaccounts is the same.
 // Only has to sign from one side (so has to call out to the
