@@ -3,105 +3,76 @@ pragma solidity ^0.8.13;
 
 import "forge-std/console2.sol";
 
+// Libraries
 import "openzeppelin/utils/math/SafeCast.sol";
 import "lyra-utils/decimals/SignedDecimalMath.sol";
+import "lyra-utils/decimals/DecimalMath.sol";
 
+// Inherited
+import {BaseModule} from "./BaseModule.sol";
+import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
+import {ITradeModule} from "../interfaces/ITradeModule.sol";
+
+// Interfaces
 import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
+import {IMatching} from "../interfaces/IMatching.sol";
 
-import {BaseModule} from "./BaseModule.sol";
-import {Matching} from "../Matching.sol";
-import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 
-contract TradeModule is BaseModule, Ownable2Step {
+contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
   using SafeCast for uint;
   using SafeCast for int;
   using SignedDecimalMath for int;
+  using DecimalMath for uint;
 
-  struct TradeData {
-    address asset;
-    uint subId;
-    int worstPrice;
-    int desiredAmount;
-    uint worstFee;
-    uint recipientId;
-    bool isBid;
-  }
 
-  struct OptionLimitOrder {
-    uint accountId;
-    address owner;
-    uint nonce;
-    TradeData data;
-  }
-
-  /**
-   * @dev A "Fill" is a trade that occurs when a market is crossed. A single new order can result in multiple fills.
-   * The matcher is the account that is crossing the market. The filledAccounts are those being filled.
-   *
-   * If the order is a bid;
-   * the matcher is sending the filled accounts quoteAsset, and receiving the asset from the filled accounts.
-   *
-   * If the order is an ask;
-   * the matcher is sending the filled accounts asset, and receiving the quoteAsset from the filled accounts.
-   */
-
-  struct MatchData {
-    uint matchedAccount;
-    uint matcherFee;
-    FillDetails[] fillDetails;
-    bytes managerData;
-  }
-
-  struct FillDetails {
-    uint filledAccount;
-    uint amountFilled;
-    // price per asset
-    int price;
-    // total fee for filler
-    uint fee;
-    // for perp trades, the difference in the fill price and the perp price
-    // users will only transfer this amount for a perp trade
-    int perpDelta;
-  }
-
-  // @dev we fix the quoteAsset for the contracts so we can support eth/usdc etc as quoteAsset, but only one per
-  //  deployment
+  // @dev we fix the quoteAsset for the contracts so we only support one quoteAsset per deployment
   IAsset public immutable quoteAsset;
 
-  mapping(IPerpAsset => bool) public perpAssets;
+  mapping(IPerpAsset => bool) public isPerpAsset;
 
   uint public feeRecipient;
 
   /// @dev we trust the nonce is unique for the given "VerifiedOrder" for the owner
   mapping(address owner => mapping(uint nonce => uint filled)) public filled;
-  /// @dev in the case of recipient being 0, create new recipient and store the id here
-  mapping(address owner => mapping(uint nonce => uint recipientId)) public recipientId;
 
-  constructor(Matching _matching, IAsset _quoteAsset, uint _feeRecipient) BaseModule(_matching) Ownable2Step() {
+  // @dev we want to make sure once submitted with one nonce, we cant submit a different order with the same nonce
+  // note; it is still possible to submit different orders, but all parameters will match (but expiry may be different)
+  mapping(address owner => mapping(uint nonce => bytes32 hash)) public seenNonces;
+
+  constructor(IMatching _matching, IAsset _quoteAsset, uint _feeRecipient) BaseModule(_matching) Ownable2Step() {
     quoteAsset = _quoteAsset;
     feeRecipient = _feeRecipient;
   }
+
+  ///////////
+  // Admin //
+  ///////////
 
   function setFeeRecipient(uint _feeRecipient) external onlyOwner {
     feeRecipient = _feeRecipient;
   }
 
   function setPerpAsset(IPerpAsset _perpAsset, bool isPerp) external onlyOwner {
-    perpAssets[_perpAsset] = isPerp;
+    isPerpAsset[_perpAsset] = isPerp;
   }
 
+  ////////////////////
+  // Action Handler //
+  ////////////////////
+
   /// @dev Assumes VerifiedOrders are sorted in the order: [matchedAccount, ...filledAccounts]
-  /// Also trusts nonces are never repeated for the same owner. If the same nonce is received, it is assumed to be the
-  /// same order.
-  function matchOrders(VerifiedOrder[] memory orders, bytes memory matchDataBytes)
+  function executeAction(VerifiedOrder[] memory orders, bytes memory actionDataBytes)
     public
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
-    MatchData memory matchData = abi.decode(matchDataBytes, (MatchData));
+    // Verify
+    if (orders.length <= 1) revert TM_InvalidOrdersLength();
+
+    ActionData memory actionData = abi.decode(actionDataBytes, (ActionData));
 
     OptionLimitOrder memory matchedOrder = OptionLimitOrder({
       accountId: orders[0].accountId,
@@ -110,7 +81,7 @@ contract TradeModule is BaseModule, Ownable2Step {
       data: abi.decode(orders[0].data, (TradeData))
     });
 
-    if (matchedOrder.accountId != matchData.matchedAccount) revert("matched account does not match");
+    if (matchedOrder.accountId != actionData.matchedAccount) revert TM_SignedAccountMismatch();
 
     // We can prepare the transfers as we iterate over the data
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](orders.length * 3 - 2);
@@ -119,7 +90,7 @@ contract TradeModule is BaseModule, Ownable2Step {
     int worstPrice = matchedOrder.data.isBid ? int(0) : type(int).max;
 
     for (uint i = 1; i < orders.length; i++) {
-      FillDetails memory fillDetails = matchData.fillDetails[i - 1];
+      FillDetails memory fillDetails = actionData.fillDetails[i - 1];
 
       OptionLimitOrder memory filledOrder = OptionLimitOrder({
         accountId: orders[i].accountId,
@@ -128,9 +99,8 @@ contract TradeModule is BaseModule, Ownable2Step {
         data: abi.decode(orders[i].data, (TradeData))
       });
 
-      if (filledOrder.data.recipientId == 0) revert("Recipient Id canont be zero");
-      if (filledOrder.accountId != fillDetails.filledAccount) revert("filled account does not match");
-      if (filledOrder.data.isBid == matchedOrder.data.isBid) revert("isBid mismatch");
+      _verifyFilledAccount(filledOrder, fillDetails.filledAccount);
+      if (filledOrder.data.isBid == matchedOrder.data.isBid) revert TM_IsBidMismatch();
 
       _fillLimitOrder(filledOrder, fillDetails);
       _addAssetTransfers(transferBatch, fillDetails, matchedOrder, filledOrder, i * 3 - 3);
@@ -146,7 +116,7 @@ contract TradeModule is BaseModule, Ownable2Step {
     transferBatch[transferBatch.length - 1] = ISubAccounts.AssetTransfer({
       asset: quoteAsset,
       subId: 0,
-      amount: int(matchData.matcherFee),
+      amount: int(actionData.matcherFee),
       fromAcc: matchedOrder.accountId,
       toAcc: feeRecipient,
       assetData: bytes32(0)
@@ -158,19 +128,35 @@ contract TradeModule is BaseModule, Ownable2Step {
         filledAccount: matchedOrder.accountId,
         amountFilled: totalFilled,
         price: worstPrice,
-        fee: matchData.matcherFee,
+        fee: actionData.matcherFee,
         perpDelta: 0
       })
     );
 
-    accounts.submitTransfers(transferBatch, matchData.managerData);
+    // Execute
+    subAccounts.submitTransfers(transferBatch, actionData.managerData);
+
+    // Return
     _returnAccounts(orders, newAccIds);
+    return (newAccIds, newAccOwners);
+  }
+
+  function _verifyFilledAccount(OptionLimitOrder memory order, uint filledAccount) internal view {
+    if (order.data.recipientId == 0) revert TM_InvalidRecipientId();
+    if (order.accountId != filledAccount) revert TM_SignedAccountMismatch();
+    // If the recipient isn't the signed account, verify the owner matches
+    if (
+      order.data.recipientId != order.accountId
+      && matching.subAccountToOwner(order.data.recipientId) != order.owner
+    ) {
+      revert TM_InvalidRecipientId();
+    }
   }
 
   function _fillLimitOrder(OptionLimitOrder memory order, FillDetails memory fill) internal {
     int finalPrice = fill.price;
 
-    if (fill.fee > order.data.worstFee) revert("fee too high");
+    if (fill.fee.divideDecimal(fill.amountFilled) > order.data.worstFee) revert("fee too high");
 
     if (order.data.isBid) {
       if (finalPrice > order.data.worstPrice) revert("price too high");
@@ -230,12 +216,21 @@ contract TradeModule is BaseModule, Ownable2Step {
   }
 
   function _isPerp(address baseAsset) internal view returns (bool) {
-    return perpAssets[IPerpAsset(baseAsset)];
+    return isPerpAsset[IPerpAsset(baseAsset)];
   }
 
   // Difference between the perp price and the traded price
   function _getPerpDelta(address perpAsset, int marketPrice) internal view returns (int delta) {
     (uint perpPrice,) = IPerpAsset(perpAsset).getPerpPrice();
     return (marketPrice - perpPrice.toInt256());
+  }
+
+  function _checkOrderNonce(VerifiedOrder memory order) internal {
+    bytes32 storedHash = seenNonces[order.owner][order.nonce];
+    if (storedHash == bytes32(0)) {
+      seenNonces[order.owner][order.nonce] = keccak256(order.data);
+    } else if (storedHash != keccak256(order.data)) {
+      revert TM_InvalidNonce();
+    }
   }
 }

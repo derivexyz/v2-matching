@@ -3,20 +3,25 @@ pragma solidity ^0.8.13;
 
 import "forge-std/console2.sol";
 
+// inherited
+import {OrderVerifier} from "./OrderVerifier.sol";
+import {IMatching} from "./interfaces/IMatching.sol";
+
+// interfaces
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
-
 import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
-import {SubAccountsManager} from "./SubAccountsManager.sol";
-import "./OrderVerifier.sol";
 
-contract Matching is OrderVerifier {
-  ///@dev Permissioned address to execute trades
+
+contract Matching is IMatching, OrderVerifier {
+  /// @dev Permissioned address to execute trades
   mapping(address tradeExecutor => bool canExecuteTrades) public tradeExecutors;
-  // todo whitelist module
+  mapping(address module => bool) public allowedModules;
+
+  ///////////////
+  // Functions //
+  ///////////////
 
   constructor(ISubAccounts _accounts) OrderVerifier(_accounts) {}
-
-  error M_AccountNotReturned();
 
   ////////////////////////////
   //  Onwer-only Functions  //
@@ -31,63 +36,65 @@ contract Matching is OrderVerifier {
     emit TradeExecutorSet(tradeExecutor, canExecute);
   }
 
+  function setAllowedModule(address module, bool allowed) external onlyOwner {
+    allowedModules[module] = allowed;
+
+    emit ModuleAllowed(module, allowed);
+  }
+
   /////////////////////////////
   //  Whitelisted Functions  //
   /////////////////////////////
 
-  function verifyAndMatch(SignedOrder[] memory orders, bytes memory matchData) public onlyTradeExecutor {
-    IMatchingModule matcher = orders[0].matcher;
+  function verifyAndMatch(SignedOrder[] memory orders, bytes memory actionData) public onlyTradeExecutor {
+    IMatchingModule module = orders[0].module;
+    _verifyModule(module);
+
     IMatchingModule.VerifiedOrder[] memory verifiedOrders = new IMatchingModule.VerifiedOrder[](orders.length);
     for (uint i = 0; i < orders.length; i++) {
       verifiedOrders[i] = _verifyOrder(orders[i]);
     }
-    _submitMatch(matcher, verifiedOrders, matchData);
-  }
-
-  //////////////////////////
-  //  External Functions  //
-  //////////////////////////
-
-  function domainSeparator() external view returns (bytes32) {
-    return _domainSeparatorV4();
+    _submitModuleAction(module, verifiedOrders, actionData);
   }
 
   //////////////////////////
   //  Internal Functions  //
   //////////////////////////
 
-  function _submitMatch(IMatchingModule matcher, IMatchingModule.VerifiedOrder[] memory orders, bytes memory matchData)
+  function _submitModuleAction(IMatchingModule module, IMatchingModule.VerifiedOrder[] memory orders, bytes memory actionData)
     internal
   {
-    // Transfer accounts to Matcher contract
+    // Transfer accounts to the module contract
     for (uint i = 0; i < orders.length; ++i) {
       // Allow signing messages with accountId == 0, where no account needs to be transferred.
       if (orders[i].accountId == 0) continue;
 
-      accounts.transferFrom(address(this), address(matcher), orders[i].accountId);
+      subAccounts.transferFrom(address(this), address(module), orders[i].accountId);
     }
 
-    (uint[] memory newAccIds, address[] memory newOwners) = matcher.matchOrders(orders, matchData);
+    (uint[] memory newAccIds, address[] memory newOwners) = module.executeAction(orders, actionData);
 
     // Ensure accounts are transferred back,
     for (uint i = 0; i < orders.length; ++i) {
-      if (orders[i].accountId != 0 && accounts.ownerOf(orders[i].accountId) != address(this)) {
+      if (orders[i].accountId != 0 && subAccounts.ownerOf(orders[i].accountId) != address(this)) {
         revert M_AccountNotReturned();
       }
     }
 
     // Receive back a list of new subaccounts and respective owners. This allows modules to open new accounts
-    if (newAccIds.length != newOwners.length) revert M_ArrayLengthMismatch(newAccIds.length, newOwners.length);
+    if (newAccIds.length != newOwners.length) revert M_ArrayLengthMismatch();
     for (uint i = 0; i < newAccIds.length; ++i) {
-      if (accounts.ownerOf(newAccIds[i]) != address(this)) revert M_AccountNotReturned();
-      if (accountToOwner[newAccIds[i]] != address(0)) revert("account already exists");
+      if (subAccounts.ownerOf(newAccIds[i]) != address(this)) revert M_AccountNotReturned();
+      if (subAccountToOwner[newAccIds[i]] != address(0)) revert M_AccountAlreadyExists();
 
-      accountToOwner[newAccIds[i]] = newOwners[i];
+      subAccountToOwner[newAccIds[i]] = newOwners[i];
     }
   }
 
-  function getOrderHash(SignedOrder memory order) external pure returns (bytes32) {
-    return _getOrderHash(order);
+  function _verifyModule(IMatchingModule module) internal view {
+    if (!allowedModules[address(module)]) {
+      revert M_OnlyAllowedModule();
+    }
   }
 
   ///////////////
@@ -95,15 +102,7 @@ contract Matching is OrderVerifier {
   ///////////////
 
   modifier onlyTradeExecutor() {
-    require(tradeExecutors[msg.sender], "Only trade executor can call this");
+    if(!tradeExecutors[msg.sender]) revert M_OnlyTradeExecutor();
     _;
   }
-
-  ////////////
-  // Events //
-  ////////////
-
-  event TradeExecutorSet(address executor, bool canExecute);
-
-  error M_ArrayLengthMismatch(uint length1, uint length2);
 }

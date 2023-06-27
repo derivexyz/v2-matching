@@ -1,10 +1,21 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.18;
 
-import {MatchingBase} from "./shared/MatchingBase.sol";
-import {SubAccountsManager} from "src/SubAccountsManager.sol";
+import {IManager} from "v2-core/src/interfaces/IManager.sol";
+
+import {MatchingBase} from "test/shared/MatchingBase.t.sol";
+import {SubAccountsManager, ISubAccountsManager} from "src/SubAccountsManager.sol";
 
 contract SubAccountManagementTest is MatchingBase {
+  function testCanCreateAccount() public {
+    vm.startPrank(cam);
+    uint newAcc = matching.createSubAccount(IManager(pmrm));
+    vm.stopPrank();
+
+    assertEq(subAccounts.ownerOf(newAcc), address(matching));
+    assertEq(matching.subAccountToOwner(newAcc), cam);
+  }
+
   function testCanDepositAccount() public {
     uint newAcc = subAccounts.createAccount(cam, pmrm);
 
@@ -14,7 +25,7 @@ contract SubAccountManagementTest is MatchingBase {
     vm.stopPrank();
 
     assertEq(subAccounts.ownerOf(newAcc), address(matching));
-    assertEq(matching.accountToOwner(newAcc), cam);
+    assertEq(matching.subAccountToOwner(newAcc), cam);
   }
 
   function testCanWithdrawAccount() public {
@@ -26,11 +37,11 @@ contract SubAccountManagementTest is MatchingBase {
     vm.stopPrank();
 
     assertEq(subAccounts.ownerOf(camAcc), cam);
-    assertEq(matching.accountToOwner(camAcc), address(0));
+    assertEq(matching.subAccountToOwner(camAcc), address(0));
   }
 
   function testCannotRequestWithdrawFromNonOwner() public {
-    vm.expectRevert(SubAccountsManager.M_NotOwnerAddress.selector);
+    vm.expectRevert(ISubAccountsManager.SAM_NotOwnerAddress.selector);
 
     vm.prank(doug);
     matching.requestWithdrawAccount(camAcc);
@@ -40,20 +51,19 @@ contract SubAccountManagementTest is MatchingBase {
     vm.startPrank(cam);
     matching.requestWithdrawAccount(camAcc);
 
-    vm.expectRevert(abi.encodeWithSelector(SubAccountsManager.M_CooldownNotElapsed.selector, (30 minutes)));
+    vm.expectRevert(ISubAccountsManager.SAM_CooldownNotElapsed.selector);
 
     matching.completeWithdrawAccount(camAcc);
     vm.stopPrank();
   }
 
-  function testCannotCompleteWithWrongSender() public {
+  function testCanCompleteWithNotOwner() public {
     vm.startPrank(cam);
     matching.requestWithdrawAccount(camAcc);
     vm.warp(block.timestamp + (1 hours));
     vm.stopPrank();
 
     vm.prank(doug);
-    vm.expectRevert(SubAccountsManager.M_NotOwnerAddress.selector);
     matching.completeWithdrawAccount(camAcc);
   }
 }

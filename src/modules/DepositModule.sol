@@ -3,42 +3,39 @@ pragma solidity ^0.8.13;
 
 import "forge-std/console2.sol";
 
+// Inherited
+import {BaseModule} from "./BaseModule.sol";
+import {IDepositModule} from "../interfaces/IDepositModule.sol";
+
+// Interfaces
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {IERC20BasedAsset} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
+import {IMatching} from "../interfaces/IMatching.sol";
 
-import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
-import "./BaseModule.sol";
-// import "../interfaces/IERC20BasedAsset.sol";
 
 // Handles transferring assets from one subaccount to another
 // Verifies the owner of both subaccounts is the same.
 // Only has to sign from one side (so has to call out to the
-contract DepositModule is BaseModule {
-  struct DepositData {
-    uint amount;
-    address asset;
-    address managerForNewAccount;
-  }
+contract DepositModule is IDepositModule, BaseModule {
+  constructor(IMatching _matching) BaseModule(_matching) {}
 
-  constructor(Matching _matching) BaseModule(_matching) {}
-
-  error DM_InvalidDepositOrderLength();
-
-  function matchOrders(VerifiedOrder[] memory orders, bytes memory)
-    public
+  function executeAction(VerifiedOrder[] memory orders, bytes memory)
+    external
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
+    // Verify
     if (orders.length != 1) revert DM_InvalidDepositOrderLength();
+    VerifiedOrder memory depositOrder = orders[0];
+    _checkAndInvalidateNonce(depositOrder.owner, depositOrder.nonce);
 
-    _checkAndInvalidateNonce(orders[0].owner, orders[0].nonce);
-
+    // Execute
     DepositData memory data = abi.decode(orders[0].data, (DepositData));
+
     uint accountId = orders[0].accountId;
     if (accountId == 0) {
-      accountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
+      accountId = subAccounts.createAccount(address(this), IManager(data.managerForNewAccount));
 
-      // Return new accountId with owner
       newAccIds = new uint[](1);
       newAccIds[0] = accountId;
       newAccOwners = new address[](1);
@@ -51,6 +48,8 @@ contract DepositModule is BaseModule {
     depositToken.approve(address(data.asset), data.amount);
     IERC20BasedAsset(data.asset).deposit(accountId, data.amount);
 
+    // Return
     _returnAccounts(orders, newAccIds);
+    return (newAccIds, newAccOwners);
   }
 }

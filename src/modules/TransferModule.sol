@@ -1,91 +1,78 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "openzeppelin/access/Ownable2Step.sol";
+// Inherited
+import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
+import {BaseModule} from "./BaseModule.sol";
+import {ITransferModule} from "../interfaces/ITransferModule.sol";
+
+// Interfaces
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
+import {IManager} from "v2-core/src/interfaces/IManager.sol";
+import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
-import "../SubAccountsManager.sol";
-import "../Matching.sol";
-import "./BaseModule.sol";
+import {IMatching} from "../interfaces/IMatching.sol";
+
 
 // Handles transferring assets from one subaccount to another
 // Verifies the owner of both subaccounts is the same.
 // Only has to sign from one side (so has to call out to the
-contract TransferModule is BaseModule {
-  struct TransferData {
-    uint toAccountId;
-    address managerForNewAccount;
-    Transfers[] transfers;
-  }
-
-  struct Transfers {
-    address asset;
-    uint subId;
-    int amount;
-  }
-
-  error TM_InvalidFromAccount();
-
-  error TM_InvalidTransferOrderLength();
-
-  error TM_InvalidRecipientOwner();
-
-  error TM_InvalidSecondOrder();
-
-  constructor(Matching _matching) BaseModule(_matching) {}
+contract TransferModule is ITransferModule, BaseModule {
+  constructor(IMatching _matching) BaseModule(_matching) {}
 
   /**
    * @notice transfer asset between multiple subAccounts
-   * @dev in normal cases, orders array should be length of 1
-   *      the second order is only attached when transferring debt
-   *      so the recipient account will be moved to this module
    */
-  function matchOrders(VerifiedOrder[] memory orders, bytes memory)
+  function executeAction(VerifiedOrder[] memory orders, bytes memory managerData)
     public
     onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
-    if (orders.length > 2) revert TM_InvalidTransferOrderLength();
+    // Verify
+    if (orders.length != 2) revert TFM_InvalidTransferOrderLength();
+    VerifiedOrder memory fromOrder = orders[0];
+    VerifiedOrder memory toOrder = orders[1];
 
-    // only the from order encode the detail of transfers
-    TransferData memory data = abi.decode(orders[0].data, (TransferData));
+    if (fromOrder.owner != toOrder.owner) revert TFM_InvalidRecipientOwner();
+    if (fromOrder.accountId == 0) revert TFM_InvalidFromAccount();
 
-    // this is verified by the matching contract that cannot be zero
-    uint fromAccountId = orders[0].accountId;
+    _checkAndInvalidateNonce(fromOrder.owner, fromOrder.nonce);
+    _checkAndInvalidateNonce(toOrder.owner, toOrder.nonce);
 
-    uint toAccountId = data.toAccountId;
-    // if there is a second order, it should be signed by the recipient account to move to this module
-    if (orders.length == 2 && orders[1].accountId != toAccountId) revert TM_InvalidSecondOrder();
+    // note: only the from order needs to encode the detail of transfers
+    TransferData memory transferData = abi.decode(fromOrder.data, (TransferData));
 
+    uint toAccountId = transferData.toAccountId;
+    if (toOrder.accountId != toAccountId) revert TFM_ToAccountMismatch();
+
+    // Create the account if accountId 0 is used
     if (toAccountId == 0) {
-      toAccountId = matching.accounts().createAccount(address(this), IManager(data.managerForNewAccount));
+      toAccountId = subAccounts.createAccount(address(this), IManager(transferData.managerForNewAccount));
       newAccIds = new uint[](1);
       newAccIds[0] = toAccountId;
       newAccOwners = new address[](1);
       newAccOwners[0] = orders[0].owner;
-    } else {
-      // make sure the recipient account has the same owner
-      address owner = matching.accountToOwner(toAccountId);
-      if (owner != orders[0].owner) revert TM_InvalidRecipientOwner();
     }
 
-    ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](data.transfers.length);
-    for (uint i = 0; i < data.transfers.length; ++i) {
-      // We should probably check that we aren't creating more OI by doing this transfer?
-      // Users might for some reason create long and short options in different accounts for free by using this method...
+    // Execute
+    ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](transferData.transfers.length);
+    for (uint i = 0; i < transferData.transfers.length; ++i) {
+      // Note: this transfer could potentially increase OI (transfer when balance == 0) so this should be checked by the
+      // trusted trade executors.
       transferBatch[i] = ISubAccounts.AssetTransfer({
-        asset: IAsset(data.transfers[i].asset),
-        fromAcc: fromAccountId,
+        asset: IAsset(transferData.transfers[i].asset),
+        fromAcc: fromOrder.accountId,
         toAcc: toAccountId,
-        subId: data.transfers[i].subId,
-        amount: data.transfers[i].amount,
+        subId: transferData.transfers[i].subId,
+        amount: transferData.transfers[i].amount,
         assetData: bytes32(0)
       });
     }
 
-    matching.accounts().submitTransfers(transferBatch, "");
+    subAccounts.submitTransfers(transferBatch, managerData);
 
-    // Transfer accounts back to matching
+    // Return
     _returnAccounts(orders, newAccIds);
+    return (newAccIds, newAccOwners);
   }
 }

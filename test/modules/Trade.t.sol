@@ -3,19 +3,19 @@ pragma solidity ^0.8.18;
 
 import "forge-std/Test.sol";
 
-import {MatchingBase} from "./shared/MatchingBase.sol";
-import {OrderVerifier} from "src/OrderVerifier.sol";
+import {MatchingBase} from "test/shared/MatchingBase.t.sol";
+import {IOrderVerifier} from "src/interfaces/IOrderVerifier.sol";
 import {IERC20BasedAsset} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
-import {TradeModule} from "src/modules/TradeModule.sol";
+import {TradeModule, ITradeModule} from "src/modules/TradeModule.sol";
 import "lyra-utils/encoding/OptionEncoding.sol";
 
 contract TradeModuleTest is MatchingBase {
   function testTrade() public {
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
     // Doug wants to buy call from cam
-    TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
+    ITradeModule.TradeData memory dougTradeData = ITradeModule.TradeData({
       asset: address(option),
       subId: callId,
       worstPrice: 1e18,
@@ -28,7 +28,7 @@ contract TradeModuleTest is MatchingBase {
 
     bytes memory camTrade;
     {
-      TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
+      ITradeModule.TradeData memory camTradeData = ITradeModule.TradeData({
         asset: address(option),
         subId: callId,
         worstPrice: 1e18,
@@ -40,21 +40,21 @@ contract TradeModuleTest is MatchingBase {
       camTrade = abi.encode(camTradeData);
     }
 
-    OrderVerifier.SignedOrder memory trade1 =
+    IOrderVerifier.SignedOrder memory trade1 =
       _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
-    OrderVerifier.SignedOrder memory trade2 =
+    IOrderVerifier.SignedOrder memory trade2 =
       _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     // Match data submitted by the orderbook
-    bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 1e18, 0);
+    bytes memory encodedAction = _createActionData(dougAcc, 0, camAcc, 1e18, 1e18, 0);
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
     int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
     // Submit Order
-    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
     orders[0] = trade1;
     orders[1] = trade2;
-    _verifyAndMatch(orders, encodedMatch);
+    _verifyAndMatch(orders, encodedAction);
 
     int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
     int dougBalAfter = subAccounts.getBalance(dougAcc, option, callId);
@@ -70,7 +70,7 @@ contract TradeModuleTest is MatchingBase {
   //   uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
 
   //   // Doug wants to buy call from cam
-  //   TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
+  //   ITradeModule.TradeData memory dougTradeData = ITradeModule.TradeData({
   //     asset: address(option),
   //     subId: callId,
   //     worstPrice: 1e18,
@@ -79,7 +79,7 @@ contract TradeModuleTest is MatchingBase {
   //   });
   //   bytes memory dougTrade = abi.encode(dougTradeData);
 
-  //   TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
+  //   ITradeModule.TradeData memory camTradeData = ITradeModule.TradeData({
   //     asset: address(option),
   //     subId: callId,
   //     worstPrice: 1e18,
@@ -88,7 +88,7 @@ contract TradeModuleTest is MatchingBase {
   //   });
   //   bytes memory camTrade = abi.encode(camTradeData);
 
-  //   TradeModule.TradeData memory camTradeData2 = TradeModule.TradeData({
+  //   ITradeModule.TradeData memory camTradeData2 = ITradeModule.TradeData({
   //     asset: address(option),
   //     subId: callId,
   //     worstPrice: 1e18,
@@ -97,24 +97,24 @@ contract TradeModuleTest is MatchingBase {
   //   });
   //   bytes memory camTrade2 = abi.encode(camTradeData)2;
 
-  //   OrderVerifier.SignedOrder memory trade1 =
+  //   IOrderVerifier.SignedOrder memory trade1 =
   //     _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
-  //   OrderVerifier.SignedOrder memory trade2 =
+  //   IOrderVerifier.SignedOrder memory trade2 =
   //     _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
-  //   OrderVerifier.SignedOrder memory trade3 =
+  //   IOrderVerifier.SignedOrder memory trade3 =
   //     _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
   //   // Match data submitted by the orderbook
-  //   bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 1e18, 0); //todo match data for many fills
+  //   bytes memory encodedAction = _createActionData(dougAcc, 0, camAcc, 1e18, 1e18, 0); //todo match data for many fills
 
   //   int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
   //   int dougBalBefore = subAccounts.getBalance(dougAcc, option, callId);
   //   console2.log("dougBefore", dougBalBefore);
   //   // Submit Order
-  //   OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+  //   IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
   //   orders[0] = trade1;
   //   orders[1] = trade2;
-  //   _verifyAndMatch(orders, encodedMatch);
+  //   _verifyAndMatch(orders, encodedAction);
 
   //   int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
   //   int dougBalAfter = subAccounts.getBalance(dougAcc, option, callId);
@@ -133,7 +133,7 @@ contract TradeModuleTest is MatchingBase {
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
 
     // Doug wants to buy call from cam
-    TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
+    ITradeModule.TradeData memory dougTradeData = ITradeModule.TradeData({
       asset: address(option),
       subId: callId,
       worstPrice: 1e18,
@@ -144,7 +144,7 @@ contract TradeModuleTest is MatchingBase {
     });
     bytes memory dougTrade = abi.encode(dougTradeData);
 
-    TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
+    ITradeModule.TradeData memory camTradeData = ITradeModule.TradeData({
       asset: address(option),
       subId: callId,
       worstPrice: 1e18,
@@ -155,28 +155,28 @@ contract TradeModuleTest is MatchingBase {
     });
     bytes memory camTrade = abi.encode(camTradeData);
 
-    OrderVerifier.SignedOrder memory trade1 =
+    IOrderVerifier.SignedOrder memory trade1 =
       _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
-    OrderVerifier.SignedOrder memory trade2 =
+    IOrderVerifier.SignedOrder memory trade2 =
       _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     // Match data submitted by the orderbook
-    bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 1e18, 0);
+    bytes memory encodedAction = _createActionData(dougAcc, 0, camAcc, 1e18, 1e18, 0);
 
     // Submit Order
-    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
     orders[0] = trade1;
     orders[1] = trade2;
-    _verifyAndMatch(orders, encodedMatch);
+    _verifyAndMatch(orders, encodedAction);
     assertEq(tradeModule.filled(doug, 0), 1e18);
 
-    _verifyAndMatch(orders, encodedMatch);
+    _verifyAndMatch(orders, encodedAction);
     assertEq(tradeModule.filled(doug, 0), 1e18 * 2);
   }
 
   function testCannotTradeHighPrice() public {
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
-    TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
+    ITradeModule.TradeData memory dougTradeData = ITradeModule.TradeData({
       asset: address(option),
       subId: callId,
       worstPrice: 1e18,
@@ -187,7 +187,7 @@ contract TradeModuleTest is MatchingBase {
     });
     bytes memory dougTrade = abi.encode(dougTradeData);
 
-    TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
+    ITradeModule.TradeData memory camTradeData = ITradeModule.TradeData({
       asset: address(option),
       subId: callId,
       worstPrice: 1e18,
@@ -198,27 +198,27 @@ contract TradeModuleTest is MatchingBase {
     });
     bytes memory camTrade = abi.encode(camTradeData);
 
-    OrderVerifier.SignedOrder memory trade1 =
+    IOrderVerifier.SignedOrder memory trade1 =
       _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
-    OrderVerifier.SignedOrder memory trade2 =
+    IOrderVerifier.SignedOrder memory trade2 =
       _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     // Match data submitted by the orderbook
-    bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 2e18, 0);
+    bytes memory encodedAction = _createActionData(dougAcc, 0, camAcc, 1e18, 2e18, 0);
 
     // Submit Order
-    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
     orders[0] = trade1;
     orders[1] = trade2;
 
     // Doug price 1, cam price 1/10
     vm.expectRevert("price too high");
-    _verifyAndMatch(orders, encodedMatch);
+    _verifyAndMatch(orders, encodedAction);
   }
 
   function testCannotTradeLowPrice() public {
     uint callId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
-    TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
+    ITradeModule.TradeData memory dougTradeData = ITradeModule.TradeData({
       asset: address(option),
       subId: callId,
       worstPrice: 1e18,
@@ -229,7 +229,7 @@ contract TradeModuleTest is MatchingBase {
     });
     bytes memory dougTrade = abi.encode(dougTradeData);
 
-    TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
+    ITradeModule.TradeData memory camTradeData = ITradeModule.TradeData({
       asset: address(option),
       subId: callId,
       worstPrice: 10e18,
@@ -240,28 +240,28 @@ contract TradeModuleTest is MatchingBase {
     });
     bytes memory camTrade = abi.encode(camTradeData);
 
-    OrderVerifier.SignedOrder memory trade1 =
+    IOrderVerifier.SignedOrder memory trade1 =
       _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
-    OrderVerifier.SignedOrder memory trade2 =
+    IOrderVerifier.SignedOrder memory trade2 =
       _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     // Match data submitted by the orderbook
-    bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 1e18, 0);
+    bytes memory encodedAction = _createActionData(dougAcc, 0, camAcc, 1e18, 1e18, 0);
 
     // Submit Order
-    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
     orders[0] = trade1;
     orders[1] = trade2;
 
     // doug price 1/10, cam price 1
     vm.expectRevert("price too low");
-    _verifyAndMatch(orders, encodedMatch);
+    _verifyAndMatch(orders, encodedAction);
   }
 
   function testPerpTrade() public {
     mockPerp.setMockPerpPrice(2500e18, 1e18);
 
-    TradeModule.TradeData memory dougTradeData = TradeModule.TradeData({
+    ITradeModule.TradeData memory dougTradeData = ITradeModule.TradeData({
       asset: address(mockPerp),
       subId: 0,
       worstPrice: 2502e18,
@@ -272,7 +272,7 @@ contract TradeModuleTest is MatchingBase {
     });
     bytes memory dougTrade = abi.encode(dougTradeData);
 
-    TradeModule.TradeData memory camTradeData = TradeModule.TradeData({
+    ITradeModule.TradeData memory camTradeData = ITradeModule.TradeData({
       asset: address(mockPerp),
       subId: 0,
       worstPrice: 2500e18,
@@ -283,22 +283,22 @@ contract TradeModuleTest is MatchingBase {
     });
     bytes memory camTrade = abi.encode(camTradeData);
 
-    OrderVerifier.SignedOrder memory trade1 =
+    IOrderVerifier.SignedOrder memory trade1 =
       _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
-    OrderVerifier.SignedOrder memory trade2 =
+    IOrderVerifier.SignedOrder memory trade2 =
       _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     // Match data submitted by the orderbook
-    bytes memory encodedMatch = _createMatchData(dougAcc, 0, camAcc, 1e18, 2502e18, 0);
+    bytes memory encodedAction = _createActionData(dougAcc, 0, camAcc, 1e18, 2502e18, 0);
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
     int dougBalBefore = subAccounts.getBalance(dougAcc, cash, 0);
 
     // Submit Order
-    OrderVerifier.SignedOrder[] memory orders = new OrderVerifier.SignedOrder[](2);
+    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
     orders[0] = trade1;
     orders[1] = trade2;
-    _verifyAndMatch(orders, encodedMatch);
+    _verifyAndMatch(orders, encodedAction);
 
     int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
     int dougBalAfter = subAccounts.getBalance(dougAcc, cash, 0);
@@ -310,7 +310,7 @@ contract TradeModuleTest is MatchingBase {
     assertEq(dougCashDiff, 2e18);
   }
 
-  function _createMatchData(
+  function _createActionData(
     uint matchedAccount,
     uint matcherFee,
     uint filledAcc,
@@ -318,7 +318,7 @@ contract TradeModuleTest is MatchingBase {
     int price,
     uint fee
   ) internal pure returns (bytes memory) {
-    TradeModule.FillDetails memory fillDetails = TradeModule.FillDetails({
+    ITradeModule.FillDetails memory fillDetails = ITradeModule.FillDetails({
       filledAccount: filledAcc,
       amountFilled: amountFilled,
       price: price,
@@ -326,17 +326,17 @@ contract TradeModuleTest is MatchingBase {
       perpDelta: 0
     });
 
-    TradeModule.FillDetails[] memory fills = new TradeModule.FillDetails[](1);
+    ITradeModule.FillDetails[] memory fills = new ITradeModule.FillDetails[](1);
     fills[0] = fillDetails;
 
-    TradeModule.MatchData memory matchData = TradeModule.MatchData({
+    ITradeModule.ActionData memory actionData = ITradeModule.ActionData({
       matchedAccount: matchedAccount,
       matcherFee: matcherFee,
       fillDetails: fills,
       managerData: bytes("")
     });
 
-    bytes memory encodedMatch = abi.encode(matchData);
-    return encodedMatch;
+    bytes memory encodedAction = abi.encode(actionData);
+    return encodedAction;
   }
 }

@@ -1,26 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../interfaces/IMatchingModule.sol";
-import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
-import "./BaseModule.sol";
+// Inherited
+import {BaseModule} from "./BaseModule.sol";
+import {IWithdrawalModule} from "../interfaces/IWithdrawalModule.sol";
+// Interfaces
+import {IERC20BasedAsset} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
+import {IMatching} from "../interfaces/IMatching.sol";
 
-interface IWithdrawableAsset {
-  function withdraw(uint accountId, uint assetAmount, address recipient) external;
-}
+contract WithdrawalModule is IWithdrawalModule, BaseModule {
+  constructor(IMatching _matching) BaseModule(_matching) {}
 
-contract WithdrawalModule is BaseModule {
-  struct WithdrawalData {
-    address asset;
-    uint assetAmount;
-  }
-
-  error WM_InvalidWithdrawalOrderLength();
-  error WM_InvalidFromAccount();
-
-  constructor(Matching _matching) BaseModule(_matching) {}
-
-  function matchOrders(VerifiedOrder[] memory orders, bytes memory)
+  function executeAction(VerifiedOrder[] memory orders, bytes memory)
     public
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
@@ -31,8 +22,9 @@ contract WithdrawalModule is BaseModule {
 
     WithdrawalData memory data = abi.decode(orders[0].data, (WithdrawalData));
 
-    IWithdrawableAsset(data.asset).withdraw(orders[0].accountId, data.assetAmount, orders[0].owner);
+    IERC20BasedAsset(data.asset).withdraw(orders[0].accountId, data.assetAmount, orders[0].owner);
 
     _returnAccounts(orders, newAccIds);
+    return (newAccIds, newAccOwners);
   }
 }

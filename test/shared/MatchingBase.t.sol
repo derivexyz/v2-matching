@@ -5,15 +5,19 @@ import "forge-std/Test.sol";
 
 import "src/Matching.sol";
 
-import {DepositModule} from "src/modules/DepositModule.sol";
-import {WithdrawalModule} from "src/modules/WithdrawalModule.sol";
+import {DepositModule, IDepositModule} from "src/modules/DepositModule.sol";
+import {WithdrawalModule, IWithdrawalModule} from "src/modules/WithdrawalModule.sol";
 import {TransferModule} from "src/modules/TransferModule.sol";
 import {TradeModule} from "src/modules/TradeModule.sol";
 import {RiskManagerChangeModule} from "src/modules/RiskManagerChangeModule.sol";
 import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
-import {OrderVerifier} from "src/OrderVerifier.sol";
+import {IOrderVerifier} from "src/interfaces/IOrderVerifier.sol";
 import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
+
+import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
+import {IManager} from "v2-core/src/interfaces/IManager.sol";
+import {ECDSA} from "openzeppelin/utils/cryptography/ECDSA.sol";
 
 /**
  * @dev we deploy actual Account contract in these tests to simplify verification process
@@ -65,6 +69,12 @@ contract MatchingBase is PMRMTestBase {
     tradeModule.setPerpAsset(IPerpAsset(address(mockPerp)), true);
     changeModule = new RiskManagerChangeModule(matching);
 
+    matching.setAllowedModule(address(depositModule), true);
+    matching.setAllowedModule(address(withdrawalModule), true);
+    matching.setAllowedModule(address(transferModule), true);
+    matching.setAllowedModule(address(tradeModule), true);
+    matching.setAllowedModule(address(changeModule), true);
+
     // console2.log("MATCHIN ADDY:", address(matching));
     // console2.log("DEPOSIT ADDY:", address(depositModule));
     // console2.log("WITHDWL ADDY:", address(withdrawalModule));
@@ -84,9 +94,9 @@ contract MatchingBase is PMRMTestBase {
     _depositCash(dougAcc, cashDeposit);
   }
 
-  function _verifyAndMatch(OrderVerifier.SignedOrder[] memory orders, bytes memory matchData) internal {
+  function _verifyAndMatch(IOrderVerifier.SignedOrder[] memory orders, bytes memory actionData) internal {
     vm.startPrank(tradeExecutor);
-    matching.verifyAndMatch(orders, matchData);
+    matching.verifyAndMatch(orders, actionData);
     vm.stopPrank();
   }
 
@@ -94,16 +104,16 @@ contract MatchingBase is PMRMTestBase {
   function _createUnsignedOrder(
     uint accountId,
     uint nonce,
-    address matcher,
+    address module,
     bytes memory data,
     uint expiry,
     address owner,
     address signer
-  ) internal pure returns (OrderVerifier.SignedOrder memory order) {
-    order = OrderVerifier.SignedOrder({
+  ) internal pure returns (IOrderVerifier.SignedOrder memory order) {
+    order = IOrderVerifier.SignedOrder({
       accountId: accountId,
       nonce: nonce,
-      matcher: IMatchingModule(matcher),
+      module: IMatchingModule(module),
       data: data,
       expiry: expiry,
       owner: owner,
@@ -113,17 +123,17 @@ contract MatchingBase is PMRMTestBase {
   }
 
   // Returns the SignedOrder with signature
-  function _createSignedOrder(OrderVerifier.SignedOrder memory unsigned, uint signerPk)
+  function _createSignedOrder(IOrderVerifier.SignedOrder memory unsigned, uint signerPk)
     internal
     view
-    returns (OrderVerifier.SignedOrder memory order)
+    returns (IOrderVerifier.SignedOrder memory order)
   {
     bytes memory signature = _signOrder(matching.getOrderHash(unsigned), signerPk);
 
-    order = OrderVerifier.SignedOrder({
+    order = IOrderVerifier.SignedOrder({
       accountId: unsigned.accountId,
       nonce: unsigned.nonce,
-      matcher: unsigned.matcher,
+      module: unsigned.module,
       data: unsigned.data,
       expiry: unsigned.expiry,
       owner: unsigned.owner,
@@ -135,14 +145,14 @@ contract MatchingBase is PMRMTestBase {
   function _createFullSignedOrder(
     uint accountId,
     uint nonce,
-    address matcher,
+    address module,
     bytes memory data,
     uint expiry,
     address owner,
     address signer,
     uint pk
-  ) internal view returns (OrderVerifier.SignedOrder memory order) {
-    order = _createUnsignedOrder(accountId, nonce, matcher, data, expiry, owner, signer);
+  ) internal view returns (IOrderVerifier.SignedOrder memory order) {
+    order = _createUnsignedOrder(accountId, nonce, module, data, expiry, owner, signer);
     order = _createSignedOrder(order, pk);
   }
 
@@ -157,7 +167,7 @@ contract MatchingBase is PMRMTestBase {
     return newAccountId;
   }
 
-  function _getOrderHash(OrderVerifier.SignedOrder memory order) internal view returns (bytes32) {
+  function _getOrderHash(IOrderVerifier.SignedOrder memory order) internal view returns (bytes32) {
     return matching.getOrderHash(order);
   }
 
@@ -167,14 +177,14 @@ contract MatchingBase is PMRMTestBase {
   }
 
   function _encodeDepositData(uint amount, address asset, address newManager) internal pure returns (bytes memory) {
-    DepositModule.DepositData memory data =
-      DepositModule.DepositData({amount: amount, asset: asset, managerForNewAccount: newManager});
+    IDepositModule.DepositData memory data =
+      IDepositModule.DepositData({amount: amount, asset: asset, managerForNewAccount: newManager});
 
     return abi.encode(data);
   }
 
   function _encodeWithdrawData(uint amount, address asset) internal pure returns (bytes memory) {
-    WithdrawalModule.WithdrawalData memory data = WithdrawalModule.WithdrawalData({asset: asset, assetAmount: amount});
+    IWithdrawalModule.WithdrawalData memory data = IWithdrawalModule.WithdrawalData({asset: asset, assetAmount: amount});
 
     return abi.encode(data);
   }
