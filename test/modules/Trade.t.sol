@@ -349,7 +349,7 @@ contract TradeModuleTest is MatchingBase {
     return orders;
   }
 
-  function _getDefaultTrade(uint recipient, bool isBid) internal returns (ITradeModule.TradeData memory) {
+  function _getDefaultTrade(uint recipient, bool isBid) internal view returns (ITradeModule.TradeData memory) {
     return ITradeModule.TradeData({
       asset: address(option),
       subId: defaultCallId,

@@ -28,11 +28,11 @@ interface ITradeModule is IBaseModule {
    * @dev A "Fill" is a trade that occurs when a market is crossed. A single new order can result in multiple fills.
    * The taker is the account that is crossing the market. The makerAccounts are those with orders being filled.
    *
-   * If the order is a bid;
-   * the taker is sending the maker accounts quoteAsset, and receiving the asset from the maker accounts.
+   * If the taker order is a bid;
+   * the taker is sending the maker accounts quoteAsset, and receiving the baseAsset from the maker accounts.
    *
-   * If the order is an ask;
-   * the taker is sending the maker accounts asset, and receiving the quoteAsset from the maker accounts.
+   * If the taker order is an ask;
+   * the taker is sending the maker accounts baseAsset, and receiving the quoteAsset from the maker accounts.
    */
 
   struct ActionData {

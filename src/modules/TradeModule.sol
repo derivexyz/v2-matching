@@ -14,6 +14,8 @@ import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {ITradeModule} from "../interfaces/ITradeModule.sol";
 
 // Interfaces
+import {IBaseManager} from "v2-core/src/interfaces/IBaseManager.sol";
+import {IDataReceiver} from "v2-core/src/interfaces/IDataReceiver.sol";
 import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
@@ -83,12 +85,16 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
 
     if (takerOrder.accountId != actionData.takerAccount) revert TM_SignedAccountMismatch();
 
+    // update feeds in advance, so perpPrice is up to date before we use it for the trade
+    _processManagerData(actionData.managerData);
+
     // We can prepare the transfers as we iterate over the data
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](orders.length * 3 - 2);
 
     uint totalFilled;
-    int worstPrice = takerOrder.data.isBid ? int(0) : type(int).max;
+    int worstPriceForTaker = takerOrder.data.isBid ? int(0) : type(int).max;
 
+    // Iterate over maker accounts and fill their limit orders
     for (uint i = 1; i < orders.length; i++) {
       _checkOrderNonce(orders[i]);
 
@@ -105,13 +111,13 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
       if (makerOrder.data.isBid == takerOrder.data.isBid) revert TM_IsBidMismatch();
 
       _fillLimitOrder(makerOrder, fillDetails);
-      _addAssetTransfers(transferBatch, fillDetails, takerOrder, makerOrder, i * 3 - 3);
+      _addAssetTransfers(transferBatch, fillDetails, takerOrder, makerOrder, (i - 1) * 3);
 
       totalFilled += fillDetails.amountFilled;
       if (takerOrder.data.isBid) {
-        if (fillDetails.price > worstPrice) worstPrice = fillDetails.price;
+        if (fillDetails.price > worstPriceForTaker) worstPriceForTaker = fillDetails.price;
       } else {
-        if (fillDetails.price < worstPrice) worstPrice = fillDetails.price;
+        if (fillDetails.price < worstPriceForTaker) worstPriceForTaker = fillDetails.price;
       }
     }
 
@@ -124,12 +130,13 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
       assetData: bytes32(0)
     });
 
+    // Update filled amount for maker
     _fillLimitOrder(
       takerOrder,
       FillDetails({
         filledAccount: takerOrder.accountId,
         amountFilled: totalFilled,
-        price: worstPrice,
+        price: worstPriceForTaker,
         fee: actionData.takerFee
       })
     );
@@ -210,6 +217,14 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
       toAcc: feeRecipient,
       assetData: bytes32(0)
     });
+  }
+
+  function _processManagerData(bytes memory managerData) internal {
+    if (managerData.length == 0) return;
+    IBaseManager.ManagerData[] memory managerDatas = abi.decode(managerData, (IBaseManager.ManagerData[]));
+    for (uint i; i < managerDatas.length; i++) {
+      IDataReceiver(managerDatas[i].receiver).acceptData(managerDatas[i].data);
+    }
   }
 
   function _isPerp(address baseAsset) internal view returns (bool) {
