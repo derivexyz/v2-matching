@@ -282,57 +282,50 @@ contract TradeModuleTest is MatchingBase {
     _verifyAndMatch(orders, _createMatchedTrade(camAcc, dougAcc, 1e18, 78e18, 0, 0));
   }
 
-  //  function testPerpTrade() public {
-  //    mockPerp.setMockPerpPrice(2500e18, 1e18);
-  //
-  //    ITradeModule.TradeData memory dougTradeData = ITradeModule.TradeData({
-  //      asset: address(mockPerp),
-  //      subId: 0,
-  //      worstPrice: 2502e18,
-  //      desiredAmount: 1e18,
-  //      worstFee: 1e18,
-  //      recipientId: dougAcc,
-  //      isBid: true
-  //    });
-  //    bytes memory dougTrade = abi.encode(dougTradeData);
-  //
-  //    ITradeModule.TradeData memory camTradeData = ITradeModule.TradeData({
-  //      asset: address(mockPerp),
-  //      subId: 0,
-  //      worstPrice: 2500e18,
-  //      desiredAmount: 1e18,
-  //      worstFee: 1e18,
-  //      recipientId: camAcc,
-  //      isBid: false
-  //    });
-  //    bytes memory camTrade = abi.encode(camTradeData);
-  //
-  //    IOrderVerifier.SignedOrder memory trade1 =
-  //      _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
-  //    IOrderVerifier.SignedOrder memory trade2 =
-  //      _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
-  //
-  //    // Match data submitted by the orderbook
-  //    bytes memory encodedAction = _createMatchedTrade(dougAcc, 0, camAcc, 1e18, 2502e18, 0);
-  //
-  //    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
-  //    int dougBalBefore = subAccounts.getBalance(dougAcc, cash, 0);
-  //
-  //    // Submit Order
-  //    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
-  //    orders[0] = trade1;
-  //    orders[1] = trade2;
-  //    _verifyAndMatch(orders, encodedAction);
-  //
-  //    int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
-  //    int dougBalAfter = subAccounts.getBalance(dougAcc, cash, 0);
-  //    int camCashDiff = camBalBefore - camBalAfter;
-  //    int dougCashDiff = dougBalBefore - dougBalAfter;
-  //
-  //    // Assert balance change
-  //    assertEq(camCashDiff, -2e18);
-  //    assertEq(dougCashDiff, 2e18);
-  //  }
+  function testPerpTrade() public {
+    mockPerp.setMockPerpPrice(2500e18, 1e18);
+
+    bytes memory camTrade = abi.encode(
+      ITradeModule.TradeData({
+        asset: address(mockPerp),
+        subId: 0,
+        worstPrice: 2502e18,
+        desiredAmount: 1e18,
+        worstFee: 1e18,
+        recipientId: camAcc,
+        isBid: true
+      })
+    );
+
+    bytes memory dougTrade = abi.encode(
+      ITradeModule.TradeData({
+        asset: address(mockPerp),
+        subId: 0,
+        worstPrice: 2502e18,
+        desiredAmount: 1e18,
+        worstFee: 1e18,
+        recipientId: dougAcc,
+        isBid: false
+      })
+    );
+
+    // Submit Order
+    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
+    orders[0] =
+      _createFullSignedOrder(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
+    orders[1] =
+      _createFullSignedOrder(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
+
+    // perpPrice is 2500, they match at 2502, so only $2 should be transferred for the perp
+    bytes memory encodedAction = _createMatchedTrade(camAcc, dougAcc, 1e18, 2502e18, 0, 0);
+    _verifyAndMatch(orders, encodedAction);
+
+    // Assert balance change
+    assertEq(subAccounts.getBalance(camAcc, cash, 0) - int(cashDeposit), -2e18);
+    assertEq(subAccounts.getBalance(camAcc, mockPerp, 0), 1e18);
+    assertEq(subAccounts.getBalance(dougAcc, cash, 0) - int(cashDeposit), 2e18);
+    assertEq(subAccounts.getBalance(dougAcc, mockPerp, 0), -1e18);
+  }
 
   function _getDefaultOrders() internal returns (IOrderVerifier.SignedOrder[] memory) {
     IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
