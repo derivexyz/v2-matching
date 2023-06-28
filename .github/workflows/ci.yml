@@ -41,7 +41,8 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          # re generate when github go public
+          token: 3e3c7dca-9ac1-4b0b-82d2-5191a10064b7
           directory: .
           env_vars: OS,PYTHON
           fail_ci_if_error: true
