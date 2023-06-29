@@ -40,4 +40,15 @@ contract MatchingBasicTest is MatchingBase {
     vm.expectRevert(IMatching.M_AccountNotReturned.selector);
     _verifyAndMatch(orders, "");
   }
+
+  function testCannotExecuteActionsForDifferentModules() public {
+    BadModule badModule = new BadModule();
+
+    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
+    orders[0] = _createFullSignedOrder(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    orders[1] = _createFullSignedOrder(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
+
+    vm.expectRevert(IMatching.M_MismatchedModule.selector);
+    _verifyAndMatch(orders, "");
+  }
 }

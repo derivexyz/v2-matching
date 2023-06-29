@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.18;
 
-import "forge-std/Test.sol";
-
 import {MatchingBase} from "test/shared/MatchingBase.t.sol";
 import {IOrderVerifier} from "src/interfaces/IOrderVerifier.sol";
-import {IERC20BasedAsset} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
-import {IManager} from "v2-core/src/interfaces/IManager.sol";
-import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {TradeModule, ITradeModule} from "src/modules/TradeModule.sol";
+import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 
 contract TradeModuleTest is MatchingBase {
   // Test trading
@@ -17,6 +13,21 @@ contract TradeModuleTest is MatchingBase {
   // - Reverts in different cases
   //  - mismatch of signed orders and trade data
   //  - cannot trade if the order is expired
+
+  function testSetFeeRecipient() public {
+    uint newAcc = subAccounts.createAccount(cam, pmrm);
+    tradeModule.setFeeRecipient(newAcc);
+    assertEq(tradeModule.feeRecipient(), newAcc);
+  }
+
+  function testSetIsPerp() public {
+    tradeModule.setPerpAsset(IPerpAsset(address(this)), true);
+    assertEq(tradeModule.isPerpAsset(IPerpAsset(address(this))), true);
+  }
+
+  ////////////////////////
+  //     Test Trades    //
+  ////////////////////////
 
   function testTrade() public {
     IOrderVerifier.SignedOrder[] memory orders = _getDefaultOrders();

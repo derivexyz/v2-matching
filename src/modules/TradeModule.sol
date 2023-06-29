@@ -50,10 +50,16 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
   // Admin //
   ///////////
 
+  /**
+   * @dev set fee recipient account
+   */
   function setFeeRecipient(uint _feeRecipient) external onlyOwner {
     feeRecipient = _feeRecipient;
   }
 
+  /**
+   * @dev set perp asset mapping
+   */
   function setPerpAsset(IPerpAsset _perpAsset, bool isPerp) external onlyOwner {
     isPerpAsset[_perpAsset] = isPerp;
   }
@@ -218,6 +224,9 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
     });
   }
 
+  /**
+   * @dev send data to IDataReceiver contracts. Can be used to update oracles before pairing trades
+   */
   function _processManagerData(bytes memory managerData) internal {
     if (managerData.length == 0) return;
     IBaseManager.ManagerData[] memory managerDatas = abi.decode(managerData, (IBaseManager.ManagerData[]));
