@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/console2.sol";
-
 // inherited
 import {OrderVerifier} from "./OrderVerifier.sol";
 import {IMatching} from "./interfaces/IMatching.sol";
@@ -23,7 +21,7 @@ contract Matching is IMatching, OrderVerifier {
   constructor(ISubAccounts _accounts) OrderVerifier(_accounts) {}
 
   ////////////////////////////
-  //  Onwer-only Functions  //
+  //  Owner-only Functions  //
   ////////////////////////////
 
   /**
@@ -47,14 +45,13 @@ contract Matching is IMatching, OrderVerifier {
 
   function verifyAndMatch(SignedOrder[] memory orders, bytes memory actionData) public onlyTradeExecutor {
     IMatchingModule module = orders[0].module;
-    _verifyModule(module);
+
+    if (!allowedModules[address(module)]) revert M_OnlyAllowedModule();
 
     IMatchingModule.VerifiedOrder[] memory verifiedOrders = new IMatchingModule.VerifiedOrder[](orders.length);
     for (uint i = 0; i < orders.length; i++) {
       verifiedOrders[i] = _verifyOrder(orders[i]);
-      if (orders[i].module != module) {
-        revert M_MismatchedModule();
-      }
+      if (orders[i].module != module) revert M_MismatchedModule();
     }
     _submitModuleAction(module, verifiedOrders, actionData);
   }
@@ -63,6 +60,10 @@ contract Matching is IMatching, OrderVerifier {
   //  Internal Functions  //
   //////////////////////////
 
+  /**
+   * @notice sent array of signed actions to the module contract
+   * @dev expect the module to transfer the ownership back to Matching.sol at the end
+   */
   function _submitModuleAction(
     IMatchingModule module,
     IMatchingModule.VerifiedOrder[] memory orders,
@@ -95,12 +96,6 @@ contract Matching is IMatching, OrderVerifier {
       if (subAccountToOwner[newAccIds[i]] != address(0)) revert M_AccountAlreadyExists();
 
       subAccountToOwner[newAccIds[i]] = newOwners[i];
-    }
-  }
-
-  function _verifyModule(IMatchingModule module) internal view {
-    if (!allowedModules[address(module)]) {
-      revert M_OnlyAllowedModule();
     }
   }
 

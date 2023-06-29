@@ -6,7 +6,6 @@ import {IBaseModule} from "../interfaces/IBaseModule.sol";
 
 // Interfaces
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
-import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
 abstract contract BaseModule is IBaseModule {

@@ -16,11 +16,9 @@ import {ITradeModule} from "../interfaces/ITradeModule.sol";
 // Interfaces
 import {IBaseManager} from "v2-core/src/interfaces/IBaseManager.sol";
 import {IDataReceiver} from "v2-core/src/interfaces/IDataReceiver.sol";
-import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
-import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
 contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
@@ -52,10 +50,16 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
   // Admin //
   ///////////
 
+  /**
+   * @dev set fee recipient account
+   */
   function setFeeRecipient(uint _feeRecipient) external onlyOwner {
     feeRecipient = _feeRecipient;
   }
 
+  /**
+   * @dev set perp asset mapping
+   */
   function setPerpAsset(IPerpAsset _perpAsset, bool isPerp) external onlyOwner {
     isPerpAsset[_perpAsset] = isPerp;
   }
@@ -220,6 +224,9 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
     });
   }
 
+  /**
+   * @dev send data to IDataReceiver contracts. Can be used to update oracles before pairing trades
+   */
   function _processManagerData(bytes memory managerData) internal {
     if (managerData.length == 0) return;
     IBaseManager.ManagerData[] memory managerDatas = abi.decode(managerData, (IBaseManager.ManagerData[]));

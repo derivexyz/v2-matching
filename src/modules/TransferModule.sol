@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 // Inherited
-import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {BaseModule} from "./BaseModule.sol";
 import {ITransferModule} from "../interfaces/ITransferModule.sol";
 
@@ -10,7 +9,6 @@ import {ITransferModule} from "../interfaces/ITransferModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
-import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
 // Handles transferring assets from one subaccount to another
