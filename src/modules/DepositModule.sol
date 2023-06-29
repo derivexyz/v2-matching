@@ -21,6 +21,7 @@ contract DepositModule is IDepositModule, BaseModule {
 
   function executeAction(VerifiedOrder[] memory orders, bytes memory)
     external
+    onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
     // Verify

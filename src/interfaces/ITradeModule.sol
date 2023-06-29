@@ -16,7 +16,7 @@ interface ITradeModule is IBaseModule {
   struct TradeData {
     address asset;
     uint subId;
-    int worstPrice;
+    int limitPrice;
     int desiredAmount;
     // Fee per asset traded
     uint worstFee;

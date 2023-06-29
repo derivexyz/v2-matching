@@ -12,7 +12,8 @@ contract WithdrawalModule is IWithdrawalModule, BaseModule {
   constructor(IMatching _matching) BaseModule(_matching) {}
 
   function executeAction(VerifiedOrder[] memory orders, bytes memory)
-    public
+    external
+    onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
     if (orders.length != 1) revert WM_InvalidWithdrawalOrderLength();

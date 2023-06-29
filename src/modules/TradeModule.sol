@@ -66,7 +66,8 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
 
   /// @dev Assumes VerifiedOrders are sorted in the order: [takerAccount, ...makerAccounts]
   function executeAction(VerifiedOrder[] memory orders, bytes memory actionDataBytes)
-    public
+    external
+    onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
     // Verify
@@ -92,7 +93,7 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](orders.length * 3 - 2);
 
     uint totalFilled;
-    int worstPriceForTaker = takerOrder.data.isBid ? int(0) : type(int).max;
+    int limitPriceForTaker = takerOrder.data.isBid ? int(0) : type(int).max;
 
     // Iterate over maker accounts and fill their limit orders
     for (uint i = 1; i < orders.length; i++) {
@@ -115,9 +116,9 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
 
       totalFilled += fillDetails.amountFilled;
       if (takerOrder.data.isBid) {
-        if (fillDetails.price > worstPriceForTaker) worstPriceForTaker = fillDetails.price;
+        if (fillDetails.price > limitPriceForTaker) limitPriceForTaker = fillDetails.price;
       } else {
-        if (fillDetails.price < worstPriceForTaker) worstPriceForTaker = fillDetails.price;
+        if (fillDetails.price < limitPriceForTaker) limitPriceForTaker = fillDetails.price;
       }
     }
 
@@ -136,7 +137,7 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
       FillDetails({
         filledAccount: takerOrder.accountId,
         amountFilled: totalFilled,
-        price: worstPriceForTaker,
+        price: limitPriceForTaker,
         fee: actionData.takerFee
       })
     );
@@ -165,9 +166,9 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
     if (fill.fee.divideDecimal(fill.amountFilled) > order.data.worstFee) revert TM_FeeTooHigh();
 
     if (order.data.isBid) {
-      if (finalPrice > order.data.worstPrice) revert TM_PriceTooHigh();
+      if (finalPrice > order.data.limitPrice) revert TM_PriceTooHigh();
     } else {
-      if (finalPrice < order.data.worstPrice) revert TM_PriceTooLow();
+      if (finalPrice < order.data.limitPrice) revert TM_PriceTooLow();
     }
     filled[order.owner][order.nonce] += fill.amountFilled;
     if (filled[order.owner][order.nonce] > uint(order.data.desiredAmount)) revert TM_FillLimitCrossed();

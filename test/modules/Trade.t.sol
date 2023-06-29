@@ -108,13 +108,13 @@ contract TradeModuleTest is MatchingBase {
     IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
 
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
-    camTradeData.worstPrice = 80e18;
+    camTradeData.limitPrice = 80e18;
     orders[0] = _createFullSignedOrder(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 1 days, cam, cam, camPk
     );
 
     ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
-    dougTradeData.worstPrice = 76e18;
+    dougTradeData.limitPrice = 76e18;
     orders[1] = _createFullSignedOrder(
       dougAcc, 0, address(tradeModule), abi.encode(dougTradeData), block.timestamp + 1 days, doug, doug, dougPk
     );
@@ -226,7 +226,7 @@ contract TradeModuleTest is MatchingBase {
 
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
-    dougTradeData.worstPrice = 0;
+    dougTradeData.limitPrice = 0;
     orders[0] = _createFullSignedOrder(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 1 days, cam, cam, camPk
     );
@@ -267,7 +267,7 @@ contract TradeModuleTest is MatchingBase {
 
     _verifyAndMatch(orders, _createMatchedTrade(camAcc, dougAcc, 1e18, 78e18, 0, 0));
 
-    camTradeData.worstPrice = 79e18;
+    camTradeData.limitPrice = 79e18;
     orders[0] = _createFullSignedOrder(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 1 days, cam, cam, camPk
     );
@@ -275,7 +275,7 @@ contract TradeModuleTest is MatchingBase {
     vm.expectRevert(ITradeModule.TM_InvalidNonce.selector);
     _verifyAndMatch(orders, _createMatchedTrade(camAcc, dougAcc, 1e18, 78e18, 0, 0));
 
-    camTradeData.worstPrice = 78e18;
+    camTradeData.limitPrice = 78e18;
     orders[0] = _createFullSignedOrder(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 2 days, cam, cam, camPk
     );
@@ -289,7 +289,7 @@ contract TradeModuleTest is MatchingBase {
       ITradeModule.TradeData({
         asset: address(mockPerp),
         subId: 0,
-        worstPrice: 2502e18,
+        limitPrice: 2502e18,
         desiredAmount: 1e18,
         worstFee: 1e18,
         recipientId: camAcc,
@@ -301,7 +301,7 @@ contract TradeModuleTest is MatchingBase {
       ITradeModule.TradeData({
         asset: address(mockPerp),
         subId: 0,
-        worstPrice: 2502e18,
+        limitPrice: 2502e18,
         desiredAmount: 1e18,
         worstFee: 1e18,
         recipientId: dougAcc,
@@ -346,7 +346,7 @@ contract TradeModuleTest is MatchingBase {
     return ITradeModule.TradeData({
       asset: address(option),
       subId: defaultCallId,
-      worstPrice: 78e18,
+      limitPrice: 78e18,
       desiredAmount: 2e18,
       worstFee: 1e18,
       recipientId: recipient,

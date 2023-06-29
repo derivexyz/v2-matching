@@ -12,6 +12,7 @@ interface IMatching is IOrderVerifier {
   error M_ArrayLengthMismatch();
   error M_OnlyAllowedModule();
   error M_OnlyTradeExecutor();
+  error M_MismatchedModule();
 
   ////////////
   // Events //

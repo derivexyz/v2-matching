@@ -23,7 +23,7 @@ contract TransferModule is ITransferModule, BaseModule {
    * @notice transfer asset between multiple subAccounts
    */
   function executeAction(VerifiedOrder[] memory orders, bytes memory managerData)
-    public
+    external
     onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {

@@ -52,6 +52,9 @@ contract Matching is IMatching, OrderVerifier {
     IMatchingModule.VerifiedOrder[] memory verifiedOrders = new IMatchingModule.VerifiedOrder[](orders.length);
     for (uint i = 0; i < orders.length; i++) {
       verifiedOrders[i] = _verifyOrder(orders[i]);
+      if (orders[i].module != module) {
+        revert M_MismatchedModule();
+      }
     }
     _submitModuleAction(module, verifiedOrders, actionData);
   }
