@@ -5,6 +5,8 @@ import {MatchingBase} from "test/shared/MatchingBase.t.sol";
 import {IOrderVerifier} from "src/interfaces/IOrderVerifier.sol";
 import {TradeModule, ITradeModule} from "src/modules/TradeModule.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
+import {IBaseManager} from "v2-core/src/interfaces/IBaseManager.sol";
+import {MockDataReceiver} from "../mock/MockDataReceiver.sol";
 
 contract TradeModuleTest is MatchingBase {
   // Test trading
@@ -338,6 +340,35 @@ contract TradeModuleTest is MatchingBase {
     assertEq(subAccounts.getBalance(dougAcc, mockPerp, 0), -1e18);
   }
 
+  function testCanUpdateSpotAndThenTrade() public {
+    MockDataReceiver mockedUpdater = new MockDataReceiver();
+    uint newPrice = 2000;
+
+    // use the default orders
+    IOrderVerifier.SignedOrder[] memory orders = _getDefaultOrders();
+
+    // fill in default fill details
+    ITradeModule.FillDetails[] memory fills = new ITradeModule.FillDetails[](1);
+    fills[0] = ITradeModule.FillDetails({filledAccount: dougAcc, amountFilled: 1e18, price: 78e18, fee: 0});
+
+    // the data that should be processed before trade
+    IBaseManager.ManagerData[] memory managerDatas = new IBaseManager.ManagerData[](1);
+    bytes memory receiverData = abi.encode(address(feed), newPrice);
+    managerDatas[0] = IBaseManager.ManagerData(address(mockedUpdater), receiverData);
+    bytes memory finalManagerData = abi.encode(managerDatas);
+
+    ITradeModule.ActionData memory actionData =
+      ITradeModule.ActionData({takerAccount: camAcc, takerFee: 0, fillDetails: fills, managerData: finalManagerData});
+
+    bytes memory matchData = abi.encode(actionData);
+
+    _verifyAndMatch(orders, matchData);
+
+    (uint newSpot,) = feed.getSpot();
+    assertEq(newSpot, newPrice);
+  }
+
+  /// @dev return order of 2: [0: cam (taker)], [1: doug (maker)]
   function _getDefaultOrders() internal returns (IOrderVerifier.SignedOrder[] memory) {
     IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
 

@@ -45,7 +45,7 @@ contract Matching is IMatching, OrderVerifier {
 
   function verifyAndMatch(SignedOrder[] memory orders, bytes memory actionData) public onlyTradeExecutor {
     IMatchingModule module = orders[0].module;
-    
+
     if (!allowedModules[address(module)]) revert M_OnlyAllowedModule();
 
     IMatchingModule.VerifiedOrder[] memory verifiedOrders = new IMatchingModule.VerifiedOrder[](orders.length);
