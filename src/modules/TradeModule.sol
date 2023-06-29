@@ -16,11 +16,9 @@ import {ITradeModule} from "../interfaces/ITradeModule.sol";
 // Interfaces
 import {IBaseManager} from "v2-core/src/interfaces/IBaseManager.sol";
 import {IDataReceiver} from "v2-core/src/interfaces/IDataReceiver.sol";
-import {IMatchingModule} from "../interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
-import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
 contract TradeModule is ITradeModule, BaseModule, Ownable2Step {

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/console2.sol";
-
 // Inherited
 import {BaseModule} from "./BaseModule.sol";
 import {IDepositModule} from "../interfaces/IDepositModule.sol";
