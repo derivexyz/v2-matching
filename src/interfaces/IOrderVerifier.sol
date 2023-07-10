@@ -32,13 +32,15 @@ interface IOrderVerifier is ISubAccountsManager {
   /**
    * @dev Emitted when a session key is registered to an owner account.
    */
-  event SessionKeyRegistered(address owner, address sessionKey);
+  event SessionKeyRegistered(address owner, address sessionKey, uint expiry);
 
   /**
    * @dev Emitted when a user requests to deregister a session key.
    */
   event SessionKeyCooldown(address owner, address sessionKeyPublicAddress);
 
+  /// @dev Emitted when user is trying to lower the expiry of a session key
+  error OV_NeedDeregister();
   error OV_SessionKeyInvalid();
   error OV_OrderExpired();
   error OV_InvalidSignature();
