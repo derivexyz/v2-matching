@@ -91,6 +91,17 @@ contract MatchingSignatureTest is MatchingBase {
     _verifyAndMatch(orders, "");
   }
 
+  function testCannotDeregisterWithRegisterSessionKeyFunc() public {
+    vm.startPrank(cam);
+
+    uint expiry = block.timestamp + 1 days;
+
+    matching.registerSessionKey(newSigner, expiry);
+
+    vm.expectRevert(IOrderVerifier.OV_NeedDeregister.selector);
+    matching.registerSessionKey(newSigner, expiry - 10 minutes);
+  }
+
   function testCannotDeregisterInvalidKey() public {
     vm.expectRevert(IOrderVerifier.OV_SessionKeyInvalid.selector);
     matching.deregisterSessionKey(newSigner);
