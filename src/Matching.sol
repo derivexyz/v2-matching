@@ -12,6 +12,8 @@ import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
 contract Matching is IMatching, OrderVerifier {
   /// @dev Permissioned address to execute trades
   mapping(address tradeExecutor => bool canExecuteTrades) public tradeExecutors;
+
+  /// @dev Permissioned modules to be invoked
   mapping(address module => bool) public allowedModules;
 
   ///////////////
