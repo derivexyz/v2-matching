@@ -35,10 +35,12 @@ contract OrderVerifier is IOrderVerifier, SubAccountsManager, EIP712 {
    * @dev Registered address gains owner address permission to the subAccount until expiry.
    * @param expiry When the access to the owner address expires
    */
-  function registerSessionKey(address toAllow, uint expiry) external {
-    sessionKeys[toAllow][msg.sender] = expiry;
+  function registerSessionKey(address sessionKey, uint expiry) external {
+    if (expiry <= sessionKeys[sessionKey][msg.sender]) revert OV_NeedDeregister();
 
-    emit SessionKeyRegistered(msg.sender, toAllow);
+    sessionKeys[sessionKey][msg.sender] = expiry;
+
+    emit SessionKeyRegistered(msg.sender, sessionKey, expiry);
   }
 
   /**
