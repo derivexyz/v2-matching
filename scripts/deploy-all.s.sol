@@ -49,6 +49,13 @@ contract DeployAll is Utils {
     deployment.transfer = new TransferModule(deployment.matching);
     deployment.withdrawal = new WithdrawalModule(deployment.matching);
 
+    // whitelist modules
+    deployment.matching.setAllowedModule(address(deployment.deposit), true);
+    deployment.matching.setAllowedModule(address(deployment.rmChange), true);
+    deployment.matching.setAllowedModule(address(deployment.trade), true);
+    deployment.matching.setAllowedModule(address(deployment.transfer), true);
+    deployment.matching.setAllowedModule(address(deployment.withdrawal), true);
+
     // write to output
     __writeToDeploymentsJson(deployment);
   }
