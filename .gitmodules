@@ -7,7 +7,7 @@
 	url = https://github.com/lyra-finance/lyra-utils
 [submodule "lib/v2-core"]
 	path = lib/v2-core
-	url = git@github.com:lyra-finance/v2-core.git
+	url = https://github.com/lyra-finance/v2-core
 [submodule "lib/forge-std"]
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
