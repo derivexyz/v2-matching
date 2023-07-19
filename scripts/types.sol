@@ -11,7 +11,7 @@ import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
 
 struct NetworkConfig { 
   address subAccounts;
-  address cashAsset;
+  address cash;
 }
 
 struct Deployment {

@@ -42,3 +42,7 @@ You should see output similar to this:
 Start deploying matching contract and modules! deployer:  0x77774066be05E9725cf12A583Ed67F860d19c187
   Written to deployment  /path/deployments/901/matching.json
 ```
+
+## Deploy a whole new local environment 
+
+The following script deploy v2-core + everything in this repo
