@@ -4,8 +4,8 @@ FROM ghcr.io/foundry-rs/foundry
 # Set the working directory in the container to /app again.
 WORKDIR /app
 
-COPY lib/ /app/lib/
-COPY scripts/start-local.sh /app/scripts/start-local.sh
+COPY . /app
+
 RUN chmod +x /app/scripts/start-local.sh
 
 # Define an environment variable for the private key.
