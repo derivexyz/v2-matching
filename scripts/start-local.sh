@@ -7,7 +7,11 @@ anvil --host 0.0.0.0 --port 8000 &
 # Allow some time for the anvil server to start up
 sleep 5
 
-# Deploy v2-core repos
+# gives this account 10000 ethers to start with <3
+address=$(cast wallet address "$PRIVATE_KEY")
+cast rpc --rpc-url http://localhost:8000 anvil_setBalance "$address" 0x21e19e0c9bab2400000
+
+# # Deploy v2-core repos
 cd ./lib/v2-core
 forge script scripts/deploy-mocks.s.sol --rpc-url http://localhost:8000/ --broadcast
 forge script scripts/deploy-core.s.sol --rpc-url http://localhost:8000/ --broadcast 
