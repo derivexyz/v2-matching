@@ -11,7 +11,7 @@ sleep 5
 cd ./lib/v2-core
 forge script scripts/deploy-mocks.s.sol --rpc-url http://localhost:8000/ --broadcast
 forge script scripts/deploy-core.s.sol --rpc-url http://localhost:8000/ --broadcast 
-# MARKET_NAME=weth forge script scripts/deploy-market.s.sol --rpc-url http://localhost:8000/ --broadcast && \
+MARKET_NAME=weth forge script scripts/deploy-market.s.sol --rpc-url http://localhost:8000/ --broadcast && \
 
 # copy the out put of core deployment as input to matching repo's deployment script
 # (from lib/v2-core/deployments/{31337}/core.json to scripts/input/{31337}/config.json)
