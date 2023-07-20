@@ -54,3 +54,14 @@ docker build --build-arg PRIVATE_KEY=<private-key> --build-arg PORT=8001 -t lyra
 # run docker image, bind output to `/path/to/output` folder
 docker run -p 8001:8001 -v /path/to/output:/app/output lyra-testnet
 ```
+
+### available outputs:
+
+```
+.
+└── 31337
+    ├── config.json   (usdc, weth, wbtc addresses)
+    ├── core.json     (core contract addresses)
+    ├── matching.json (matching contract and all modules)
+    └── weth.json     (weth market assets, PMRM, feeds)
+```
