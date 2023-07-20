@@ -45,4 +45,12 @@ Start deploying matching contract and modules! deployer:  0x77774066be05E9725cf1
 
 ## Deploy a whole new local environment 
 
-The following script deploy v2-core + everything in this repo
+The following script to start a new testnet, deploy core + matching contracts with Docker image:
+
+```shell
+# build docker image
+docker build --build-arg PRIVATE_KEY=<private-key> --build-arg PORT=8001 -t lyra-testnet .
+
+# run docker image, bind output to `/path/to/output` folder
+docker run -p 8001:8001 -v /path/to/output:/app/output lyra-testnet
+```
