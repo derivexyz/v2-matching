@@ -43,25 +43,13 @@ Start deploying matching contract and modules! deployer:  0x77774066be05E9725cf1
   Written to deployment  /path/deployments/901/matching.json
 ```
 
-## Deploy a whole new local environment 
+## Getting the raw contract state 
 
-The following script to start a new testnet, deploy core + matching contracts with Docker image:
+given a private key, we can deploy all needed contracts and dump the state into a file.
 
 ```shell
-# build docker image
-docker build --build-arg PRIVATE_KEY=<private-key> --build-arg PORT=8001 -t lyra-testnet .
-
-# run docker image, bind output to `/path/to/output` folder
-docker run -p 8001:8001 -v /path/to/output:/app/output lyra-testnet
+PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 PORT=8000 ./scripts/deploy-and-dump.sh
 ```
 
-### available outputs:
-
-```
-.
-└── 31337
-    ├── config.json   (usdc, weth, wbtc addresses)
-    ├── core.json     (core contract addresses)
-    ├── matching.json (matching contract and all modules)
-    └── weth.json     (weth market assets, PMRM, feeds)
-```
+This can then be used by other infra to restore the contract state without re-running the deployment script. The output will be in deployments/31337/state.txt
+(Make sure to run this against a freshly started anvil node)
