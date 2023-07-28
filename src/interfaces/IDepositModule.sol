@@ -10,5 +10,5 @@ interface IDepositModule is IBaseModule {
     address managerForNewAccount;
   }
 
-  error DM_InvalidDepositOrderLength();
+  error DM_InvalidDepositActionLength();
 }

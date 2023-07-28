@@ -2,14 +2,14 @@
 pragma solidity ^0.8.13;
 
 // inherited
-import {OrderVerifier} from "./OrderVerifier.sol";
+import {ActionVerifier} from "./ActionVerifier.sol";
 import {IMatching} from "./interfaces/IMatching.sol";
 
 // interfaces
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
 
-contract Matching is IMatching, OrderVerifier {
+contract Matching is IMatching, ActionVerifier {
   /// @dev Permissioned address to execute trades
   mapping(address tradeExecutor => bool canExecuteTrades) public tradeExecutors;
 
@@ -20,7 +20,7 @@ contract Matching is IMatching, OrderVerifier {
   // Functions //
   ///////////////
 
-  constructor(ISubAccounts _accounts) OrderVerifier(_accounts) {}
+  constructor(ISubAccounts _accounts) ActionVerifier(_accounts) {}
 
   ////////////////////////////
   //  Owner-only Functions  //
@@ -45,17 +45,17 @@ contract Matching is IMatching, OrderVerifier {
   //  Whitelisted Functions  //
   /////////////////////////////
 
-  function verifyAndMatch(SignedOrder[] memory orders, bytes memory actionData) public onlyTradeExecutor {
-    IMatchingModule module = orders[0].module;
+  function verifyAndMatch(SignedAction[] memory actions, bytes memory actionData) public onlyTradeExecutor {
+    IMatchingModule module = actions[0].module;
 
     if (!allowedModules[address(module)]) revert M_OnlyAllowedModule();
 
-    IMatchingModule.VerifiedOrder[] memory verifiedOrders = new IMatchingModule.VerifiedOrder[](orders.length);
-    for (uint i = 0; i < orders.length; i++) {
-      verifiedOrders[i] = _verifyOrder(orders[i]);
-      if (orders[i].module != module) revert M_MismatchedModule();
+    IMatchingModule.VerifiedAction[] memory verifiedActions = new IMatchingModule.VerifiedAction[](actions.length);
+    for (uint i = 0; i < actions.length; i++) {
+      verifiedActions[i] = _verifyAction(actions[i]);
+      if (actions[i].module != module) revert M_MismatchedModule();
     }
-    _submitModuleAction(module, verifiedOrders, actionData);
+    _submitModuleAction(module, verifiedActions, actionData);
   }
 
   //////////////////////////
@@ -68,25 +68,25 @@ contract Matching is IMatching, OrderVerifier {
    */
   function _submitModuleAction(
     IMatchingModule module,
-    IMatchingModule.VerifiedOrder[] memory orders,
+    IMatchingModule.VerifiedAction[] memory actions,
     bytes memory actionData
   ) internal {
     // Transfer accounts to the module contract
-    for (uint i = 0; i < orders.length; ++i) {
+    for (uint i = 0; i < actions.length; ++i) {
       // Allow signing messages with accountId == 0, where no account needs to be transferred.
-      if (orders[i].accountId == 0) continue;
+      if (actions[i].accountId == 0) continue;
 
-      // If the account has been previously sent (orders can share accounts), skip it.
-      if (subAccounts.ownerOf(orders[i].accountId) == address(module)) continue;
+      // If the account has been previously sent (actions can share accounts), skip it.
+      if (subAccounts.ownerOf(actions[i].accountId) == address(module)) continue;
 
-      subAccounts.transferFrom(address(this), address(module), orders[i].accountId);
+      subAccounts.transferFrom(address(this), address(module), actions[i].accountId);
     }
 
-    (uint[] memory newAccIds, address[] memory newOwners) = module.executeAction(orders, actionData);
+    (uint[] memory newAccIds, address[] memory newOwners) = module.executeAction(actions, actionData);
 
     // Ensure accounts are transferred back,
-    for (uint i = 0; i < orders.length; ++i) {
-      if (orders[i].accountId != 0 && subAccounts.ownerOf(orders[i].accountId) != address(this)) {
+    for (uint i = 0; i < actions.length; ++i) {
+      if (actions[i].accountId != 0 && subAccounts.ownerOf(actions[i].accountId) != address(this)) {
         revert M_AccountNotReturned();
       }
     }

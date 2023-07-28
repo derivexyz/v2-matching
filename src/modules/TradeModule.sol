@@ -34,11 +34,11 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
 
   uint public feeRecipient;
 
-  /// @dev we trust the nonce is unique for the given "VerifiedOrder" for the owner
+  /// @dev we trust the nonce is unique for the given "VerifiedAction" for the owner
   mapping(address owner => mapping(uint nonce => uint filled)) public filled;
 
   // @dev we want to make sure once submitted with one nonce, we cant submit a different order with the same nonce
-  // note; it is still possible to submit different orders, but all parameters will match (but expiry may be different)
+  // note; it is still possible to submit different actions, but all parameters will match (but expiry may be different)
   mapping(address owner => mapping(uint nonce => bytes32 hash)) public seenNonces;
 
   constructor(IMatching _matching, IAsset _quoteAsset, uint _feeRecipient) BaseModule(_matching) Ownable2Step() {
@@ -68,48 +68,48 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
   // Action Handler //
   ////////////////////
 
-  /// @dev Assumes VerifiedOrders are sorted in the order: [takerAccount, ...makerAccounts]
-  function executeAction(VerifiedOrder[] memory orders, bytes memory actionDataBytes)
+  /// @dev Assumes VerifiedActions are sorted in the order: [takerAccount, ...makerAccounts]
+  function executeAction(VerifiedAction[] memory actions, bytes memory actionDataBytes)
     external
     onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
     // Verify
-    if (orders.length <= 1) revert TM_InvalidOrdersLength();
+    if (actions.length <= 1) revert TM_InvalidActionsLength();
 
-    _checkOrderNonce(orders[0]);
+    _checkOrderNonce(actions[0]);
 
-    ActionData memory actionData = abi.decode(actionDataBytes, (ActionData));
+    OrderData memory order = abi.decode(actionDataBytes, (OrderData));
 
     OptionLimitOrder memory takerOrder = OptionLimitOrder({
-      accountId: orders[0].accountId,
-      owner: orders[0].owner,
-      nonce: orders[0].nonce,
-      data: abi.decode(orders[0].data, (TradeData))
+      accountId: actions[0].accountId,
+      owner: actions[0].owner,
+      nonce: actions[0].nonce,
+      data: abi.decode(actions[0].data, (TradeData))
     });
 
-    if (takerOrder.accountId != actionData.takerAccount) revert TM_SignedAccountMismatch();
+    if (takerOrder.accountId != order.takerAccount) revert TM_SignedAccountMismatch();
 
     // update feeds in advance, so perpPrice is up to date before we use it for the trade
-    _processManagerData(actionData.managerData);
+    _processManagerData(order.managerData);
 
     // We can prepare the transfers as we iterate over the data
-    ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](orders.length * 3 - 2);
+    ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](actions.length * 3 - 2);
 
     uint totalFilled;
     int limitPriceForTaker = takerOrder.data.isBid ? int(0) : type(int).max;
 
-    // Iterate over maker accounts and fill their limit orders
-    for (uint i = 1; i < orders.length; i++) {
-      _checkOrderNonce(orders[i]);
+    // Iterate over maker accounts and fill their limit actions
+    for (uint i = 1; i < actions.length; i++) {
+      _checkOrderNonce(actions[i]);
 
-      FillDetails memory fillDetails = actionData.fillDetails[i - 1];
+      FillDetails memory fillDetails = order.fillDetails[i - 1];
 
       OptionLimitOrder memory makerOrder = OptionLimitOrder({
-        accountId: orders[i].accountId,
-        owner: orders[i].owner,
-        nonce: orders[i].nonce,
-        data: abi.decode(orders[i].data, (TradeData))
+        accountId: actions[i].accountId,
+        owner: actions[i].owner,
+        nonce: actions[i].nonce,
+        data: abi.decode(actions[i].data, (TradeData))
       });
 
       _verifyFilledAccount(makerOrder, fillDetails.filledAccount);
@@ -129,7 +129,7 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
     transferBatch[transferBatch.length - 1] = ISubAccounts.AssetTransfer({
       asset: quoteAsset,
       subId: 0,
-      amount: int(actionData.takerFee),
+      amount: int(order.takerFee),
       fromAcc: takerOrder.accountId,
       toAcc: feeRecipient,
       assetData: bytes32(0)
@@ -142,15 +142,15 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
         filledAccount: takerOrder.accountId,
         amountFilled: totalFilled,
         price: limitPriceForTaker,
-        fee: actionData.takerFee
+        fee: order.takerFee
       })
     );
 
     // Execute
-    subAccounts.submitTransfers(transferBatch, actionData.managerData);
+    subAccounts.submitTransfers(transferBatch, order.managerData);
 
     // Return
-    _returnAccounts(orders, newAccIds);
+    _returnAccounts(actions, newAccIds);
     return (newAccIds, newAccOwners);
   }
 
@@ -245,7 +245,7 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
     return (marketPrice - perpPrice.toInt256());
   }
 
-  function _checkOrderNonce(VerifiedOrder memory order) internal {
+  function _checkOrderNonce(VerifiedAction memory order) internal {
     bytes32 storedHash = seenNonces[order.owner][order.nonce];
     if (storedHash == bytes32(0)) {
       seenNonces[order.owner][order.nonce] = keccak256(order.data);

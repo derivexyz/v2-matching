@@ -17,37 +17,37 @@ import {IMatching} from "../interfaces/IMatching.sol";
 contract DepositModule is IDepositModule, BaseModule {
   constructor(IMatching _matching) BaseModule(_matching) {}
 
-  function executeAction(VerifiedOrder[] memory orders, bytes memory)
+  function executeAction(VerifiedAction[] memory actions, bytes memory)
     external
     onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
     // Verify
-    if (orders.length != 1) revert DM_InvalidDepositOrderLength();
-    VerifiedOrder memory depositOrder = orders[0];
-    _checkAndInvalidateNonce(depositOrder.owner, depositOrder.nonce);
+    if (actions.length != 1) revert DM_InvalidDepositActionLength();
+    VerifiedAction memory action = actions[0];
+    _checkAndInvalidateNonce(action.owner, action.nonce);
 
     // Execute
-    DepositData memory data = abi.decode(orders[0].data, (DepositData));
+    DepositData memory data = abi.decode(actions[0].data, (DepositData));
 
-    uint accountId = orders[0].accountId;
+    uint accountId = action.accountId;
     if (accountId == 0) {
       accountId = subAccounts.createAccount(address(this), IManager(data.managerForNewAccount));
 
       newAccIds = new uint[](1);
       newAccIds[0] = accountId;
       newAccOwners = new address[](1);
-      newAccOwners[0] = orders[0].owner;
+      newAccOwners[0] = action.owner;
     }
 
     IERC20Metadata depositToken = IERC20BasedAsset(data.asset).wrappedAsset();
-    depositToken.transferFrom(orders[0].owner, address(this), data.amount);
+    depositToken.transferFrom(action.owner, address(this), data.amount);
 
     depositToken.approve(address(data.asset), data.amount);
     IERC20BasedAsset(data.asset).deposit(accountId, data.amount);
 
     // Return
-    _returnAccounts(orders, newAccIds);
+    _returnAccounts(actions, newAccIds);
     return (newAccIds, newAccOwners);
   }
 }

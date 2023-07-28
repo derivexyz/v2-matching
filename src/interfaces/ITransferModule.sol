@@ -17,7 +17,7 @@ interface ITransferModule is IBaseModule {
   }
 
   error TFM_InvalidFromAccount();
-  error TFM_InvalidTransferOrderLength();
+  error TFM_InvalidTransferActionLength();
   error TFM_InvalidRecipientOwner();
   error TFM_ToAccountMismatch();
 }

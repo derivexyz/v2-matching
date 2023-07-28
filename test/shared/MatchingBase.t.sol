@@ -11,7 +11,7 @@ import {TransferModule} from "src/modules/TransferModule.sol";
 import {TradeModule} from "src/modules/TradeModule.sol";
 import {RiskManagerChangeModule} from "src/modules/RiskManagerChangeModule.sol";
 import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
-import {IOrderVerifier} from "src/interfaces/IOrderVerifier.sol";
+import {IActionVerifier} from "src/interfaces/IActionVerifier.sol";
 import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 
@@ -97,14 +97,14 @@ contract MatchingBase is PMRMTestBase {
     _depositCash(dougAcc, cashDeposit);
   }
 
-  function _verifyAndMatch(IOrderVerifier.SignedOrder[] memory orders, bytes memory actionData) internal {
+  function _verifyAndMatch(IActionVerifier.SignedAction[] memory actions, bytes memory actionData) internal {
     vm.startPrank(tradeExecutor);
-    matching.verifyAndMatch(orders, actionData);
+    matching.verifyAndMatch(actions, actionData);
     vm.stopPrank();
   }
 
-  // Creates SignedOrder with empty signature field. This order must be signed for.
-  function _createUnsignedOrder(
+  // Creates SignedAction with empty signature field. This action must be signed for.
+  function _createUnsignedAction(
     uint accountId,
     uint nonce,
     address module,
@@ -112,8 +112,8 @@ contract MatchingBase is PMRMTestBase {
     uint expiry,
     address owner,
     address signer
-  ) internal pure returns (IOrderVerifier.SignedOrder memory order) {
-    order = IOrderVerifier.SignedOrder({
+  ) internal pure returns (IActionVerifier.SignedAction memory action) {
+    action = IActionVerifier.SignedAction({
       accountId: accountId,
       nonce: nonce,
       module: IMatchingModule(module),
@@ -125,15 +125,15 @@ contract MatchingBase is PMRMTestBase {
     });
   }
 
-  // Returns the SignedOrder with signature
-  function _createSignedOrder(IOrderVerifier.SignedOrder memory unsigned, uint signerPk)
+  // Returns the SignedAction with signature
+  function _createSignedAction(IActionVerifier.SignedAction memory unsigned, uint signerPk)
     internal
     view
-    returns (IOrderVerifier.SignedOrder memory order)
+    returns (IActionVerifier.SignedAction memory action)
   {
-    bytes memory signature = _signOrder(matching.getOrderHash(unsigned), signerPk);
+    bytes memory signature = _signAction(matching.getActionHash(unsigned), signerPk);
 
-    order = IOrderVerifier.SignedOrder({
+    action = IActionVerifier.SignedAction({
       accountId: unsigned.accountId,
       nonce: unsigned.nonce,
       module: unsigned.module,
@@ -145,7 +145,7 @@ contract MatchingBase is PMRMTestBase {
     });
   }
 
-  function _createFullSignedOrder(
+  function _createFullSignedAction(
     uint accountId,
     uint nonce,
     address module,
@@ -154,9 +154,9 @@ contract MatchingBase is PMRMTestBase {
     address owner,
     address signer,
     uint pk
-  ) internal view returns (IOrderVerifier.SignedOrder memory order) {
-    order = _createUnsignedOrder(accountId, nonce, module, data, expiry, owner, signer);
-    order = _createSignedOrder(order, pk);
+  ) internal view returns (IActionVerifier.SignedAction memory action) {
+    action = _createUnsignedAction(accountId, nonce, module, data, expiry, owner, signer);
+    action = _createSignedAction(action, pk);
   }
 
   function _createNewAccount(address owner) internal returns (uint) {
@@ -170,12 +170,12 @@ contract MatchingBase is PMRMTestBase {
     return newAccountId;
   }
 
-  function _getOrderHash(IOrderVerifier.SignedOrder memory order) internal view returns (bytes32) {
-    return matching.getOrderHash(order);
+  function _getActionHash(IActionVerifier.SignedAction memory action) internal view returns (bytes32) {
+    return matching.getActionHash(action);
   }
 
-  function _signOrder(bytes32 orderHash, uint signerPk) internal view returns (bytes memory) {
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, ECDSA.toTypedDataHash(domainSeparator, orderHash));
+  function _signAction(bytes32 actionHash, uint signerPk) internal view returns (bytes memory) {
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, ECDSA.toTypedDataHash(domainSeparator, actionHash));
     return bytes.concat(r, s, bytes1(v));
   }
 
