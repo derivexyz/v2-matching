@@ -45,7 +45,8 @@ contract MatchingBasicTest is MatchingBase {
     BadModule badModule = new BadModule();
 
     IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
-    actions[0] = _createFullSignedAction(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    actions[0] =
+      _createFullSignedAction(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
     actions[1] = _createFullSignedAction(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
 
     vm.expectRevert(IMatching.M_MismatchedModule.selector);

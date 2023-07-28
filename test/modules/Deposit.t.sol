@@ -40,7 +40,8 @@ contract DepositModuleTest is MatchingBase {
 
   function testCannotCallDepositWithWrongActionLength() public {
     IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
-    actions[0] = _createFullSignedAction(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    actions[0] =
+      _createFullSignedAction(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
     actions[1] =
       _createFullSignedAction(dougAcc, 0, address(depositModule), "", block.timestamp + 1 days, doug, doug, dougPk);
 

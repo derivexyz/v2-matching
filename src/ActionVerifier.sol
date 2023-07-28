@@ -111,7 +111,13 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
   function _getActionHash(SignedAction memory action) internal pure returns (bytes32) {
     return keccak256(
       abi.encode(
-        ACTION_TYPEHASH, action.accountId, action.nonce, address(action.module), action.data, action.expiry, action.signer
+        ACTION_TYPEHASH,
+        action.accountId,
+        action.nonce,
+        address(action.module),
+        action.data,
+        action.expiry,
+        action.signer
       )
     );
   }

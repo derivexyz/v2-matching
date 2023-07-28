@@ -169,7 +169,8 @@ contract TransferModuleTest is MatchingBase {
       _createFullSignedAction(camAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
     actions[1] =
       _createFullSignedAction(dougAcc, 1, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
-    actions[2] = _createFullSignedAction(0, 2, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
+    actions[2] =
+      _createFullSignedAction(0, 2, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
 
     vm.expectRevert(ITransferModule.TFM_InvalidTransferActionLength.selector);
     _verifyAndMatch(actions, bytes(""));
