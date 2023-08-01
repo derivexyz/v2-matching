@@ -21,7 +21,7 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
-contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
+contract TradeModule is ITradeModule, BaseModule {
   using SafeCast for uint;
   using SafeCast for int;
   using SignedDecimalMath for int;

@@ -156,4 +156,17 @@ contract DepositModuleTest is MatchingBase {
     // Assert balance change
     assertEq(uint(newAccBal), deposit);
   }
+
+  // testing shared function in BaseModule
+
+  function testCanSendERC20Out() public {
+    uint stuckAmount = 1000e6;
+    uint usdcBefore = usdc.balanceOf(address(this));
+    usdc.mint(address(depositModule), stuckAmount);
+
+    depositModule.withdrawERC20(address(usdc), address(this), stuckAmount);
+
+    assertEq(usdc.balanceOf(address(this)), usdcBefore + stuckAmount);
+    assertEq(usdc.balanceOf(address(depositModule)), 0);
+  }
 }
