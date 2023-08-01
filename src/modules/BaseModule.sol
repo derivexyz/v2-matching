@@ -20,7 +20,7 @@ abstract contract BaseModule is IBaseModule, Ownable2Step {
     matching = _matching;
     subAccounts = _matching.subAccounts();
   }
-  
+
   /**
    * @dev This contract should never hold any funds, but just in case, allow the owner to withdraw
    */

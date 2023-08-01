@@ -41,7 +41,7 @@ contract TradeModule is ITradeModule, BaseModule {
   // note; it is still possible to submit different actions, but all parameters will match (but expiry may be different)
   mapping(address owner => mapping(uint nonce => bytes32 hash)) public seenNonces;
 
-  constructor(IMatching _matching, IAsset _quoteAsset, uint _feeRecipient) BaseModule(_matching) Ownable2Step() {
+  constructor(IMatching _matching, IAsset _quoteAsset, uint _feeRecipient) BaseModule(_matching) Ownable2Step {
     quoteAsset = _quoteAsset;
     feeRecipient = _feeRecipient;
   }
