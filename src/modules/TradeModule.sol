@@ -21,7 +21,7 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
-contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
+contract TradeModule is ITradeModule, BaseModule {
   using SafeCast for uint;
   using SafeCast for int;
   using SignedDecimalMath for int;
@@ -41,7 +41,7 @@ contract TradeModule is ITradeModule, BaseModule, Ownable2Step {
   // note; it is still possible to submit different actions, but all parameters will match (but expiry may be different)
   mapping(address owner => mapping(uint nonce => bytes32 hash)) public seenNonces;
 
-  constructor(IMatching _matching, IAsset _quoteAsset, uint _feeRecipient) BaseModule(_matching) Ownable2Step() {
+  constructor(IMatching _matching, IAsset _quoteAsset, uint _feeRecipient) BaseModule(_matching) {
     quoteAsset = _quoteAsset;
     feeRecipient = _feeRecipient;
   }

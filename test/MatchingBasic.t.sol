@@ -52,4 +52,15 @@ contract MatchingBasicTest is MatchingBase {
     vm.expectRevert(IMatching.M_MismatchedModule.selector);
     _verifyAndMatch(actions, "");
   }
+
+  function testCanSendERC20Out() public {
+    uint stuckAmount = 1000e6;
+    uint usdcBefore = usdc.balanceOf(address(this));
+    usdc.mint(address(matching), stuckAmount);
+
+    matching.withdrawERC20(address(usdc), address(this), stuckAmount);
+
+    assertEq(usdc.balanceOf(address(this)), usdcBefore + stuckAmount);
+    assertEq(usdc.balanceOf(address(matching)), 0);
+  }
 }
