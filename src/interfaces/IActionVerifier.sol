@@ -4,9 +4,9 @@ pragma solidity ^0.8.13;
 import {IMatchingModule} from "./IMatchingModule.sol";
 import {ISubAccountsManager} from "./ISubAccountsManager.sol";
 
-interface IOrderVerifier is ISubAccountsManager {
+interface IActionVerifier is ISubAccountsManager {
   // (accountID, signer, nonce) must be unique
-  struct SignedOrder {
+  struct SignedAction {
     uint accountId;
     uint nonce;
     IMatchingModule module;
@@ -17,7 +17,7 @@ interface IOrderVerifier is ISubAccountsManager {
     bytes signature;
   }
 
-  function ORDER_TYPEHASH() external pure returns (bytes32);
+  function ACTION_TYPEHASH() external pure returns (bytes32);
   function DEREGISTER_KEY_COOLDOWN() external pure returns (uint);
 
   /// @notice Allows other addresses to trade on behalf of others
@@ -27,7 +27,7 @@ interface IOrderVerifier is ISubAccountsManager {
   function registerSessionKey(address toAllow, uint expiry) external;
   function deregisterSessionKey(address sessionKey) external;
   function domainSeparator() external view returns (bytes32);
-  function getOrderHash(SignedOrder memory order) external pure returns (bytes32);
+  function getActionHash(SignedAction memory action) external pure returns (bytes32);
 
   /**
    * @dev Emitted when a session key is registered to an owner account.
@@ -42,8 +42,8 @@ interface IOrderVerifier is ISubAccountsManager {
   /// @dev Emitted when user is trying to lower the expiry of a session key
   error OV_NeedDeregister();
   error OV_SessionKeyInvalid();
-  error OV_OrderExpired();
+  error OV_ActionExpired();
   error OV_InvalidSignature();
-  error OV_InvalidOrderOwner();
+  error OV_InvalidActionOwner();
   error OV_SignerNotOwnerOrSessionKeyExpired();
 }

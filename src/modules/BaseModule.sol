@@ -19,12 +19,12 @@ abstract contract BaseModule is IBaseModule {
     subAccounts = _matching.subAccounts();
   }
 
-  function _returnAccounts(VerifiedOrder[] memory orders, uint[] memory newAccIds) internal {
-    for (uint i = 0; i < orders.length; ++i) {
-      if (orders[i].accountId == 0) continue;
-      if (subAccounts.ownerOf(orders[i].accountId) == address(matching)) continue;
+  function _returnAccounts(VerifiedAction[] memory actions, uint[] memory newAccIds) internal {
+    for (uint i = 0; i < actions.length; ++i) {
+      if (actions[i].accountId == 0) continue;
+      if (subAccounts.ownerOf(actions[i].accountId) == address(matching)) continue;
 
-      subAccounts.transferFrom(address(this), address(matching), orders[i].accountId);
+      subAccounts.transferFrom(address(this), address(matching), actions[i].accountId);
     }
     for (uint i = 0; i < newAccIds.length; ++i) {
       subAccounts.transferFrom(address(this), address(matching), newAccIds[i]);

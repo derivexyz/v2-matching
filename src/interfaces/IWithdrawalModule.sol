@@ -9,6 +9,6 @@ interface IWithdrawalModule is IBaseModule {
     uint assetAmount;
   }
 
-  error WM_InvalidWithdrawalOrderLength();
+  error WM_InvalidWithdrawalActionLength();
   error WM_InvalidFromAccount();
 }

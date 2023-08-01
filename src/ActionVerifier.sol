@@ -9,14 +9,14 @@ import "openzeppelin/utils/cryptography/SignatureChecker.sol";
 // Inherited
 import "openzeppelin/utils/cryptography/EIP712.sol";
 import {SubAccountsManager} from "./SubAccountsManager.sol";
-import {IOrderVerifier} from "./interfaces/IOrderVerifier.sol";
+import {IActionVerifier} from "./interfaces/IActionVerifier.sol";
 
 // Interfaces
 import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
-contract OrderVerifier is IOrderVerifier, SubAccountsManager, EIP712 {
-  bytes32 public constant ORDER_TYPEHASH = keccak256("SignedOrder(uint256,uint256,address,bytes,uint256,address)");
+contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
+  bytes32 public constant ACTION_TYPEHASH = keccak256("SignedAction(uint256,uint256,address,bytes,uint256,address)");
 
   uint public constant DEREGISTER_KEY_COOLDOWN = 10 minutes;
 
@@ -57,12 +57,12 @@ contract OrderVerifier is IOrderVerifier, SubAccountsManager, EIP712 {
 
   /**
    * @notice verify that the signer is the owner or has been permitted to trade on behalf of the owner
-   * @param signer The address that signed the order
+   * @param signer The address that signed the action
    * @param accIdOwner the original owner of the subaccount stored by matching contract
-   * @param owner specified owner in the order
+   * @param owner specified owner in the action
    */
   function _verifySignerPermission(address signer, address accIdOwner, address owner) internal view {
-    if (accIdOwner != address(0) && accIdOwner != owner) revert OV_InvalidOrderOwner();
+    if (accIdOwner != address(0) && accIdOwner != owner) revert OV_InvalidActionOwner();
 
     if (signer != owner && sessionKeys[signer][owner] < block.timestamp) {
       revert OV_SignerNotOwnerOrSessionKeyExpired();
@@ -73,20 +73,20 @@ contract OrderVerifier is IOrderVerifier, SubAccountsManager, EIP712 {
   // Signed message checking //
   /////////////////////////////
 
-  function _verifyOrder(SignedOrder memory order) internal view returns (IMatchingModule.VerifiedOrder memory) {
+  function _verifyAction(SignedAction memory action) internal view returns (IMatchingModule.VerifiedAction memory) {
     // Repeated nonces are fine; their uniqueness will be handled by modules
-    if (block.timestamp > order.expiry) revert OV_OrderExpired();
+    if (block.timestamp > action.expiry) revert OV_ActionExpired();
 
-    _verifySignerPermission(order.signer, subAccountToOwner[order.accountId], order.owner);
+    _verifySignerPermission(action.signer, subAccountToOwner[action.accountId], action.owner);
 
-    _verifySignature(order.signer, _getOrderHash(order), order.signature);
+    _verifySignature(action.signer, _getActionHash(action), action.signature);
 
-    return IMatchingModule.VerifiedOrder({
-      accountId: order.accountId,
-      owner: order.owner,
-      module: order.module,
-      data: order.data,
-      nonce: order.nonce
+    return IMatchingModule.VerifiedAction({
+      accountId: action.accountId,
+      owner: action.owner,
+      module: action.module,
+      data: action.data,
+      nonce: action.nonce
     });
   }
 
@@ -104,14 +104,20 @@ contract OrderVerifier is IOrderVerifier, SubAccountsManager, EIP712 {
     return _domainSeparatorV4();
   }
 
-  function getOrderHash(SignedOrder memory order) external pure returns (bytes32) {
-    return _getOrderHash(order);
+  function getActionHash(SignedAction memory action) external pure returns (bytes32) {
+    return _getActionHash(action);
   }
 
-  function _getOrderHash(SignedOrder memory order) internal pure returns (bytes32) {
+  function _getActionHash(SignedAction memory action) internal pure returns (bytes32) {
     return keccak256(
       abi.encode(
-        ORDER_TYPEHASH, order.accountId, order.nonce, address(order.module), order.data, order.expiry, order.signer
+        ACTION_TYPEHASH,
+        action.accountId,
+        action.nonce,
+        address(action.module),
+        action.data,
+        action.expiry,
+        action.signer
       )
     );
   }
