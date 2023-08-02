@@ -17,3 +17,7 @@ func_attrs_with_params_multiline = false
 quote_style = 'double'
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
+
+[rpc_endpoints]
+conduit_testnet = "https://l2-orderbook-demo-t5038wsgnz.t.conduit.xyz"
+sepolia = "https://sepolia.infura.io/v3/26251a7744c548a3adbc17880fc70764"

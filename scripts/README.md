@@ -11,12 +11,10 @@
 }
 ```
 
-2. Add the `.env` file with `PRIVATE_KEY` and `TESTNET_RPC_URL` set.
+2. Add `PRIVATE_KEY` to `.env` file 
 
 ```.env
 PRIVATE_KEY=<>
-
-TESTNET_RPC_URL=<>
 ```
 
 3. Create deployment directory
@@ -33,7 +31,7 @@ mkdir deployments/901
 4. Run command
 
 ```
-forge script scripts/deploy-all.s.sol --rpc-url $TESTNET_RPC_URL --broadcast
+forge script scripts/deploy-all.s.sol --rpc-url conduit_testnet --broadcast
 ```
 
 You should see output similar to this:
@@ -45,6 +43,7 @@ Start deploying matching contract and modules! deployer:  0x77774066be05E9725cf1
 
 ## Getting the raw contract state 
 
+**This script only works with local testnet**
 given a private key, we can deploy all needed contracts and dump the state into a file.
 
 ```shell
