@@ -42,3 +42,14 @@ You should see output similar to this:
 Start deploying matching contract and modules! deployer:  0x77774066be05E9725cf12A583Ed67F860d19c187
   Written to deployment  /path/deployments/901/matching.json
 ```
+
+## Getting the raw contract state 
+
+given a private key, we can deploy all needed contracts and dump the state into a file.
+
+```shell
+PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 PORT=8000 ./scripts/deploy-and-dump.sh
+```
+
+This can then be used by other infra to restore the contract state without re-running the deployment script. The output will be in deployments/31337/state.txt
+(Make sure to run this against a freshly started anvil node)

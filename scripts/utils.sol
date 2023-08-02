@@ -12,7 +12,7 @@ contract Utils is Script {
     string memory file = _readInput("config");
 
     config.subAccounts = abi.decode(vm.parseJson(file, ".subAccounts"), (address));
-    config.cashAsset = abi.decode(vm.parseJson(file, ".cashAsset"), (address));
+    config.cash = abi.decode(vm.parseJson(file, ".cash"), (address));
   }
 
   ///@dev read input from json 

@@ -45,7 +45,7 @@ contract DeployAll is Utils {
 
     deployment.deposit = new DepositModule(deployment.matching);
     deployment.rmChange = new RiskManagerChangeModule(deployment.matching);
-    deployment.trade = new TradeModule(deployment.matching, IAsset(config.cashAsset), defaultFeeRecipient);
+    deployment.trade = new TradeModule(deployment.matching, IAsset(config.cash), defaultFeeRecipient);
     deployment.transfer = new TransferModule(deployment.matching);
     deployment.withdrawal = new WithdrawalModule(deployment.matching);
 
