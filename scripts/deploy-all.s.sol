@@ -56,6 +56,8 @@ contract DeployAll is Utils {
     deployment.matching.setAllowedModule(address(deployment.transfer), true);
     deployment.matching.setAllowedModule(address(deployment.withdrawal), true);
 
+    deployment.matching.setTradeExecutor(0xf00A105BC009eA3a250024cbe1DCd0509c71C52b, true);
+
     // write to output
     __writeToDeploymentsJson(deployment);
   }
