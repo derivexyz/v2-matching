@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {IMatchingModule} from "../../src/interfaces/IMatchingModule.sol";
 
 contract BadModule is IMatchingModule {
-  function executeAction(VerifiedOrder[] memory orders, bytes memory)
+  function executeAction(VerifiedAction[] memory actions, bytes memory)
     public
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {

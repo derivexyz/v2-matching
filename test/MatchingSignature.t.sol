@@ -4,7 +4,7 @@ pragma solidity ^0.8.18;
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {MatchingBase} from "./shared/MatchingBase.t.sol";
 import {TransferModule, ITransferModule} from "src/modules/TransferModule.sol";
-import {IOrderVerifier} from "src/interfaces/IOrderVerifier.sol";
+import {IActionVerifier} from "src/interfaces/IActionVerifier.sol";
 
 /**
  * @notice tests around signature verification
@@ -13,29 +13,29 @@ contract MatchingSignatureTest is MatchingBase {
   uint public newKey = 909886112;
   address public newSigner = vm.addr(newKey);
 
-  function testCannotSubmitExpiredOrder() public {
+  function testCannotSubmitExpiredAction() public {
     bytes memory depositData = _encodeDepositData(1e18, address(cash), address(0));
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](1);
-    orders[0] = _createFullSignedOrder(
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    actions[0] = _createFullSignedAction(
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 minutes, cam, cam, camPk
     );
 
     vm.warp(block.timestamp + 2 minutes);
 
-    vm.expectRevert(IOrderVerifier.OV_OrderExpired.selector);
-    _verifyAndMatch(orders, bytes(""));
+    vm.expectRevert(IActionVerifier.OV_ActionExpired.selector);
+    _verifyAndMatch(actions, bytes(""));
   }
 
-  function testCannotSpecifyWrongOwnerInOrder() public {
+  function testCannotSpecifyWrongOwnerInAction() public {
     bytes memory depositData = _encodeDepositData(1e18, address(cash), address(0));
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](1);
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
     // change owner to doug
-    orders[0] = _createFullSignedOrder(
+    actions[0] = _createFullSignedAction(
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 minutes, doug, cam, camPk
     );
 
-    vm.expectRevert(IOrderVerifier.OV_InvalidOrderOwner.selector);
-    _verifyAndMatch(orders, bytes(""));
+    vm.expectRevert(IActionVerifier.OV_InvalidActionOwner.selector);
+    _verifyAndMatch(actions, bytes(""));
   }
 
   function testCanUseSessionKeyToSign() public {
@@ -45,18 +45,18 @@ contract MatchingSignatureTest is MatchingBase {
     matching.registerSessionKey(newSigner, block.timestamp + 1 days);
     vm.stopPrank();
 
-    IOrderVerifier.SignedOrder[] memory orders = _getTransferOrder(camAcc, camNewAcc, cam, newSigner, newKey);
+    IActionVerifier.SignedAction[] memory actions = _getTransferOrder(camAcc, camNewAcc, cam, newSigner, newKey);
 
-    _verifyAndMatch(orders, "");
+    _verifyAndMatch(actions, "");
   }
 
   function testCanUseInvalidKey() public {
     uint camNewAcc = _createNewAccount(cam);
     // pretend to be cam
-    IOrderVerifier.SignedOrder[] memory orders = _getTransferOrder(camAcc, camNewAcc, cam, cam, newKey);
+    IActionVerifier.SignedAction[] memory actions = _getTransferOrder(camAcc, camNewAcc, cam, cam, newKey);
 
-    vm.expectRevert(IOrderVerifier.OV_InvalidSignature.selector);
-    _verifyAndMatch(orders, "");
+    vm.expectRevert(IActionVerifier.OV_InvalidSignature.selector);
+    _verifyAndMatch(actions, "");
   }
 
   function testCannotUseUnDepositedAccount() public {
@@ -68,10 +68,10 @@ contract MatchingSignatureTest is MatchingBase {
     _depositCash(newCamAcc, cashDeposit);
 
     // specify cam as owner, transfer from new owner to cam
-    IOrderVerifier.SignedOrder[] memory orders = _getTransferOrder(newCamAcc, camAcc, cam, cam, camPk);
+    IActionVerifier.SignedAction[] memory actions = _getTransferOrder(newCamAcc, camAcc, cam, cam, camPk);
 
     vm.expectRevert("ERC721: transfer from incorrect owner");
-    _verifyAndMatch(orders, "");
+    _verifyAndMatch(actions, "");
   }
 
   function testDeregisterSessionKey() public {
@@ -85,21 +85,32 @@ contract MatchingSignatureTest is MatchingBase {
     vm.stopPrank();
 
     uint camNewAcc = _createNewAccount(cam);
-    IOrderVerifier.SignedOrder[] memory orders = _getTransferOrder(camAcc, camNewAcc, cam, newSigner, newKey);
+    IActionVerifier.SignedAction[] memory actions = _getTransferOrder(camAcc, camNewAcc, cam, newSigner, newKey);
 
-    vm.expectRevert(IOrderVerifier.OV_SignerNotOwnerOrSessionKeyExpired.selector);
-    _verifyAndMatch(orders, "");
+    vm.expectRevert(IActionVerifier.OV_SignerNotOwnerOrSessionKeyExpired.selector);
+    _verifyAndMatch(actions, "");
+  }
+
+  function testCannotDeregisterWithRegisterSessionKeyFunc() public {
+    vm.startPrank(cam);
+
+    uint expiry = block.timestamp + 1 days;
+
+    matching.registerSessionKey(newSigner, expiry);
+
+    vm.expectRevert(IActionVerifier.OV_NeedDeregister.selector);
+    matching.registerSessionKey(newSigner, expiry - 10 minutes);
   }
 
   function testCannotDeregisterInvalidKey() public {
-    vm.expectRevert(IOrderVerifier.OV_SessionKeyInvalid.selector);
+    vm.expectRevert(IActionVerifier.OV_SessionKeyInvalid.selector);
     matching.deregisterSessionKey(newSigner);
   }
 
   function _getTransferOrder(uint from, uint to, address specifiedOwner, address signer, uint pk)
     internal
     view
-    returns (IOrderVerifier.SignedOrder[] memory)
+    returns (IActionVerifier.SignedAction[] memory)
   {
     ITransferModule.Transfers[] memory transfers = new ITransferModule.Transfers[](1);
     transfers[0] = ITransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
@@ -107,15 +118,15 @@ contract MatchingSignatureTest is MatchingBase {
     ITransferModule.TransferData memory transferData =
       ITransferModule.TransferData({toAccountId: to, managerForNewAccount: address(0), transfers: transfers});
 
-    // sign order and submit
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
-    orders[0] = _createFullSignedOrder(
+    // sign action and submit
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    actions[0] = _createFullSignedAction(
       from, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, specifiedOwner, signer, pk
     );
-    orders[1] = _createFullSignedOrder(
+    actions[1] = _createFullSignedAction(
       to, 1, address(transferModule), new bytes(0), block.timestamp + 1 days, specifiedOwner, signer, pk
     );
 
-    return orders;
+    return actions;
   }
 }

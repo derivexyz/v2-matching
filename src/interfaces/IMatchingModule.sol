@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 interface IMatchingModule {
-  struct VerifiedOrder {
+  struct VerifiedAction {
     uint accountId;
     address owner;
     IMatchingModule module;
@@ -10,7 +10,7 @@ interface IMatchingModule {
     uint nonce;
   }
 
-  function executeAction(VerifiedOrder[] memory orders, bytes memory actionData)
+  function executeAction(VerifiedAction[] memory actions, bytes memory actionData)
     external
     returns (uint[] memory newAccIds, address[] memory newOwners);
 }

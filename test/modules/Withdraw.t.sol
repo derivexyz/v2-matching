@@ -2,25 +2,25 @@
 pragma solidity ^0.8.18;
 
 import {MatchingBase} from "test/shared/MatchingBase.t.sol";
-import {IOrderVerifier} from "src/interfaces/IOrderVerifier.sol";
+import {IActionVerifier} from "src/interfaces/IActionVerifier.sol";
 import {WithdrawalModule, IWithdrawalModule} from "src/modules/WithdrawalModule.sol";
 
 contract WithdrawalModuleTest is MatchingBase {
   function testWithdraw() public {
     uint withdraw = 12e18;
 
-    // Create signed order for cash withdraw
+    // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    IOrderVerifier.SignedOrder memory order = _createFullSignedOrder(
+    IActionVerifier.SignedAction memory action = _createFullSignedAction(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 days, cam, cam, camPk
     );
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
 
-    // Submit Order
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](1);
-    orders[0] = order;
-    _verifyAndMatch(orders, bytes(""));
+    // Submit action
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    actions[0] = action;
+    _verifyAndMatch(actions, bytes(""));
 
     int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
     int balanceDiff = camBalBefore - camBalAfter;
@@ -36,18 +36,18 @@ contract WithdrawalModuleTest is MatchingBase {
     matching.registerSessionKey(doug, block.timestamp + 1 weeks);
     vm.stopPrank();
 
-    // Create signed order for cash withdraw
+    // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    IOrderVerifier.SignedOrder memory order = _createFullSignedOrder(
+    IActionVerifier.SignedAction memory action = _createFullSignedAction(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 days, cam, doug, dougPk
     );
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
 
-    // Submit Order
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](1);
-    orders[0] = order;
-    _verifyAndMatch(orders, bytes(""));
+    // Submit action
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    actions[0] = action;
+    _verifyAndMatch(actions, bytes(""));
 
     int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
     int balanceDiff = camBalBefore - camBalAfter;
@@ -59,33 +59,33 @@ contract WithdrawalModuleTest is MatchingBase {
   function testCannotWithdrawToZeroAccount() public {
     uint withdraw = 12e18;
 
-    // Create signed order for cash withdraw
+    // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    IOrderVerifier.SignedOrder memory order =
-      _createFullSignedOrder(0, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk);
+    IActionVerifier.SignedAction memory action =
+      _createFullSignedAction(0, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk);
 
-    // Submit Order
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](1);
-    orders[0] = order;
+    // Submit action
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    actions[0] = action;
 
     vm.expectRevert(IWithdrawalModule.WM_InvalidFromAccount.selector);
-    _verifyAndMatch(orders, bytes(""));
+    _verifyAndMatch(actions, bytes(""));
   }
 
-  function testCannotWithdrawWithMoreThanOneOrders() public {
-    // Create signed order for cash withdraw
+  function testCannotWithdrawWithMoreThanOneActions() public {
+    // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(0, address(cash));
 
-    // Submit Order
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
-    orders[0] = _createFullSignedOrder(
+    // Submit action
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    actions[0] = _createFullSignedAction(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk
     );
-    orders[1] = _createFullSignedOrder(
+    actions[1] = _createFullSignedAction(
       dougAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, doug, doug, dougPk
     );
 
-    vm.expectRevert(IWithdrawalModule.WM_InvalidWithdrawalOrderLength.selector);
-    _verifyAndMatch(orders, bytes(""));
+    vm.expectRevert(IWithdrawalModule.WM_InvalidWithdrawalActionLength.selector);
+    _verifyAndMatch(actions, bytes(""));
   }
 }

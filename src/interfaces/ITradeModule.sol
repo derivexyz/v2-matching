@@ -26,7 +26,7 @@ interface ITradeModule is IBaseModule {
 
   /**
    * @dev A "Fill" is a trade that occurs when a market is crossed. A single new order can result in multiple fills.
-   * The taker is the account that is crossing the market. The makerAccounts are those with orders being filled.
+   * The taker is the account that is crossing the market. The makerAccounts are those with actions being filled.
    *
    * If the taker order is a bid;
    * the taker is sending the maker accounts quoteAsset, and receiving the baseAsset from the maker accounts.
@@ -35,7 +35,7 @@ interface ITradeModule is IBaseModule {
    * the taker is sending the maker accounts baseAsset, and receiving the quoteAsset from the maker accounts.
    */
 
-  struct ActionData {
+  struct OrderData {
     uint takerAccount;
     // total fee for taker
     uint takerFee;
@@ -61,7 +61,7 @@ interface ITradeModule is IBaseModule {
   function setFeeRecipient(uint _feeRecipient) external;
   function setPerpAsset(IPerpAsset _perpAsset, bool isPerp) external;
 
-  error TM_InvalidOrdersLength();
+  error TM_InvalidActionsLength();
   error TM_SignedAccountMismatch();
   error TM_IsBidMismatch();
   error TM_InvalidRecipientId();

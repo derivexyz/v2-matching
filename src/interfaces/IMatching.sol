@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {IOrderVerifier} from "./IOrderVerifier.sol";
+import {IActionVerifier} from "./IActionVerifier.sol";
 
-interface IMatching is IOrderVerifier {
+interface IMatching is IActionVerifier {
   function tradeExecutors(address tradeExecutor) external view returns (bool canExecute);
   function allowedModules(address tradeExecutor) external view returns (bool canExecute);
 

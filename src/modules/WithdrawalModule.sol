@@ -11,21 +11,21 @@ import {IMatching} from "../interfaces/IMatching.sol";
 contract WithdrawalModule is IWithdrawalModule, BaseModule {
   constructor(IMatching _matching) BaseModule(_matching) {}
 
-  function executeAction(VerifiedOrder[] memory orders, bytes memory)
+  function executeAction(VerifiedAction[] memory actions, bytes memory)
     external
     onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
-    if (orders.length != 1) revert WM_InvalidWithdrawalOrderLength();
-    if (orders[0].accountId == 0) revert WM_InvalidFromAccount();
+    if (actions.length != 1) revert WM_InvalidWithdrawalActionLength();
+    if (actions[0].accountId == 0) revert WM_InvalidFromAccount();
 
-    _checkAndInvalidateNonce(orders[0].owner, orders[0].nonce);
+    _checkAndInvalidateNonce(actions[0].owner, actions[0].nonce);
 
-    WithdrawalData memory data = abi.decode(orders[0].data, (WithdrawalData));
+    WithdrawalData memory data = abi.decode(actions[0].data, (WithdrawalData));
 
-    IERC20BasedAsset(data.asset).withdraw(orders[0].accountId, data.assetAmount, orders[0].owner);
+    IERC20BasedAsset(data.asset).withdraw(actions[0].accountId, data.assetAmount, actions[0].owner);
 
-    _returnAccounts(orders, newAccIds);
+    _returnAccounts(actions, newAccIds);
     return (newAccIds, newAccOwners);
   }
 }

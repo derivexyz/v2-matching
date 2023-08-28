@@ -7,7 +7,7 @@ This repository contains a set of smart contracts designed to enable sequential 
 
 ## Main components:
 
-`Matching`: Process signed orders and additional "actionData" from the orderbook, ensuring whitelisted modules can execute actions within specified rules. Inherits `OrderVerifier` and `SubAccountManager`
+`Matching`: Process signed actions and additional "actionData" from the orderbook, ensuring whitelisted modules can execute actions within specified rules. Inherits `ActionVerifier` and `SubAccountManager`
 
 Other Modules: contract that take ownership of user's subAccounts from the matching contract, and then execute accordingly base on what users signed.
 

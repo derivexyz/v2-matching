@@ -2,7 +2,7 @@
 pragma solidity ^0.8.18;
 
 import {MatchingBase} from "test/shared/MatchingBase.t.sol";
-import {IOrderVerifier} from "src/interfaces/IOrderVerifier.sol";
+import {IActionVerifier} from "src/interfaces/IActionVerifier.sol";
 import {DepositModule, IDepositModule} from "src/modules/DepositModule.sol";
 import {IERC20BasedAsset} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
@@ -15,10 +15,10 @@ contract DepositModuleTest is MatchingBase {
     uint deposit = 1e18;
     usdc.mint(cam, deposit);
 
-    // Create signed order for cash deposit
+    // Create signed action for cash deposit
     bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
-    IOrderVerifier.SignedOrder memory order =
-      _createFullSignedOrder(camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, cam, camPk);
+    IActionVerifier.SignedAction memory action =
+      _createFullSignedAction(camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, cam, camPk);
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
     IERC20Metadata cashToken = IERC20BasedAsset(address(cash)).wrappedAsset();
@@ -26,10 +26,10 @@ contract DepositModuleTest is MatchingBase {
     cashToken.approve(address(depositModule), deposit);
     vm.stopPrank();
 
-    // Submit Order
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](1);
-    orders[0] = order;
-    _verifyAndMatch(orders, bytes(""));
+    // Submit actions
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    actions[0] = action;
+    _verifyAndMatch(actions, bytes(""));
 
     int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
     int balanceDiff = camBalAfter - camBalBefore;
@@ -38,14 +38,15 @@ contract DepositModuleTest is MatchingBase {
     assertEq(uint(balanceDiff), deposit);
   }
 
-  function testCannotCallDepositWithWrongOrderLength() public {
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](2);
-    orders[0] = _createFullSignedOrder(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
-    orders[1] =
-      _createFullSignedOrder(dougAcc, 0, address(depositModule), "", block.timestamp + 1 days, doug, doug, dougPk);
+  function testCannotCallDepositWithWrongActionLength() public {
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    actions[0] =
+      _createFullSignedAction(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    actions[1] =
+      _createFullSignedAction(dougAcc, 0, address(depositModule), "", block.timestamp + 1 days, doug, doug, dougPk);
 
-    vm.expectRevert(IDepositModule.DM_InvalidDepositOrderLength.selector);
-    _verifyAndMatch(orders, bytes(""));
+    vm.expectRevert(IDepositModule.DM_InvalidDepositActionLength.selector);
+    _verifyAndMatch(actions, bytes(""));
   }
 
   // Doug cannot deposit for Cam
@@ -53,9 +54,9 @@ contract DepositModuleTest is MatchingBase {
     uint deposit = 1e18;
     usdc.mint(cam, deposit);
 
-    // Create signed order for cash deposit
+    // Create signed action for cash deposit
     bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
-    IOrderVerifier.SignedOrder memory order = _createFullSignedOrder(
+    IActionVerifier.SignedAction memory action = _createFullSignedAction(
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, doug, dougPk
     );
 
@@ -64,12 +65,12 @@ contract DepositModuleTest is MatchingBase {
     cashToken.approve(address(depositModule), deposit);
     vm.stopPrank();
 
-    // Submit Order
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](1);
-    orders[0] = order;
+    // Submit action
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    actions[0] = action;
 
-    vm.expectRevert(IOrderVerifier.OV_SignerNotOwnerOrSessionKeyExpired.selector);
-    _verifyAndMatch(orders, bytes(""));
+    vm.expectRevert(IActionVerifier.OV_SignerNotOwnerOrSessionKeyExpired.selector);
+    _verifyAndMatch(actions, bytes(""));
   }
 
   // Doug is able to call deposit on behalf of Cam's account via approved session key
@@ -80,9 +81,9 @@ contract DepositModuleTest is MatchingBase {
     matching.registerSessionKey(doug, block.timestamp + 1 weeks);
     vm.stopPrank();
 
-    // Create signed order for cash deposit
+    // Create signed action for cash deposit
     bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
-    IOrderVerifier.SignedOrder memory order = _createFullSignedOrder(
+    IActionVerifier.SignedAction memory action = _createFullSignedAction(
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, doug, dougPk
     );
 
@@ -92,10 +93,10 @@ contract DepositModuleTest is MatchingBase {
     cashToken.approve(address(depositModule), deposit);
     vm.stopPrank();
 
-    // Submit Order
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](1);
-    orders[0] = order;
-    _verifyAndMatch(orders, bytes(""));
+    // Submit action
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    actions[0] = action;
+    _verifyAndMatch(actions, bytes(""));
 
     int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
     int balanceDiff = camBalAfter - camBalBefore;
@@ -112,9 +113,9 @@ contract DepositModuleTest is MatchingBase {
     matching.registerSessionKey(doug, block.timestamp + 1 days);
     vm.stopPrank();
 
-    // Create signed order for cash deposit
+    // Create signed action for cash deposit
     bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
-    IOrderVerifier.SignedOrder memory order = _createFullSignedOrder(
+    IActionVerifier.SignedAction memory action = _createFullSignedAction(
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 weeks, cam, doug, dougPk
     );
 
@@ -123,12 +124,12 @@ contract DepositModuleTest is MatchingBase {
     cashToken.approve(address(depositModule), deposit);
     vm.stopPrank();
 
-    // Submit Order
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](1);
-    orders[0] = order;
+    // Submit action
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    actions[0] = action;
     vm.warp(block.timestamp + 1 days + 1);
-    vm.expectRevert(IOrderVerifier.OV_SignerNotOwnerOrSessionKeyExpired.selector);
-    _verifyAndMatch(orders, bytes(""));
+    vm.expectRevert(IActionVerifier.OV_SignerNotOwnerOrSessionKeyExpired.selector);
+    _verifyAndMatch(actions, bytes(""));
   }
 
   // If no account Id is specified, deposit into a new account
@@ -136,23 +137,36 @@ contract DepositModuleTest is MatchingBase {
     uint deposit = 1e18;
     usdc.mint(cam, deposit);
 
-    // Create signed order for cash deposit to empty account
+    // Create signed action for cash deposit to empty account
     bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
-    IOrderVerifier.SignedOrder memory order =
-      _createFullSignedOrder(0, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, cam, camPk);
+    IActionVerifier.SignedAction memory action =
+      _createFullSignedAction(0, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, cam, camPk);
 
     IERC20Metadata cashToken = IERC20BasedAsset(address(cash)).wrappedAsset();
     vm.startPrank(cam);
     cashToken.approve(address(depositModule), deposit);
     vm.stopPrank();
 
-    // Submit Order
-    IOrderVerifier.SignedOrder[] memory orders = new IOrderVerifier.SignedOrder[](1);
-    orders[0] = order;
-    _verifyAndMatch(orders, bytes(""));
+    // Submit action
+    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    actions[0] = action;
+    _verifyAndMatch(actions, bytes(""));
     int newAccBal = subAccounts.getBalance(dougAcc + 1, cash, 0);
 
     // Assert balance change
     assertEq(uint(newAccBal), deposit);
+  }
+
+  // testing shared function in BaseModule
+
+  function testCanSendERC20Out() public {
+    uint stuckAmount = 1000e6;
+    uint usdcBefore = usdc.balanceOf(address(this));
+    usdc.mint(address(depositModule), stuckAmount);
+
+    depositModule.withdrawERC20(address(usdc), address(this), stuckAmount);
+
+    assertEq(usdc.balanceOf(address(this)), usdcBefore + stuckAmount);
+    assertEq(usdc.balanceOf(address(depositModule)), 0);
   }
 }

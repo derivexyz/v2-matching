@@ -18,29 +18,30 @@ contract TransferModule is ITransferModule, BaseModule {
   constructor(IMatching _matching) BaseModule(_matching) {}
 
   /**
-   * @notice transfer asset between multiple subAccounts
+   * @notice transfer asset between 2 subAccounts
+   * @dev the recipient need to sign the second action as prove of ownership
    */
-  function executeAction(VerifiedOrder[] memory orders, bytes memory managerData)
+  function executeAction(VerifiedAction[] memory actions, bytes memory managerData)
     external
     onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
     // Verify
-    if (orders.length != 2) revert TFM_InvalidTransferOrderLength();
-    VerifiedOrder memory fromOrder = orders[0];
-    VerifiedOrder memory toOrder = orders[1];
+    if (actions.length != 2) revert TFM_InvalidTransferActionLength();
+    VerifiedAction memory fromAction = actions[0];
+    VerifiedAction memory toAction = actions[1];
 
-    if (fromOrder.owner != toOrder.owner) revert TFM_InvalidRecipientOwner();
-    if (fromOrder.accountId == 0) revert TFM_InvalidFromAccount();
+    if (fromAction.owner != toAction.owner) revert TFM_InvalidRecipientOwner();
+    if (fromAction.accountId == 0) revert TFM_InvalidFromAccount();
 
-    _checkAndInvalidateNonce(fromOrder.owner, fromOrder.nonce);
-    _checkAndInvalidateNonce(toOrder.owner, toOrder.nonce);
+    _checkAndInvalidateNonce(fromAction.owner, fromAction.nonce);
+    _checkAndInvalidateNonce(toAction.owner, toAction.nonce);
 
     // note: only the from order needs to encode the detail of transfers
-    TransferData memory transferData = abi.decode(fromOrder.data, (TransferData));
+    TransferData memory transferData = abi.decode(fromAction.data, (TransferData));
 
     uint toAccountId = transferData.toAccountId;
-    if (toOrder.accountId != toAccountId) revert TFM_ToAccountMismatch();
+    if (toAction.accountId != toAccountId) revert TFM_ToAccountMismatch();
 
     // Create the account if accountId 0 is used
     if (toAccountId == 0) {
@@ -48,7 +49,7 @@ contract TransferModule is ITransferModule, BaseModule {
       newAccIds = new uint[](1);
       newAccIds[0] = toAccountId;
       newAccOwners = new address[](1);
-      newAccOwners[0] = orders[0].owner;
+      newAccOwners[0] = actions[0].owner;
     }
 
     // Execute
@@ -58,7 +59,7 @@ contract TransferModule is ITransferModule, BaseModule {
       // trusted trade executors.
       transferBatch[i] = ISubAccounts.AssetTransfer({
         asset: IAsset(transferData.transfers[i].asset),
-        fromAcc: fromOrder.accountId,
+        fromAcc: fromAction.accountId,
         toAcc: toAccountId,
         subId: transferData.transfers[i].subId,
         amount: transferData.transfers[i].amount,
@@ -69,7 +70,7 @@ contract TransferModule is ITransferModule, BaseModule {
     subAccounts.submitTransfers(transferBatch, managerData);
 
     // Return
-    _returnAccounts(orders, newAccIds);
+    _returnAccounts(actions, newAccIds);
     return (newAccIds, newAccOwners);
   }
 }
