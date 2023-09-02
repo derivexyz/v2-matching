@@ -4,11 +4,10 @@ pragma solidity ^0.8.13;
 // Inherited
 import {BaseModule} from "./BaseModule.sol";
 import {IDepositModule} from "../interfaces/IDepositModule.sol";
-
 // Interfaces
-// import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata";
+import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
-import {IERC20BasedAsset, IERC20Metadata} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
+import {IERC20BasedAsset} from "v2-core/src/interfaces/IERC20BasedAsset.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
 /**
