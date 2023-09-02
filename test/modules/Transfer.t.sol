@@ -22,7 +22,7 @@ contract TransferModuleTest is MatchingBase {
     });
 
     // sign action and submit
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] = _createFullSignedAction(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
@@ -45,7 +45,7 @@ contract TransferModuleTest is MatchingBase {
       ITransferModule.TransferData({toAccountId: 0, managerForNewAccount: address(pmrm), transfers: transfers});
 
     // sign action and submit
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] = _createFullSignedAction(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
@@ -72,7 +72,7 @@ contract TransferModuleTest is MatchingBase {
       ITransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
 
     // sign action and submit
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = _createFullSignedAction(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
@@ -93,7 +93,7 @@ contract TransferModuleTest is MatchingBase {
     ITransferModule.TransferData memory transferData =
       ITransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
 
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] = _createFullSignedAction(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
@@ -125,7 +125,7 @@ contract TransferModuleTest is MatchingBase {
     ITransferModule.TransferData memory transferData =
       ITransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
 
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] = _createFullSignedAction(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
@@ -150,7 +150,7 @@ contract TransferModuleTest is MatchingBase {
     transfers[0] = ITransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
     ITransferModule.TransferData memory transferData =
       ITransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
 
     actions[0] = _createFullSignedAction(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
@@ -164,7 +164,7 @@ contract TransferModuleTest is MatchingBase {
   }
 
   function testCannotCallModuleWithThreeActions() public {
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](3);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](3);
     actions[0] =
       _createFullSignedAction(camAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
     actions[1] =
@@ -185,7 +185,7 @@ contract TransferModuleTest is MatchingBase {
       ITransferModule.TransferData({toAccountId: camAcc, managerForNewAccount: address(0), transfers: transfers});
 
     // sign action and submit
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] = _createFullSignedAction(
       0, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );

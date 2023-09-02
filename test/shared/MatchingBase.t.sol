@@ -97,7 +97,7 @@ contract MatchingBase is PMRMTestBase {
     _depositCash(dougAcc, cashDeposit);
   }
 
-  function _verifyAndMatch(IActionVerifier.SignedAction[] memory actions, bytes memory actionData) internal {
+  function _verifyAndMatch(IActionVerifier.Action[] memory actions, bytes memory actionData) internal {
     vm.startPrank(tradeExecutor);
     matching.verifyAndMatch(actions, actionData);
     vm.stopPrank();
@@ -112,8 +112,8 @@ contract MatchingBase is PMRMTestBase {
     uint expiry,
     address owner,
     address signer
-  ) internal pure returns (IActionVerifier.SignedAction memory action) {
-    action = IActionVerifier.SignedAction({
+  ) internal pure returns (IActionVerifier.Action memory action) {
+    action = IActionVerifier.Action({
       accountId: accountId,
       nonce: nonce,
       module: IMatchingModule(module),
@@ -126,14 +126,14 @@ contract MatchingBase is PMRMTestBase {
   }
 
   // Returns the SignedAction with signature
-  function _createSignedAction(IActionVerifier.SignedAction memory unsigned, uint signerPk)
+  function _createSignedAction(IActionVerifier.Action memory unsigned, uint signerPk)
     internal
     view
-    returns (IActionVerifier.SignedAction memory action)
+    returns (IActionVerifier.Action memory action)
   {
     bytes memory signature = _signAction(matching.getActionHash(unsigned), signerPk);
 
-    action = IActionVerifier.SignedAction({
+    action = IActionVerifier.Action({
       accountId: unsigned.accountId,
       nonce: unsigned.nonce,
       module: unsigned.module,
@@ -154,7 +154,7 @@ contract MatchingBase is PMRMTestBase {
     address owner,
     address signer,
     uint pk
-  ) internal view returns (IActionVerifier.SignedAction memory action) {
+  ) internal view returns (IActionVerifier.Action memory action) {
     action = _createUnsignedAction(accountId, nonce, module, data, expiry, owner, signer);
     action = _createSignedAction(action, pk);
   }
@@ -170,7 +170,7 @@ contract MatchingBase is PMRMTestBase {
     return newAccountId;
   }
 
-  function _getActionHash(IActionVerifier.SignedAction memory action) internal view returns (bytes32) {
+  function _getActionHash(IActionVerifier.Action memory action) internal view returns (bytes32) {
     return matching.getActionHash(action);
   }
 

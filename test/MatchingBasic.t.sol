@@ -30,7 +30,7 @@ contract MatchingBasicTest is MatchingBase {
   function testCannotUseModuleThatDoesNotReturnAccounts() public {
     BadModule badModule = new BadModule();
 
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = _createFullSignedAction(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
 
     vm.expectRevert(IMatching.M_OnlyAllowedModule.selector);
@@ -44,7 +44,7 @@ contract MatchingBasicTest is MatchingBase {
   function testCannotExecuteActionsForDifferentModules() public {
     BadModule badModule = new BadModule();
 
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] =
       _createFullSignedAction(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
     actions[1] = _createFullSignedAction(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);

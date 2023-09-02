@@ -13,7 +13,7 @@ contract RiskManagerChangeModuleTest is MatchingBase {
     MockManager manager = new MockManager(address(subAccounts));
 
     bytes memory newManagerData = abi.encode(manager);
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = _createFullSignedAction(
       camAcc, 0, address(changeModule), newManagerData, block.timestamp + 1 days, cam, cam, camPk
     );
@@ -25,7 +25,7 @@ contract RiskManagerChangeModuleTest is MatchingBase {
 
   function testCannotPassInInvalidActionLength() public {
     bytes memory newManagerData = abi.encode(address(0xbb));
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] = _createFullSignedAction(
       camAcc, 0, address(changeModule), newManagerData, block.timestamp + 1 days, cam, cam, camPk
     );

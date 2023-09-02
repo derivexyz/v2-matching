@@ -17,7 +17,7 @@ contract DepositModuleTest is MatchingBase {
 
     // Create signed action for cash deposit
     bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
-    IActionVerifier.SignedAction memory action =
+    IActionVerifier.Action memory action =
       _createFullSignedAction(camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, cam, camPk);
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
@@ -27,7 +27,7 @@ contract DepositModuleTest is MatchingBase {
     vm.stopPrank();
 
     // Submit actions
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = action;
     _verifyAndMatch(actions, bytes(""));
 
@@ -39,7 +39,7 @@ contract DepositModuleTest is MatchingBase {
   }
 
   function testCannotCallDepositWithWrongActionLength() public {
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] =
       _createFullSignedAction(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
     actions[1] =
@@ -56,7 +56,7 @@ contract DepositModuleTest is MatchingBase {
 
     // Create signed action for cash deposit
     bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
-    IActionVerifier.SignedAction memory action = _createFullSignedAction(
+    IActionVerifier.Action memory action = _createFullSignedAction(
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, doug, dougPk
     );
 
@@ -66,7 +66,7 @@ contract DepositModuleTest is MatchingBase {
     vm.stopPrank();
 
     // Submit action
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = action;
 
     vm.expectRevert(IActionVerifier.OV_SignerNotOwnerOrSessionKeyExpired.selector);
@@ -83,7 +83,7 @@ contract DepositModuleTest is MatchingBase {
 
     // Create signed action for cash deposit
     bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
-    IActionVerifier.SignedAction memory action = _createFullSignedAction(
+    IActionVerifier.Action memory action = _createFullSignedAction(
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, doug, dougPk
     );
 
@@ -94,7 +94,7 @@ contract DepositModuleTest is MatchingBase {
     vm.stopPrank();
 
     // Submit action
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = action;
     _verifyAndMatch(actions, bytes(""));
 
@@ -115,7 +115,7 @@ contract DepositModuleTest is MatchingBase {
 
     // Create signed action for cash deposit
     bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
-    IActionVerifier.SignedAction memory action = _createFullSignedAction(
+    IActionVerifier.Action memory action = _createFullSignedAction(
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 weeks, cam, doug, dougPk
     );
 
@@ -125,7 +125,7 @@ contract DepositModuleTest is MatchingBase {
     vm.stopPrank();
 
     // Submit action
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = action;
     vm.warp(block.timestamp + 1 days + 1);
     vm.expectRevert(IActionVerifier.OV_SignerNotOwnerOrSessionKeyExpired.selector);
@@ -139,7 +139,7 @@ contract DepositModuleTest is MatchingBase {
 
     // Create signed action for cash deposit to empty account
     bytes memory depositData = _encodeDepositData(deposit, address(cash), address(pmrm));
-    IActionVerifier.SignedAction memory action =
+    IActionVerifier.Action memory action =
       _createFullSignedAction(0, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, cam, camPk);
 
     IERC20Metadata cashToken = IERC20BasedAsset(address(cash)).wrappedAsset();
@@ -148,7 +148,7 @@ contract DepositModuleTest is MatchingBase {
     vm.stopPrank();
 
     // Submit action
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = action;
     _verifyAndMatch(actions, bytes(""));
     int newAccBal = subAccounts.getBalance(dougAcc + 1, cash, 0);

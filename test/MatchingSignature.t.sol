@@ -15,7 +15,7 @@ contract MatchingSignatureTest is MatchingBase {
 
   function testCannotSubmitExpiredAction() public {
     bytes memory depositData = _encodeDepositData(1e18, address(cash), address(0));
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = _createFullSignedAction(
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 minutes, cam, cam, camPk
     );
@@ -28,7 +28,7 @@ contract MatchingSignatureTest is MatchingBase {
 
   function testCannotSpecifyWrongOwnerInAction() public {
     bytes memory depositData = _encodeDepositData(1e18, address(cash), address(0));
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     // change owner to doug
     actions[0] = _createFullSignedAction(
       camAcc, 0, address(depositModule), depositData, block.timestamp + 1 minutes, doug, cam, camPk
@@ -45,7 +45,7 @@ contract MatchingSignatureTest is MatchingBase {
     matching.registerSessionKey(newSigner, block.timestamp + 1 days);
     vm.stopPrank();
 
-    IActionVerifier.SignedAction[] memory actions = _getTransferOrder(camAcc, camNewAcc, cam, newSigner, newKey);
+    IActionVerifier.Action[] memory actions = _getTransferOrder(camAcc, camNewAcc, cam, newSigner, newKey);
 
     _verifyAndMatch(actions, "");
   }
@@ -53,7 +53,7 @@ contract MatchingSignatureTest is MatchingBase {
   function testCanUseInvalidKey() public {
     uint camNewAcc = _createNewAccount(cam);
     // pretend to be cam
-    IActionVerifier.SignedAction[] memory actions = _getTransferOrder(camAcc, camNewAcc, cam, cam, newKey);
+    IActionVerifier.Action[] memory actions = _getTransferOrder(camAcc, camNewAcc, cam, cam, newKey);
 
     vm.expectRevert(IActionVerifier.OV_InvalidSignature.selector);
     _verifyAndMatch(actions, "");
@@ -68,7 +68,7 @@ contract MatchingSignatureTest is MatchingBase {
     _depositCash(newCamAcc, cashDeposit);
 
     // specify cam as owner, transfer from new owner to cam
-    IActionVerifier.SignedAction[] memory actions = _getTransferOrder(newCamAcc, camAcc, cam, cam, camPk);
+    IActionVerifier.Action[] memory actions = _getTransferOrder(newCamAcc, camAcc, cam, cam, camPk);
 
     vm.expectRevert("ERC721: transfer from incorrect owner");
     _verifyAndMatch(actions, "");
@@ -85,7 +85,7 @@ contract MatchingSignatureTest is MatchingBase {
     vm.stopPrank();
 
     uint camNewAcc = _createNewAccount(cam);
-    IActionVerifier.SignedAction[] memory actions = _getTransferOrder(camAcc, camNewAcc, cam, newSigner, newKey);
+    IActionVerifier.Action[] memory actions = _getTransferOrder(camAcc, camNewAcc, cam, newSigner, newKey);
 
     vm.expectRevert(IActionVerifier.OV_SignerNotOwnerOrSessionKeyExpired.selector);
     _verifyAndMatch(actions, "");
@@ -110,7 +110,7 @@ contract MatchingSignatureTest is MatchingBase {
   function _getTransferOrder(uint from, uint to, address specifiedOwner, address signer, uint pk)
     internal
     view
-    returns (IActionVerifier.SignedAction[] memory)
+    returns (IActionVerifier.Action[] memory)
   {
     ITransferModule.Transfers[] memory transfers = new ITransferModule.Transfers[](1);
     transfers[0] = ITransferModule.Transfers({asset: address(cash), subId: 0, amount: 1e18});
@@ -119,7 +119,7 @@ contract MatchingSignatureTest is MatchingBase {
       ITransferModule.TransferData({toAccountId: to, managerForNewAccount: address(0), transfers: transfers});
 
     // sign action and submit
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] = _createFullSignedAction(
       from, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, specifiedOwner, signer, pk
     );

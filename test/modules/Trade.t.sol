@@ -32,7 +32,7 @@ contract TradeModuleTest is MatchingBase {
   ////////////////////////
 
   function testTrade() public {
-    IActionVerifier.SignedAction[] memory actions = _getDefaultActions();
+    IActionVerifier.Action[] memory actions = _getDefaultActions();
     _verifyAndMatch(actions, _createMatchedTrade(camAcc, dougAcc, 1e18, 78e18, 0, 0));
 
     // Assert balance change
@@ -46,7 +46,7 @@ contract TradeModuleTest is MatchingBase {
   }
 
   function testTradeBidAskReversed() public {
-    IActionVerifier.SignedAction[] memory actions = _getDefaultActions();
+    IActionVerifier.Action[] memory actions = _getDefaultActions();
     bytes memory encodedAction = _createMatchedTrade(dougAcc, camAcc, 1e18, 78e18, 0, 0);
     (actions[0], actions[1]) = (actions[1], actions[0]);
     _verifyAndMatch(actions, encodedAction);
@@ -64,7 +64,7 @@ contract TradeModuleTest is MatchingBase {
   }
 
   function testMultipleFills() public {
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](4);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](4);
 
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     camTradeData.desiredAmount = 10e18;
@@ -98,14 +98,14 @@ contract TradeModuleTest is MatchingBase {
   }
 
   function testTradeRevertsWithMismatchedSignedAccounts() public {
-    IActionVerifier.SignedAction[] memory actions = _getDefaultActions();
+    IActionVerifier.Action[] memory actions = _getDefaultActions();
     bytes memory encodedAction = _createMatchedTrade(camAcc, camAcc, 1e18, 78e18, 0, 0);
     vm.expectRevert(ITradeModule.TM_SignedAccountMismatch.selector);
     _verifyAndMatch(actions, encodedAction);
   }
 
   function testTradeRevertsIfActionExpired() public {
-    IActionVerifier.SignedAction[] memory actions = _getDefaultActions();
+    IActionVerifier.Action[] memory actions = _getDefaultActions();
     bytes memory encodedAction = _createMatchedTrade(camAcc, camAcc, 1e18, 78e18, 0, 0);
     vm.warp(block.timestamp + 2 days);
     vm.expectRevert(IActionVerifier.OV_ActionExpired.selector);
@@ -118,7 +118,7 @@ contract TradeModuleTest is MatchingBase {
   // - TODO: perp bounds work the same way
 
   function testTradeWithinPriceBounds() public {
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
 
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     camTradeData.limitPrice = 80e18;
@@ -158,7 +158,7 @@ contract TradeModuleTest is MatchingBase {
   // - fills are preserved across multiple (txs); limit = 10; fill 4, fill 4, fill 4 (reverts)
 
   function testTradeCannotExceedLimit() public {
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
 
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
@@ -201,7 +201,7 @@ contract TradeModuleTest is MatchingBase {
   }
 
   function testTradeLimitIsPreserved() public {
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
 
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
@@ -235,7 +235,7 @@ contract TradeModuleTest is MatchingBase {
 
   function testTradeFeesAreSent() public {
     // there is a limit of $1 fee per option in these actions
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
 
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
@@ -267,7 +267,7 @@ contract TradeModuleTest is MatchingBase {
   // - can reuse nonce if all trade params are equal (but expiry/signer/etc is different)
 
   function testCannotReuseNonceWithDiffParams() public {
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
 
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
@@ -323,7 +323,7 @@ contract TradeModuleTest is MatchingBase {
     );
 
     // Submit Order
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] =
       _createFullSignedAction(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
     actions[1] =
@@ -346,7 +346,7 @@ contract TradeModuleTest is MatchingBase {
     uint newPrice = 2000;
 
     // use the default actions
-    IActionVerifier.SignedAction[] memory actions = _getDefaultActions();
+    IActionVerifier.Action[] memory actions = _getDefaultActions();
 
     // fill in default fill details
     ITradeModule.FillDetails[] memory fills = new ITradeModule.FillDetails[](1);
@@ -370,8 +370,8 @@ contract TradeModuleTest is MatchingBase {
   }
 
   /// @dev return order of 2: [0: cam (taker)], [1: doug (maker)]
-  function _getDefaultActions() internal view returns (IActionVerifier.SignedAction[] memory) {
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+  function _getDefaultActions() internal view returns (IActionVerifier.Action[] memory) {
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
 
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     bytes memory camTrade = abi.encode(camTradeData);

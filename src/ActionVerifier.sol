@@ -16,7 +16,7 @@ import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
 contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
-  bytes32 public constant ACTION_TYPEHASH = keccak256("SignedAction(uint256,uint256,address,bytes,uint256,address)");
+  bytes32 public constant ACTION_TYPEHASH = keccak256("Action(uint256,uint256,address,bytes,uint256,address)");
 
   uint public constant DEREGISTER_KEY_COOLDOWN = 10 minutes;
 
@@ -73,7 +73,7 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
   // Signed message checking //
   /////////////////////////////
 
-  function _verifyAction(SignedAction memory action) internal view returns (IMatchingModule.VerifiedAction memory) {
+  function _verifyAction(Action memory action) internal view returns (IMatchingModule.VerifiedAction memory) {
     // Repeated nonces are fine; their uniqueness will be handled by modules
     if (block.timestamp > action.expiry) revert OV_ActionExpired();
 
@@ -104,11 +104,11 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
     return _domainSeparatorV4();
   }
 
-  function getActionHash(SignedAction memory action) external pure returns (bytes32) {
+  function getActionHash(Action memory action) external pure returns (bytes32) {
     return _getActionHash(action);
   }
 
-  function _getActionHash(SignedAction memory action) internal pure returns (bytes32) {
+  function _getActionHash(Action memory action) internal pure returns (bytes32) {
     return keccak256(
       abi.encode(
         ACTION_TYPEHASH,

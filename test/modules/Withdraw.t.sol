@@ -11,14 +11,14 @@ contract WithdrawalModuleTest is MatchingBase {
 
     // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    IActionVerifier.SignedAction memory action = _createFullSignedAction(
+    IActionVerifier.Action memory action = _createFullSignedAction(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 days, cam, cam, camPk
     );
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
 
     // Submit action
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = action;
     _verifyAndMatch(actions, bytes(""));
 
@@ -38,14 +38,14 @@ contract WithdrawalModuleTest is MatchingBase {
 
     // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    IActionVerifier.SignedAction memory action = _createFullSignedAction(
+    IActionVerifier.Action memory action = _createFullSignedAction(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 days, cam, doug, dougPk
     );
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
 
     // Submit action
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = action;
     _verifyAndMatch(actions, bytes(""));
 
@@ -61,11 +61,11 @@ contract WithdrawalModuleTest is MatchingBase {
 
     // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    IActionVerifier.SignedAction memory action =
+    IActionVerifier.Action memory action =
       _createFullSignedAction(0, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk);
 
     // Submit action
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
     actions[0] = action;
 
     vm.expectRevert(IWithdrawalModule.WM_InvalidFromAccount.selector);
@@ -77,7 +77,7 @@ contract WithdrawalModuleTest is MatchingBase {
     bytes memory withdrawData = _encodeWithdrawData(0, address(cash));
 
     // Submit action
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] = _createFullSignedAction(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk
     );
