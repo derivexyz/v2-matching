@@ -23,10 +23,10 @@ contract TransferModuleTest is MatchingBase {
 
     // sign action and submit
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
-    actions[1] = _createFullSignedAction(
+    actions[1] = _createActionAndSign(
       newAccountId, 1, address(transferModule), new bytes(0), block.timestamp + 1 days, cam, cam, camPk
     );
 
@@ -46,11 +46,11 @@ contract TransferModuleTest is MatchingBase {
 
     // sign action and submit
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
     actions[1] =
-      _createFullSignedAction(0, 1, address(transferModule), new bytes(0), block.timestamp + 1 days, cam, cam, camPk);
+      _createActionAndSign(0, 1, address(transferModule), new bytes(0), block.timestamp + 1 days, cam, cam, camPk);
 
     _verifyAndMatch(actions, bytes(""));
 
@@ -73,7 +73,7 @@ contract TransferModuleTest is MatchingBase {
 
     // sign action and submit
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
 
@@ -94,19 +94,19 @@ contract TransferModuleTest is MatchingBase {
       ITransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
 
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
     // second action to move the new account to module
     actions[1] =
-      _createFullSignedAction(camNewAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
+      _createActionAndSign(camNewAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
 
     // Repeating nonce causes fail
     vm.expectRevert(IBaseModule.BM_NonceAlreadyUsed.selector);
     _verifyAndMatch(actions, bytes(""));
 
     actions[1] =
-      _createFullSignedAction(camNewAcc, 1, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
+      _createActionAndSign(camNewAcc, 1, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
 
     // cannot go through because transfer module doesn't have enough allownace
     _verifyAndMatch(actions, bytes(""));
@@ -126,12 +126,12 @@ contract TransferModuleTest is MatchingBase {
       ITransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
 
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
     // second action is random (signed by another person)
     actions[1] =
-      _createFullSignedAction(dougAcc, 1, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
+      _createActionAndSign(dougAcc, 1, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
 
     vm.expectRevert(ITransferModule.TFM_InvalidRecipientOwner.selector);
     _verifyAndMatch(actions, bytes(""));
@@ -152,10 +152,10 @@ contract TransferModuleTest is MatchingBase {
       ITransferModule.TransferData({toAccountId: camNewAcc, managerForNewAccount: address(0), transfers: transfers});
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
 
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
-    actions[1] = _createFullSignedAction(
+    actions[1] = _createActionAndSign(
       0, 1, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
 
@@ -165,12 +165,10 @@ contract TransferModuleTest is MatchingBase {
 
   function testCannotCallModuleWithThreeActions() public {
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](3);
-    actions[0] =
-      _createFullSignedAction(camAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    actions[0] = _createActionAndSign(camAcc, 0, address(transferModule), "", block.timestamp + 1 days, cam, cam, camPk);
     actions[1] =
-      _createFullSignedAction(dougAcc, 1, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
-    actions[2] =
-      _createFullSignedAction(0, 2, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
+      _createActionAndSign(dougAcc, 1, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
+    actions[2] = _createActionAndSign(0, 2, address(transferModule), "", block.timestamp + 1 days, doug, doug, dougPk);
 
     vm.expectRevert(ITransferModule.TFM_InvalidTransferActionLength.selector);
     _verifyAndMatch(actions, bytes(""));
@@ -186,10 +184,10 @@ contract TransferModuleTest is MatchingBase {
 
     // sign action and submit
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       0, 0, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
-    actions[1] = _createFullSignedAction(
+    actions[1] = _createActionAndSign(
       camAcc, 1, address(transferModule), abi.encode(transferData), block.timestamp + 1 days, cam, cam, camPk
     );
 

@@ -11,7 +11,7 @@ contract WithdrawalModuleTest is MatchingBase {
 
     // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    IActionVerifier.Action memory action = _createFullSignedAction(
+    IActionVerifier.Action memory action = _createActionAndSign(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 days, cam, cam, camPk
     );
 
@@ -38,7 +38,7 @@ contract WithdrawalModuleTest is MatchingBase {
 
     // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    IActionVerifier.Action memory action = _createFullSignedAction(
+    IActionVerifier.Action memory action = _createActionAndSign(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 days, cam, doug, dougPk
     );
 
@@ -62,7 +62,7 @@ contract WithdrawalModuleTest is MatchingBase {
     // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
     IActionVerifier.Action memory action =
-      _createFullSignedAction(0, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk);
+      _createActionAndSign(0, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk);
 
     // Submit action
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
@@ -78,10 +78,10 @@ contract WithdrawalModuleTest is MatchingBase {
 
     // Submit action
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk
     );
-    actions[1] = _createFullSignedAction(
+    actions[1] = _createActionAndSign(
       dougAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, doug, doug, dougPk
     );
 

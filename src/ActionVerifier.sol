@@ -73,13 +73,17 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
   // Signed message checking //
   /////////////////////////////
 
-  function _verifyAction(Action memory action) internal view returns (IMatchingModule.VerifiedAction memory) {
+  function _verifyAction(Action memory action, bytes memory signature)
+    internal
+    view
+    returns (IMatchingModule.VerifiedAction memory)
+  {
     // Repeated nonces are fine; their uniqueness will be handled by modules
     if (block.timestamp > action.expiry) revert OV_ActionExpired();
 
     _verifySignerPermission(action.signer, subAccountToOwner[action.accountId], action.owner);
 
-    _verifySignature(action.signer, _getActionHash(action), action.signature);
+    _verifySignature(action.signer, _getActionHash(action), signature);
 
     return IMatchingModule.VerifiedAction({
       accountId: action.accountId,

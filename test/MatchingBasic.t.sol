@@ -31,26 +31,30 @@ contract MatchingBasicTest is MatchingBase {
     BadModule badModule = new BadModule();
 
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
-    actions[0] = _createFullSignedAction(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    bytes[] memory signatures = new bytes[](1);
+    (actions[0], signatures[0]) =
+      _createActionAndSign(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
 
     vm.expectRevert(IMatching.M_OnlyAllowedModule.selector);
-    _verifyAndMatch(actions, "");
+    _verifyAndMatch(actions, signatures, "");
 
     matching.setAllowedModule(address(badModule), true);
     vm.expectRevert(IMatching.M_AccountNotReturned.selector);
-    _verifyAndMatch(actions, "");
+    _verifyAndMatch(actions, signatures, "");
   }
 
   function testCannotExecuteActionsForDifferentModules() public {
     BadModule badModule = new BadModule();
 
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    actions[0] =
-      _createFullSignedAction(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
-    actions[1] = _createFullSignedAction(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    bytes[] memory signatures = new bytes[](2);
+    (actions[0], signatures[0]) =
+      _createActionAndSign(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    (actions[1], signatures[1]) =
+      _createActionAndSign(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
 
     vm.expectRevert(IMatching.M_MismatchedModule.selector);
-    _verifyAndMatch(actions, "");
+    _verifyAndMatch(actions, signatures, "");
   }
 
   function testCanSendERC20Out() public {

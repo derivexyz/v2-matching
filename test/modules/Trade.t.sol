@@ -70,7 +70,7 @@ contract TradeModuleTest is MatchingBase {
     camTradeData.desiredAmount = 10e18;
     bytes memory camTrade = abi.encode(camTradeData);
     actions[0] =
-      _createFullSignedAction(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
+      _createActionAndSign(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     ITradeModule.FillDetails[] memory makerFills = new ITradeModule.FillDetails[](3);
 
@@ -78,9 +78,8 @@ contract TradeModuleTest is MatchingBase {
       ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
       dougTradeData.desiredAmount = 3e18;
       bytes memory dougTrade = abi.encode(dougTradeData);
-      actions[i + 1] = _createFullSignedAction(
-        dougAcc, i, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk
-      );
+      actions[i + 1] =
+        _createActionAndSign(dougAcc, i, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
       makerFills[i] = ITradeModule.FillDetails({filledAccount: dougAcc, amountFilled: 3e18, price: 78e18, fee: 0});
     }
 
@@ -122,13 +121,13 @@ contract TradeModuleTest is MatchingBase {
 
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     camTradeData.limitPrice = 80e18;
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 1 days, cam, cam, camPk
     );
 
     ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
     dougTradeData.limitPrice = 76e18;
-    actions[1] = _createFullSignedAction(
+    actions[1] = _createActionAndSign(
       dougAcc, 0, address(tradeModule), abi.encode(dougTradeData), block.timestamp + 1 days, doug, doug, dougPk
     );
 
@@ -168,10 +167,10 @@ contract TradeModuleTest is MatchingBase {
     camTradeData.desiredAmount = 10e18;
     dougTradeData.desiredAmount = 1e18;
 
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 1 days, cam, cam, camPk
     );
-    actions[1] = _createFullSignedAction(
+    actions[1] = _createActionAndSign(
       dougAcc, 0, address(tradeModule), abi.encode(dougTradeData), block.timestamp + 1 days, doug, doug, dougPk
     );
 
@@ -182,10 +181,10 @@ contract TradeModuleTest is MatchingBase {
 
     camTradeData.desiredAmount = 1e18;
     dougTradeData.desiredAmount = 10e18;
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 1 days, cam, cam, camPk
     );
-    actions[1] = _createFullSignedAction(
+    actions[1] = _createActionAndSign(
       dougAcc, 0, address(tradeModule), abi.encode(dougTradeData), block.timestamp + 1 days, doug, doug, dougPk
     );
 
@@ -194,7 +193,7 @@ contract TradeModuleTest is MatchingBase {
 
     // works fine if both limits are 10
     camTradeData.desiredAmount = 10e18;
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 1 days, cam, cam, camPk
     );
     _verifyAndMatch(actions, _createMatchedTrade(camAcc, dougAcc, 2e18, 78e18, 0, 0));
@@ -211,10 +210,10 @@ contract TradeModuleTest is MatchingBase {
     camTradeData.desiredAmount = 10e18;
     dougTradeData.desiredAmount = 20e18;
 
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 1 days, cam, cam, camPk
     );
-    actions[1] = _createFullSignedAction(
+    actions[1] = _createActionAndSign(
       dougAcc, 0, address(tradeModule), abi.encode(dougTradeData), block.timestamp + 1 days, doug, doug, dougPk
     );
 
@@ -240,10 +239,10 @@ contract TradeModuleTest is MatchingBase {
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
     dougTradeData.limitPrice = 0;
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 1 days, cam, cam, camPk
     );
-    actions[1] = _createFullSignedAction(
+    actions[1] = _createActionAndSign(
       dougAcc, 0, address(tradeModule), abi.encode(dougTradeData), block.timestamp + 1 days, doug, doug, dougPk
     );
 
@@ -271,17 +270,17 @@ contract TradeModuleTest is MatchingBase {
 
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 1 days, cam, cam, camPk
     );
-    actions[1] = _createFullSignedAction(
+    actions[1] = _createActionAndSign(
       dougAcc, 0, address(tradeModule), abi.encode(dougTradeData), block.timestamp + 1 days, doug, doug, dougPk
     );
 
     _verifyAndMatch(actions, _createMatchedTrade(camAcc, dougAcc, 1e18, 78e18, 0, 0));
 
     camTradeData.limitPrice = 79e18;
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 1 days, cam, cam, camPk
     );
 
@@ -289,7 +288,7 @@ contract TradeModuleTest is MatchingBase {
     _verifyAndMatch(actions, _createMatchedTrade(camAcc, dougAcc, 1e18, 78e18, 0, 0));
 
     camTradeData.limitPrice = 78e18;
-    actions[0] = _createFullSignedAction(
+    actions[0] = _createActionAndSign(
       camAcc, 0, address(tradeModule), abi.encode(camTradeData), block.timestamp + 2 days, cam, cam, camPk
     );
     _verifyAndMatch(actions, _createMatchedTrade(camAcc, dougAcc, 1e18, 78e18, 0, 0));
@@ -325,9 +324,9 @@ contract TradeModuleTest is MatchingBase {
     // Submit Order
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     actions[0] =
-      _createFullSignedAction(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
+      _createActionAndSign(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
     actions[1] =
-      _createFullSignedAction(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
+      _createActionAndSign(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
 
     // perpPrice is 2500, they match at 2502, so only $2 should be transferred for the perp
     bytes memory encodedAction = _createMatchedTrade(camAcc, dougAcc, 1e18, 2502e18, 0, 0);
@@ -376,12 +375,12 @@ contract TradeModuleTest is MatchingBase {
     ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
     bytes memory camTrade = abi.encode(camTradeData);
     actions[0] =
-      _createFullSignedAction(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
+      _createActionAndSign(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
 
     ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
     bytes memory dougTrade = abi.encode(dougTradeData);
     actions[1] =
-      _createFullSignedAction(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
+      _createActionAndSign(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
     return actions;
   }
 

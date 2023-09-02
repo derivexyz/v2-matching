@@ -14,7 +14,6 @@ interface IActionVerifier is ISubAccountsManager {
     uint expiry;
     address owner;
     address signer;
-    bytes signature;
   }
 
   function ACTION_TYPEHASH() external pure returns (bytes32);

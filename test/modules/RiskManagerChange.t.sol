@@ -14,9 +14,8 @@ contract RiskManagerChangeModuleTest is MatchingBase {
 
     bytes memory newManagerData = abi.encode(manager);
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
-    actions[0] = _createFullSignedAction(
-      camAcc, 0, address(changeModule), newManagerData, block.timestamp + 1 days, cam, cam, camPk
-    );
+    actions[0] =
+      _createActionAndSign(camAcc, 0, address(changeModule), newManagerData, block.timestamp + 1 days, cam, cam, camPk);
 
     _verifyAndMatch(actions, "");
 
@@ -26,10 +25,9 @@ contract RiskManagerChangeModuleTest is MatchingBase {
   function testCannotPassInInvalidActionLength() public {
     bytes memory newManagerData = abi.encode(address(0xbb));
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    actions[0] = _createFullSignedAction(
-      camAcc, 0, address(changeModule), newManagerData, block.timestamp + 1 days, cam, cam, camPk
-    );
-    actions[1] = _createFullSignedAction(
+    actions[0] =
+      _createActionAndSign(camAcc, 0, address(changeModule), newManagerData, block.timestamp + 1 days, cam, cam, camPk);
+    actions[1] = _createActionAndSign(
       dougAcc, 0, address(changeModule), newManagerData, block.timestamp + 1 days, doug, doug, dougPk
     );
 

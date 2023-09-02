@@ -56,14 +56,17 @@ contract Matching is IMatching, ActionVerifier {
   //  Whitelisted Functions  //
   /////////////////////////////
 
-  function verifyAndMatch(Action[] memory actions, bytes memory actionData) public onlyTradeExecutor {
+  function verifyAndMatch(Action[] memory actions, bytes[] memory signatures, bytes memory actionData)
+    public
+    onlyTradeExecutor
+  {
     IMatchingModule module = actions[0].module;
 
     if (!allowedModules[address(module)]) revert M_OnlyAllowedModule();
 
     IMatchingModule.VerifiedAction[] memory verifiedActions = new IMatchingModule.VerifiedAction[](actions.length);
     for (uint i = 0; i < actions.length; i++) {
-      verifiedActions[i] = _verifyAction(actions[i]);
+      verifiedActions[i] = _verifyAction(actions[i], signatures[i]);
       if (actions[i].module != module) revert M_MismatchedModule();
     }
     _submitModuleAction(module, verifiedActions, actionData);
