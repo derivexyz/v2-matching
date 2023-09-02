@@ -121,7 +121,7 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
         action.accountId,
         action.nonce,
         address(action.module),
-        action.data,
+        keccak256(action.data),
         action.expiry,
         action.owner,
         action.signer
