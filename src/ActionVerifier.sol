@@ -16,7 +16,9 @@ import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
 contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
-  bytes32 public constant ACTION_TYPEHASH = keccak256("Action(uint256,uint256,address,bytes,uint256,address)");
+  bytes32 public constant ACTION_TYPEHASH = keccak256(
+    "Action(uint256 accountId,uint256 nonce,address module,bytes data,uint256 expiry,address owner,address signer)"
+  );
 
   uint public constant DEREGISTER_KEY_COOLDOWN = 10 minutes;
 
@@ -121,6 +123,7 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
         address(action.module),
         action.data,
         action.expiry,
+        action.owner,
         action.signer
       )
     );
