@@ -2,7 +2,6 @@
 pragma solidity ^0.8.18;
 
 import {MatchingBase} from "./shared/MatchingBase.t.sol";
-import {ActionVerifier} from "../src/ActionVerifier.sol";
 import {Matching, IMatching} from "../src/Matching.sol";
 import {BadModule} from "./mock/BadModule.sol";
 import {IActionVerifier} from "src/interfaces/IActionVerifier.sol";
