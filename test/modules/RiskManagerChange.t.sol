@@ -14,10 +14,11 @@ contract RiskManagerChangeModuleTest is MatchingBase {
 
     bytes memory newManagerData = abi.encode(manager);
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
-    actions[0] =
+    bytes[] memory signatures = new bytes[](1);
+    (actions[0], signatures[0]) =
       _createActionAndSign(camAcc, 0, address(changeModule), newManagerData, block.timestamp + 1 days, cam, cam, camPk);
 
-    _verifyAndMatch(actions, "");
+    _verifyAndMatch(actions, signatures, "");
 
     assertEq(address(subAccounts.manager(camAcc)), address(manager));
   }
@@ -25,13 +26,14 @@ contract RiskManagerChangeModuleTest is MatchingBase {
   function testCannotPassInInvalidActionLength() public {
     bytes memory newManagerData = abi.encode(address(0xbb));
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    actions[0] =
+    bytes[] memory signatures = new bytes[](2);
+    (actions[0], signatures[0]) =
       _createActionAndSign(camAcc, 0, address(changeModule), newManagerData, block.timestamp + 1 days, cam, cam, camPk);
-    actions[1] = _createActionAndSign(
+    (actions[1], signatures[1]) = _createActionAndSign(
       dougAcc, 0, address(changeModule), newManagerData, block.timestamp + 1 days, doug, doug, dougPk
     );
 
     vm.expectRevert(IRiskManagerChangeModule.RMCM_InvalidActionLength.selector);
-    _verifyAndMatch(actions, "");
+    _verifyAndMatch(actions, signatures, "");
   }
 }

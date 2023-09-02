@@ -11,16 +11,18 @@ contract WithdrawalModuleTest is MatchingBase {
 
     // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    IActionVerifier.Action memory action = _createActionAndSign(
+
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
+    bytes[] memory signatures = new bytes[](1);
+
+    (actions[0], signatures[0]) = _createActionAndSign(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 days, cam, cam, camPk
     );
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
 
     // Submit action
-    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
-    actions[0] = action;
-    _verifyAndMatch(actions, bytes(""));
+    _verifyAndMatch(actions, signatures, bytes(""));
 
     int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
     int balanceDiff = camBalBefore - camBalAfter;
@@ -38,16 +40,17 @@ contract WithdrawalModuleTest is MatchingBase {
 
     // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    IActionVerifier.Action memory action = _createActionAndSign(
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
+    bytes[] memory signatures = new bytes[](1);
+
+    (actions[0], signatures[0]) = _createActionAndSign(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 days, cam, doug, dougPk
     );
 
     int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
 
     // Submit action
-    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
-    actions[0] = action;
-    _verifyAndMatch(actions, bytes(""));
+    _verifyAndMatch(actions, signatures, bytes(""));
 
     int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
     int balanceDiff = camBalBefore - camBalAfter;
@@ -61,15 +64,15 @@ contract WithdrawalModuleTest is MatchingBase {
 
     // Create signed action for cash withdraw
     bytes memory withdrawData = _encodeWithdrawData(withdraw, address(cash));
-    IActionVerifier.Action memory action =
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
+    bytes[] memory signatures = new bytes[](1);
+
+    (actions[0], signatures[0]) =
       _createActionAndSign(0, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk);
 
     // Submit action
-    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
-    actions[0] = action;
-
     vm.expectRevert(IWithdrawalModule.WM_InvalidFromAccount.selector);
-    _verifyAndMatch(actions, bytes(""));
+    _verifyAndMatch(actions, signatures, bytes(""));
   }
 
   function testCannotWithdrawWithMoreThanOneActions() public {
@@ -78,14 +81,15 @@ contract WithdrawalModuleTest is MatchingBase {
 
     // Submit action
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    actions[0] = _createActionAndSign(
+    bytes[] memory signatures = new bytes[](2);
+    (actions[0], signatures[0]) = _createActionAndSign(
       camAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, cam, cam, camPk
     );
-    actions[1] = _createActionAndSign(
+    (actions[1], signatures[1]) = _createActionAndSign(
       dougAcc, 0, address(withdrawalModule), withdrawData, block.timestamp + 1 weeks, doug, doug, dougPk
     );
 
     vm.expectRevert(IWithdrawalModule.WM_InvalidWithdrawalActionLength.selector);
-    _verifyAndMatch(actions, bytes(""));
+    _verifyAndMatch(actions, signatures, bytes(""));
   }
 }
