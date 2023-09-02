@@ -63,6 +63,7 @@ contract Matching is IMatching, ActionVerifier {
     IMatchingModule module = actions[0].module;
 
     if (!allowedModules[address(module)]) revert M_OnlyAllowedModule();
+    if (actions.length != signatures.length) revert M_ArrayLengthMismatch();
 
     IMatchingModule.VerifiedAction[] memory verifiedActions = new IMatchingModule.VerifiedAction[](actions.length);
     for (uint i = 0; i < actions.length; i++) {

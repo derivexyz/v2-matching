@@ -57,6 +57,16 @@ contract MatchingBasicTest is MatchingBase {
     _verifyAndMatch(actions, signatures, "");
   }
 
+  function testCannotExecuteActionsWithNoSignature() public {
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
+    bytes[] memory signatures = new bytes[](0);
+    (actions[0],) =
+      _createActionAndSign(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
+
+    vm.expectRevert(IMatching.M_ArrayLengthMismatch.selector);
+    _verifyAndMatch(actions, signatures, "");
+  }
+
   function testCanSendERC20Out() public {
     uint stuckAmount = 1000e6;
     uint usdcBefore = usdc.balanceOf(address(this));
