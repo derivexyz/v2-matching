@@ -13,7 +13,7 @@ import {IMatching} from "../interfaces/IMatching.sol";
 
 /**
  * @dev Handles depositing ERC20 Asset into subAccount
- */ 
+ */
 contract DepositModule is IDepositModule, BaseModule {
   constructor(IMatching _matching) BaseModule(_matching) {}
 
