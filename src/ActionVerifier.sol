@@ -16,7 +16,9 @@ import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
 contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
-  bytes32 public constant ACTION_TYPEHASH = keccak256("SignedAction(uint256,uint256,address,bytes,uint256,address)");
+  bytes32 public constant ACTION_TYPEHASH = keccak256(
+    "Action(uint256 accountId,uint256 nonce,address module,bytes data,uint256 expiry,address owner,address signer)"
+  );
 
   uint public constant DEREGISTER_KEY_COOLDOWN = 10 minutes;
 
@@ -73,13 +75,17 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
   // Signed message checking //
   /////////////////////////////
 
-  function _verifyAction(SignedAction memory action) internal view returns (IMatchingModule.VerifiedAction memory) {
+  function _verifyAction(Action memory action, bytes memory signature)
+    internal
+    view
+    returns (IMatchingModule.VerifiedAction memory)
+  {
     // Repeated nonces are fine; their uniqueness will be handled by modules
     if (block.timestamp > action.expiry) revert OV_ActionExpired();
 
     _verifySignerPermission(action.signer, subAccountToOwner[action.accountId], action.owner);
 
-    _verifySignature(action.signer, _getActionHash(action), action.signature);
+    _verifySignature(action.signer, _getActionHash(action), signature);
 
     return IMatchingModule.VerifiedAction({
       accountId: action.accountId,
@@ -104,19 +110,20 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
     return _domainSeparatorV4();
   }
 
-  function getActionHash(SignedAction memory action) external pure returns (bytes32) {
+  function getActionHash(Action memory action) external pure returns (bytes32) {
     return _getActionHash(action);
   }
 
-  function _getActionHash(SignedAction memory action) internal pure returns (bytes32) {
+  function _getActionHash(Action memory action) internal pure returns (bytes32) {
     return keccak256(
       abi.encode(
         ACTION_TYPEHASH,
         action.accountId,
         action.nonce,
         address(action.module),
-        action.data,
+        keccak256(action.data),
         action.expiry,
+        action.owner,
         action.signer
       )
     );

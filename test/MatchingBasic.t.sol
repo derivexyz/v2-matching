@@ -2,7 +2,6 @@
 pragma solidity ^0.8.18;
 
 import {MatchingBase} from "./shared/MatchingBase.t.sol";
-import {ActionVerifier} from "../src/ActionVerifier.sol";
 import {Matching, IMatching} from "../src/Matching.sol";
 import {BadModule} from "./mock/BadModule.sol";
 import {IActionVerifier} from "src/interfaces/IActionVerifier.sol";
@@ -30,27 +29,41 @@ contract MatchingBasicTest is MatchingBase {
   function testCannotUseModuleThatDoesNotReturnAccounts() public {
     BadModule badModule = new BadModule();
 
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](1);
-    actions[0] = _createFullSignedAction(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
+    bytes[] memory signatures = new bytes[](1);
+    (actions[0], signatures[0]) =
+      _createActionAndSign(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
 
     vm.expectRevert(IMatching.M_OnlyAllowedModule.selector);
-    _verifyAndMatch(actions, "");
+    _verifyAndMatch(actions, signatures, "");
 
     matching.setAllowedModule(address(badModule), true);
     vm.expectRevert(IMatching.M_AccountNotReturned.selector);
-    _verifyAndMatch(actions, "");
+    _verifyAndMatch(actions, signatures, "");
   }
 
   function testCannotExecuteActionsForDifferentModules() public {
     BadModule badModule = new BadModule();
 
-    IActionVerifier.SignedAction[] memory actions = new IActionVerifier.SignedAction[](2);
-    actions[0] =
-      _createFullSignedAction(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
-    actions[1] = _createFullSignedAction(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
+    bytes[] memory signatures = new bytes[](2);
+    (actions[0], signatures[0]) =
+      _createActionAndSign(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
+    (actions[1], signatures[1]) =
+      _createActionAndSign(camAcc, 0, address(badModule), "", block.timestamp + 1 days, cam, cam, camPk);
 
     vm.expectRevert(IMatching.M_MismatchedModule.selector);
-    _verifyAndMatch(actions, "");
+    _verifyAndMatch(actions, signatures, "");
+  }
+
+  function testCannotExecuteActionsWithNoSignature() public {
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
+    bytes[] memory signatures = new bytes[](0);
+    (actions[0],) =
+      _createActionAndSign(camAcc, 0, address(depositModule), "", block.timestamp + 1 days, cam, cam, camPk);
+
+    vm.expectRevert(IMatching.M_ArrayLengthMismatch.selector);
+    _verifyAndMatch(actions, signatures, "");
   }
 
   function testCanSendERC20Out() public {
