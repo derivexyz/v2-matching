@@ -158,8 +158,9 @@ contract TradeModule is ITradeModule, BaseModule {
     if (order.data.recipientId == 0) revert TM_InvalidRecipientId();
     if (order.subaccountId != filledAccount) revert TM_SignedAccountMismatch();
     // If the recipient isn't the signed account, verify the owner matches
-    if (order.data.recipientId != order.subaccountId && matching.subAccountToOwner(order.data.recipientId) != order.owner)
-    {
+    if (
+      order.data.recipientId != order.subaccountId && matching.subAccountToOwner(order.data.recipientId) != order.owner
+    ) {
       revert TM_InvalidRecipientId();
     }
   }
