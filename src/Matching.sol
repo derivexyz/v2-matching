@@ -89,19 +89,19 @@ contract Matching is IMatching, ActionVerifier {
     // Transfer accounts to the module contract
     for (uint i = 0; i < actions.length; ++i) {
       // Allow signing messages with accountId == 0, where no account needs to be transferred.
-      if (actions[i].accountId == 0) continue;
+      if (actions[i].subaccountId == 0) continue;
 
       // If the account has been previously sent (actions can share accounts), skip it.
-      if (subAccounts.ownerOf(actions[i].accountId) == address(module)) continue;
+      if (subAccounts.ownerOf(actions[i].subaccountId) == address(module)) continue;
 
-      subAccounts.transferFrom(address(this), address(module), actions[i].accountId);
+      subAccounts.transferFrom(address(this), address(module), actions[i].subaccountId);
     }
 
     (uint[] memory newAccIds, address[] memory newOwners) = module.executeAction(actions, actionData);
 
     // Ensure accounts are transferred back,
     for (uint i = 0; i < actions.length; ++i) {
-      if (actions[i].accountId != 0 && subAccounts.ownerOf(actions[i].accountId) != address(this)) {
+      if (actions[i].subaccountId != 0 && subAccounts.ownerOf(actions[i].subaccountId) != address(this)) {
         revert M_AccountNotReturned();
       }
     }

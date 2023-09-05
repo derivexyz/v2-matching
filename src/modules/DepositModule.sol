@@ -29,12 +29,12 @@ contract DepositModule is IDepositModule, BaseModule {
     // Execute
     DepositData memory data = abi.decode(actions[0].data, (DepositData));
 
-    uint accountId = action.accountId;
-    if (accountId == 0) {
-      accountId = subAccounts.createAccount(address(this), IManager(data.managerForNewAccount));
+    uint subaccountId = action.subaccountId;
+    if (subaccountId == 0) {
+      subaccountId = subAccounts.createAccount(address(this), IManager(data.managerForNewAccount));
 
       newAccIds = new uint[](1);
-      newAccIds[0] = accountId;
+      newAccIds[0] = subaccountId;
       newAccOwners = new address[](1);
       newAccOwners[0] = action.owner;
     }
@@ -43,7 +43,7 @@ contract DepositModule is IDepositModule, BaseModule {
     depositToken.transferFrom(action.owner, address(this), data.amount);
 
     depositToken.approve(address(data.asset), data.amount);
-    IERC20BasedAsset(data.asset).deposit(accountId, data.amount);
+    IERC20BasedAsset(data.asset).deposit(subaccountId, data.amount);
 
     // Return
     _returnAccounts(actions, newAccIds);

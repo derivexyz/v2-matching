@@ -32,7 +32,7 @@ contract TransferModule is ITransferModule, BaseModule {
     VerifiedAction memory toAction = actions[1];
 
     if (fromAction.owner != toAction.owner) revert TFM_InvalidRecipientOwner();
-    if (fromAction.accountId == 0) revert TFM_InvalidFromAccount();
+    if (fromAction.subaccountId == 0) revert TFM_InvalidFromAccount();
 
     _checkAndInvalidateNonce(fromAction.owner, fromAction.nonce);
     _checkAndInvalidateNonce(toAction.owner, toAction.nonce);
@@ -41,7 +41,7 @@ contract TransferModule is ITransferModule, BaseModule {
     TransferData memory transferData = abi.decode(fromAction.data, (TransferData));
 
     uint toAccountId = transferData.toAccountId;
-    if (toAction.accountId != toAccountId) revert TFM_ToAccountMismatch();
+    if (toAction.subaccountId != toAccountId) revert TFM_ToAccountMismatch();
 
     // Create the account if accountId 0 is used
     if (toAccountId == 0) {
@@ -59,7 +59,7 @@ contract TransferModule is ITransferModule, BaseModule {
       // trusted trade executors.
       transferBatch[i] = ISubAccounts.AssetTransfer({
         asset: IAsset(transferData.transfers[i].asset),
-        fromAcc: fromAction.accountId,
+        fromAcc: fromAction.subaccountId,
         toAcc: toAccountId,
         subId: transferData.transfers[i].subId,
         amount: transferData.transfers[i].amount,

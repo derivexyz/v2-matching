@@ -30,10 +30,10 @@ abstract contract BaseModule is IBaseModule, Ownable2Step {
 
   function _returnAccounts(VerifiedAction[] memory actions, uint[] memory newAccIds) internal {
     for (uint i = 0; i < actions.length; ++i) {
-      if (actions[i].accountId == 0) continue;
-      if (subAccounts.ownerOf(actions[i].accountId) == address(matching)) continue;
+      if (actions[i].subaccountId == 0) continue;
+      if (subAccounts.ownerOf(actions[i].subaccountId) == address(matching)) continue;
 
-      subAccounts.transferFrom(address(this), address(matching), actions[i].accountId);
+      subAccounts.transferFrom(address(this), address(matching), actions[i].subaccountId);
     }
     for (uint i = 0; i < newAccIds.length; ++i) {
       subAccounts.transferFrom(address(this), address(matching), newAccIds[i]);
