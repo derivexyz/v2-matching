@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/console2.sol";
-
 // Inherited
 import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {ISubAccountsManager} from "./interfaces/ISubAccountsManager.sol";

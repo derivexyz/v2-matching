@@ -18,6 +18,8 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
+import "forge-std/console2.sol";
+
 /**
  * @title TradeModule
  * @dev Exchange assets between accounts based on signed limit orders (signed actions)
@@ -118,9 +120,14 @@ contract TradeModule is ITradeModule, BaseModule {
       });
 
       _verifyFilledAccount(makerOrder, fillDetails.filledAccount);
+
       if (makerOrder.data.isBid == takerOrder.data.isBid) revert TM_IsBidMismatch();
+      if (makerOrder.data.asset != takerOrder.data.asset) revert TM_AssetMismatch();
+      if (makerOrder.data.subId != takerOrder.data.subId) revert TM_AssetSubIdMismatch();
 
       _fillLimitOrder(makerOrder, fillDetails);
+
+      // Attach transfer details to the execution batch
       _addAssetTransfers(transferBatch, fillDetails, takerOrder, makerOrder, (i - 1) * 3);
 
       totalFilled += fillDetails.amountFilled;
@@ -204,9 +211,13 @@ contract TradeModule is ITradeModule, BaseModule {
     if (_isPerp(matchedOrder.data.asset)) {
       int perpDelta = _getPerpDelta(matchedOrder.data.asset, fillDetails.price);
       amtQuote = perpDelta.multiplyDecimal(int(fillDetails.amountFilled));
+      console2.log("amtQuote1 - perp", amtQuote);
     } else {
       amtQuote = fillDetails.price.multiplyDecimal(int(fillDetails.amountFilled));
+      console2.log("amtQuote2 -> not perp", amtQuote);
     }
+
+    // console2.log("amtQuote", amtQuote);
 
     bool isBidder = matchedOrder.data.isBid;
 
@@ -240,7 +251,7 @@ contract TradeModule is ITradeModule, BaseModule {
   }
 
   /**
-   * @dev send data to IDataReceiver contracts. Can be used to update oracles before pairing trades
+   * @dev Send data to IDataReceiver contracts. Can be used to update oracles before pairing trades
    */
   function _processManagerData(bytes memory managerData) internal {
     if (managerData.length == 0) return;
