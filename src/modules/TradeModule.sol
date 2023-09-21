@@ -18,7 +18,6 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
-import "forge-std/console2.sol";
 
 /**
  * @title TradeModule
@@ -211,13 +210,9 @@ contract TradeModule is ITradeModule, BaseModule {
     if (_isPerp(matchedOrder.data.asset)) {
       int perpDelta = _getPerpDelta(matchedOrder.data.asset, fillDetails.price);
       amtQuote = perpDelta.multiplyDecimal(int(fillDetails.amountFilled));
-      console2.log("amtQuote1 - perp", amtQuote);
     } else {
       amtQuote = fillDetails.price.multiplyDecimal(int(fillDetails.amountFilled));
-      console2.log("amtQuote2 -> not perp", amtQuote);
     }
-
-    // console2.log("amtQuote", amtQuote);
 
     bool isBidder = matchedOrder.data.isBid;
 
