@@ -15,6 +15,10 @@ import {IActionVerifier} from "./interfaces/IActionVerifier.sol";
 import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
+/**
+ * @title ActionVerifier
+ * @dev Handles signature verification and session keys for actions
+ */
 contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
   bytes32 public constant ACTION_TYPEHASH = keccak256(
     "Action(uint256 subaccountId,uint256 nonce,address module,bytes data,uint256 expiry,address owner,address signer)"
@@ -22,18 +26,14 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
 
   uint public constant DEREGISTER_KEY_COOLDOWN = 10 minutes;
 
-  /// @notice Allows other addresses to trade on behalf of others
+  /// @notice Allows other addresses to trade on behalf of users
   /// @dev Mapping of signer address -> owner address -> expiry
   mapping(address signer => mapping(address owner => uint)) public sessionKeys;
 
   constructor(ISubAccounts _accounts) SubAccountsManager(_accounts) EIP712("Matching", "1.0") {}
 
-  ////////////////////
-  //  Session Keys  //
-  ////////////////////
-
   /**
-   * @notice Allows owner to register the public address associated with their session key to their accountId.
+   * @notice Allows owners to a register session key to authorize actions for deposited subAccounts.
    * @dev Registered address gains owner address permission to the subAccount until expiry.
    * @param expiry When the access to the owner address expires
    */
@@ -46,7 +46,7 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
   }
 
   /**
-   * @notice Allows owner to deregister a session key from their account.
+   * @notice Allows owner to deregister a session key.
    * @dev Expires the sessionKey after the cooldown.
    */
   function deregisterSessionKey(address sessionKey) external {
@@ -57,8 +57,20 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
     emit SessionKeyCooldown(msg.sender, sessionKey);
   }
 
+  function domainSeparator() external view returns (bytes32) {
+    return _domainSeparatorV4();
+  }
+
+  function getActionHash(Action memory action) external pure returns (bytes32) {
+    return _getActionHash(action);
+  }
+
+  /////////////////////////////
+  //    Internal Functions   //
+  /////////////////////////////
+
   /**
-   * @notice verify that the signer is the owner or has been permitted to trade on behalf of the owner
+   * @notice Verify that the signer is the owner or has been permitted to trade on behalf of the owner
    * @param signer The address that signed the action
    * @param accIdOwner the original owner of the subaccount stored by matching contract
    * @param owner specified owner in the action
@@ -71,10 +83,11 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
     }
   }
 
-  /////////////////////////////
-  // Signed message checking //
-  /////////////////////////////
-
+  /**
+   * @notice Verify that the action is properly authorized by the original owner.
+   * @param action The action to verify.
+   * @param signature The signature signed by the owner or registered sessionKey.
+   */
   function _verifyAction(Action memory action, bytes memory signature)
     internal
     view
@@ -96,22 +109,14 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
     });
   }
 
+  /**
+   * @notice Verify that the signature is valid.
+   * @dev if signer is a contract, use ERC1271 to verify the signature
+   */
   function _verifySignature(address signer, bytes32 structuredHash, bytes memory signature) internal view {
     if (!SignatureChecker.isValidSignatureNow(signer, _hashTypedDataV4(structuredHash), signature)) {
       revert OV_InvalidSignature();
     }
-  }
-
-  /////////////
-  // Hashing //
-  /////////////
-
-  function domainSeparator() external view returns (bytes32) {
-    return _domainSeparatorV4();
-  }
-
-  function getActionHash(Action memory action) external pure returns (bytes32) {
-    return _getActionHash(action);
   }
 
   function _getActionHash(Action memory action) internal pure returns (bytes32) {

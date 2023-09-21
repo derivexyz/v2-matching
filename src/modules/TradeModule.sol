@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/console2.sol";
-
 // Libraries
 import "openzeppelin/utils/math/SafeCast.sol";
 import "lyra-utils/decimals/SignedDecimalMath.sol";
@@ -10,7 +8,6 @@ import "lyra-utils/decimals/DecimalMath.sol";
 
 // Inherited
 import {BaseModule} from "./BaseModule.sol";
-import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {ITradeModule} from "../interfaces/ITradeModule.sol";
 
 // Interfaces
@@ -21,6 +18,10 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
+/**
+ * @title TradeModule
+ * @dev Exchange assets between accounts based on signed limit orders (signed actions)
+ */
 contract TradeModule is ITradeModule, BaseModule {
   using SafeCast for uint;
   using SafeCast for int;
@@ -37,8 +38,8 @@ contract TradeModule is ITradeModule, BaseModule {
   /// @dev we trust the nonce is unique for the given "VerifiedAction" for the owner
   mapping(address owner => mapping(uint nonce => uint filled)) public filled;
 
-  // @dev we want to make sure once submitted with one nonce, we cant submit a different order with the same nonce
-  // note; it is still possible to submit different actions, but all parameters will match (but expiry may be different)
+  /// @dev we want to make sure once submitted with one nonce, we cant submit a different order with the same nonce
+  /// note: it is still possible to submit different actions, but all parameters will match (but expiry may be different)
   mapping(address owner => mapping(uint nonce => bytes32 hash)) public seenNonces;
 
   constructor(IMatching _matching, IAsset _quoteAsset, uint _feeRecipient) BaseModule(_matching) {
@@ -46,9 +47,9 @@ contract TradeModule is ITradeModule, BaseModule {
     feeRecipient = _feeRecipient;
   }
 
-  ///////////
-  // Admin //
-  ///////////
+  ////////////////////
+  //   Owner-Only   //
+  ////////////////////
 
   /**
    * @dev set fee recipient account
@@ -64,11 +65,15 @@ contract TradeModule is ITradeModule, BaseModule {
     isPerpAsset[_perpAsset] = isPerp;
   }
 
-  ////////////////////
-  // Action Handler //
-  ////////////////////
+  ////////////////////////
+  //   Action Handler   //
+  ////////////////////////
 
-  /// @dev Assumes VerifiedActions are sorted in the order: [takerAccount, ...makerAccounts]
+  /**
+   * @dev Assumes VerifiedActions are sorted in the order: [takerAction, ...makerActions]
+   * @param actions The actions to execute
+   * @param actionDataBytes The data to pass to the module by the executor. Expected to be OrderData
+   */
   function executeAction(VerifiedAction[] memory actions, bytes memory actionDataBytes)
     external
     onlyMatching
@@ -90,7 +95,7 @@ contract TradeModule is ITradeModule, BaseModule {
 
     if (takerOrder.subaccountId != order.takerAccount) revert TM_SignedAccountMismatch();
 
-    // update feeds in advance, so perpPrice is up to date before we use it for the trade
+    // Update feeds in advance, so perpPrice is up to date before we use it for the trade
     _processManagerData(order.managerData);
 
     // We can prepare the transfers as we iterate over the data
@@ -146,11 +151,12 @@ contract TradeModule is ITradeModule, BaseModule {
       })
     );
 
-    // Execute
+    // Execute all trades
     subAccounts.submitTransfers(transferBatch, order.managerData);
 
-    // Return
+    // Return SubAccounts
     _returnAccounts(actions, newAccIds);
+
     return (newAccIds, newAccOwners);
   }
 
@@ -165,6 +171,9 @@ contract TradeModule is ITradeModule, BaseModule {
     }
   }
 
+  /**
+   * @dev Verify that the price and fee are within the limit order's bounds and update the filled amount.
+   */
   function _fillLimitOrder(OptionLimitOrder memory order, FillDetails memory fill) internal {
     int finalPrice = fill.price;
 
@@ -179,6 +188,11 @@ contract TradeModule is ITradeModule, BaseModule {
     if (filled[order.owner][order.nonce] > uint(order.data.desiredAmount)) revert TM_FillLimitCrossed();
   }
 
+  /**
+   * @dev Add quote, base and fee transfers to the batch
+   * @param matchedOrder The order by the taker. Matched against bunch of makers' orders.
+   * @param filledOrder The order by the maker, that were filled.
+   */
   function _addAssetTransfers(
     ISubAccounts.AssetTransfer[] memory transferBatch,
     FillDetails memory fillDetails,
@@ -240,7 +254,11 @@ contract TradeModule is ITradeModule, BaseModule {
     return isPerpAsset[IPerpAsset(baseAsset)];
   }
 
-  // Difference between the perp price and the traded price
+  /**
+   * @dev Difference between the perp price and the traded price
+   *      If perp price is $2000, and the limit order matched is trading at $2005, the delta is $5
+   *      The bidder (long) needs to pay $5 per Perp contract traded
+   */
   function _getPerpDelta(address perpAsset, int marketPrice) internal view returns (int delta) {
     (uint perpPrice,) = IPerpAsset(perpAsset).getPerpPrice();
     return (marketPrice - perpPrice.toInt256());
