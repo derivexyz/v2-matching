@@ -18,7 +18,6 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
-
 /**
  * @title TradeModule
  * @dev Exchange assets between accounts based on signed limit orders (signed actions)
