@@ -74,4 +74,6 @@ interface ITradeModule is IBaseModule {
   error TM_FillLimitCrossed();
   error TM_AssetMismatch();
   error TM_AssetSubIdMismatch();
+
+  event OrderMatched(uint taker, uint maker, bool takerIsBid, int amtQuote, uint amtBase, uint fee);
 }

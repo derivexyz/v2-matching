@@ -204,7 +204,7 @@ contract TradeModule is ITradeModule, BaseModule {
     OptionLimitOrder memory matchedOrder,
     OptionLimitOrder memory filledOrder,
     uint startIndex
-  ) internal view {
+  ) internal {
     int amtQuote;
     if (_isPerp(matchedOrder.data.asset)) {
       int perpDelta = _getPerpDelta(matchedOrder.data.asset, fillDetails.price);
@@ -242,6 +242,15 @@ contract TradeModule is ITradeModule, BaseModule {
       toAcc: feeRecipient,
       assetData: bytes32(0)
     });
+
+    emit OrderMatched(
+      matchedOrder.subaccountId,
+      filledOrder.subaccountId,
+      isBidder,
+      amtQuote,
+      fillDetails.amountFilled,
+      fillDetails.fee
+    );
   }
 
   /**
@@ -260,7 +269,7 @@ contract TradeModule is ITradeModule, BaseModule {
   }
 
   /**
-   * @dev Difference between the perp price and the traded price
+   * @dev Get the difference between the perp price and the traded price
    *      If perp price is $2000, and the limit order matched is trading at $2005, the delta is $5
    *      The bidder (long) needs to pay $5 per Perp contract traded
    */
