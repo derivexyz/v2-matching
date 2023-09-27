@@ -145,6 +145,8 @@ contract TradeModule is ITradeModule, BaseModule {
       assetData: bytes32(0)
     });
 
+    emit FeeCharged(takerOrder.accountId, feeRecipient, order.takerFee);
+
     // Update filled amount for maker
     _fillLimitOrder(
       takerOrder,
@@ -244,13 +246,24 @@ contract TradeModule is ITradeModule, BaseModule {
     });
 
     emit OrderMatched(
+<<<<<<< HEAD
       matchedOrder.subaccountId,
       filledOrder.subaccountId,
       isBidder,
       amtQuote,
       fillDetails.amountFilled,
       fillDetails.fee
+=======
+      matchedOrder.data.asset,
+      matchedOrder.accountId, 
+      filledOrder.accountId, 
+      isBidder, 
+      amtQuote, 
+      fillDetails.amountFilled
+>>>>>>> 7905132 (misc: add FeeCharged event)
     );
+
+    emit FeeCharged(filledOrder.accountId, feeRecipient, fillDetails.fee);
   }
 
   /**
