@@ -12,21 +12,21 @@ import "../interfaces/IMatching.sol";
  * @title SubAccountCreator
  */
 contract SubAccountCreator {
-  ISubAccounts public subAccounts;
+  ISubAccounts public immutable subAccounts;
 
-  ICashAsset public cash;
+  ICashAsset public immutable cash;
 
-  IMatching public matching;
+  IMatching public immutable matching;
 
-  IERC20 public usdc;
+  IERC20 public immutable usdc;
 
-  constructor(ISubAccounts _subAccounts, ICashAsset _cash, IMatching _matching, IERC20 _usdc) {
+  constructor(ISubAccounts _subAccounts, ICashAsset _cash, IMatching _matching) {
     subAccounts = _subAccounts;
     cash = _cash;
     matching = _matching;
-    usdc = _usdc;
 
-    _usdc.approve(address(_cash), type(uint).max);
+    usdc = _cash.wrappedAsset();
+    usdc.approve(address(_cash), type(uint).max);
 
     _subAccounts.setApprovalForAll(address(_matching), true);
   }

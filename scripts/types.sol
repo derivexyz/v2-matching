@@ -23,4 +23,6 @@ struct Deployment {
   TradeModule trade;
   TransferModule transfer;
   WithdrawalModule withdrawal;
+  // helper
+  SubAccountCreator subAccountCreator;
 }

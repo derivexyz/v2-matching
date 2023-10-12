@@ -12,7 +12,7 @@ contract SubAccountCreatorTest is MatchingBase {
   function setUp() public override {
     super.setUp();
 
-    creator = new SubAccountCreator(subAccounts, cash, matching, usdc);
+    creator = new SubAccountCreator(subAccounts, cash, matching);
   }
 
   function testCanCreateWithInitDeposit() public {
