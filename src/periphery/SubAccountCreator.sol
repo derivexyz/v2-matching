@@ -36,7 +36,7 @@ contract SubAccountCreator {
    * @param initUSDCDeposit Initial deposit that will be pulled from user to the account
    * @param manager The manager address for the new account
    */
-  function createSubAccount(uint initUSDCDeposit, IManager manager) external returns (uint accountId) {
+  function createAndDepositSubAccount(uint initUSDCDeposit, IManager manager) external returns (uint accountId) {
     if (initUSDCDeposit > 0) {
       usdc.transferFrom(msg.sender, address(this), initUSDCDeposit);
 
