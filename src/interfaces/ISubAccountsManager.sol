@@ -23,6 +23,11 @@ interface ISubAccountsManager {
   function depositSubAccount(uint accountId) external;
 
   /**
+   * @notice Allows user to open an account for any address by transferring their own account NFT to this contract.
+   */
+  function depositSubAccountFor(uint accountId, address recipient) external;
+
+  /**
    * @notice Activates the cooldown period to withdraw account.
    */
   function requestWithdrawAccount(uint accountId) external;
@@ -42,7 +47,7 @@ interface ISubAccountsManager {
   /**
    * @dev Emitted when a CLOB account is closed.
    */
-  event DepositedSubAccount(uint indexed accountId);
+  event DepositedSubAccount(uint indexed accountId, address indexed owner);
 
   /**
    * @dev Emitted when a CLOB account is closed.

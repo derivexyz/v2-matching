@@ -38,7 +38,7 @@ contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
     accountId = subAccounts.createAccount(address(this), manager);
     subAccountToOwner[accountId] = msg.sender;
 
-    emit DepositedSubAccount(accountId);
+    emit DepositedSubAccount(accountId, msg.sender);
   }
 
   /**
@@ -50,7 +50,20 @@ contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
     subAccounts.transferFrom(msg.sender, address(this), accountId);
     subAccountToOwner[accountId] = msg.sender;
 
-    emit DepositedSubAccount(accountId);
+    emit DepositedSubAccount(accountId, msg.sender);
+  }
+
+  /**
+   * @notice Allows user to open an account for another user by transferring subAccount NFT.
+   * @dev User must approve contract first
+   * @param accountId subAccount id to transfer
+   * @param recipient recipient address
+   */
+  function depositSubAccountFor(uint accountId, address recipient) external {
+    subAccounts.transferFrom(msg.sender, address(this), accountId);
+    subAccountToOwner[accountId] = recipient;
+
+    emit DepositedSubAccount(accountId, recipient);
   }
 
   /**
