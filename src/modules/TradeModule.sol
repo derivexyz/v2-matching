@@ -145,7 +145,6 @@ contract TradeModule is ITradeModule, BaseModule {
       assetData: bytes32(0)
     });
 
-
     emit FeeCharged(takerOrder.subaccountId, feeRecipient, order.takerFee);
 
     // Update filled amount for maker
@@ -256,7 +255,7 @@ contract TradeModule is ITradeModule, BaseModule {
     );
 
     emit FeeCharged(filledOrder.subaccountId, feeRecipient, fillDetails.fee);
-}
+  }
 
   /**
    * @dev Send data to IDataReceiver contracts. Can be used to update oracles before pairing trades
