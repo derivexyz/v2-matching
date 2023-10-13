@@ -255,10 +255,10 @@ contract TradeModule is ITradeModule, BaseModule {
       fillDetails.fee
 =======
       matchedOrder.data.asset,
-      matchedOrder.accountId, 
-      filledOrder.accountId, 
-      isBidder, 
-      amtQuote, 
+      matchedOrder.accountId,
+      filledOrder.accountId,
+      isBidder,
+      amtQuote,
       fillDetails.amountFilled
 >>>>>>> 7905132 (misc: add FeeCharged event)
     );
