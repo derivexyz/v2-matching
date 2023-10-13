@@ -27,7 +27,7 @@ contract RiskManagerChangeModule is IRiskManagerChangeModule, BaseModule {
 
     // Execute
     address newRM = abi.decode(action.data, (address));
-    subAccounts.changeManager(action.accountId, IManager(newRM), new bytes(0));
+    subAccounts.changeManager(action.subaccountId, IManager(newRM), new bytes(0));
 
     // Return
     _returnAccounts(actions, newAccIds);

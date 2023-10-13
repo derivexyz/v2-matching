@@ -82,13 +82,13 @@ contract TradeModule is ITradeModule, BaseModule {
     OrderData memory order = abi.decode(actionDataBytes, (OrderData));
 
     OptionLimitOrder memory takerOrder = OptionLimitOrder({
-      accountId: actions[0].accountId,
+      subaccountId: actions[0].subaccountId,
       owner: actions[0].owner,
       nonce: actions[0].nonce,
       data: abi.decode(actions[0].data, (TradeData))
     });
 
-    if (takerOrder.accountId != order.takerAccount) revert TM_SignedAccountMismatch();
+    if (takerOrder.subaccountId != order.takerAccount) revert TM_SignedAccountMismatch();
 
     // update feeds in advance, so perpPrice is up to date before we use it for the trade
     _processManagerData(order.managerData);
@@ -106,7 +106,7 @@ contract TradeModule is ITradeModule, BaseModule {
       FillDetails memory fillDetails = order.fillDetails[i - 1];
 
       OptionLimitOrder memory makerOrder = OptionLimitOrder({
-        accountId: actions[i].accountId,
+        subaccountId: actions[i].subaccountId,
         owner: actions[i].owner,
         nonce: actions[i].nonce,
         data: abi.decode(actions[i].data, (TradeData))
@@ -130,7 +130,7 @@ contract TradeModule is ITradeModule, BaseModule {
       asset: quoteAsset,
       subId: 0,
       amount: int(order.takerFee),
-      fromAcc: takerOrder.accountId,
+      fromAcc: takerOrder.subaccountId,
       toAcc: feeRecipient,
       assetData: bytes32(0)
     });
@@ -139,7 +139,7 @@ contract TradeModule is ITradeModule, BaseModule {
     _fillLimitOrder(
       takerOrder,
       FillDetails({
-        filledAccount: takerOrder.accountId,
+        filledAccount: takerOrder.subaccountId,
         amountFilled: totalFilled,
         price: limitPriceForTaker,
         fee: order.takerFee
@@ -156,10 +156,11 @@ contract TradeModule is ITradeModule, BaseModule {
 
   function _verifyFilledAccount(OptionLimitOrder memory order, uint filledAccount) internal view {
     if (order.data.recipientId == 0) revert TM_InvalidRecipientId();
-    if (order.accountId != filledAccount) revert TM_SignedAccountMismatch();
+    if (order.subaccountId != filledAccount) revert TM_SignedAccountMismatch();
     // If the recipient isn't the signed account, verify the owner matches
-    if (order.data.recipientId != order.accountId && matching.subAccountToOwner(order.data.recipientId) != order.owner)
-    {
+    if (
+      order.data.recipientId != order.subaccountId && matching.subAccountToOwner(order.data.recipientId) != order.owner
+    ) {
       revert TM_InvalidRecipientId();
     }
   }
@@ -200,8 +201,8 @@ contract TradeModule is ITradeModule, BaseModule {
       subId: 0,
       // if the matched trader is the bidder, they are paying the quote asset, otherwise they are receiving it
       amount: isBidder ? amtQuote : -amtQuote,
-      fromAcc: isBidder ? matchedOrder.accountId : matchedOrder.data.recipientId,
-      toAcc: isBidder ? filledOrder.data.recipientId : filledOrder.accountId,
+      fromAcc: isBidder ? matchedOrder.subaccountId : matchedOrder.data.recipientId,
+      toAcc: isBidder ? filledOrder.data.recipientId : filledOrder.subaccountId,
       assetData: bytes32(0)
     });
 
@@ -209,8 +210,8 @@ contract TradeModule is ITradeModule, BaseModule {
       asset: IAsset(matchedOrder.data.asset),
       subId: matchedOrder.data.subId,
       amount: isBidder ? int(fillDetails.amountFilled) : -int(fillDetails.amountFilled),
-      fromAcc: isBidder ? filledOrder.accountId : filledOrder.data.recipientId,
-      toAcc: isBidder ? matchedOrder.data.recipientId : matchedOrder.accountId,
+      fromAcc: isBidder ? filledOrder.subaccountId : filledOrder.data.recipientId,
+      toAcc: isBidder ? matchedOrder.data.recipientId : matchedOrder.subaccountId,
       assetData: bytes32(0)
     });
 
@@ -218,7 +219,7 @@ contract TradeModule is ITradeModule, BaseModule {
       asset: quoteAsset,
       subId: 0,
       amount: int(fillDetails.fee),
-      fromAcc: filledOrder.accountId,
+      fromAcc: filledOrder.subaccountId,
       toAcc: feeRecipient,
       assetData: bytes32(0)
     });

@@ -5,9 +5,8 @@ import {IMatchingModule} from "./IMatchingModule.sol";
 import {ISubAccountsManager} from "./ISubAccountsManager.sol";
 
 interface IActionVerifier is ISubAccountsManager {
-  // (accountID, signer, nonce) must be unique
   struct Action {
-    uint accountId;
+    uint subaccountId;
     uint nonce;
     IMatchingModule module;
     bytes data;

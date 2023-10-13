@@ -17,7 +17,7 @@ import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
 contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
   bytes32 public constant ACTION_TYPEHASH = keccak256(
-    "Action(uint256 accountId,uint256 nonce,address module,bytes data,uint256 expiry,address owner,address signer)"
+    "Action(uint256 subaccountId,uint256 nonce,address module,bytes data,uint256 expiry,address owner,address signer)"
   );
 
   uint public constant DEREGISTER_KEY_COOLDOWN = 10 minutes;
@@ -83,12 +83,12 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
     // Repeated nonces are fine; their uniqueness will be handled by modules
     if (block.timestamp > action.expiry) revert OV_ActionExpired();
 
-    _verifySignerPermission(action.signer, subAccountToOwner[action.accountId], action.owner);
+    _verifySignerPermission(action.signer, subAccountToOwner[action.subaccountId], action.owner);
 
     _verifySignature(action.signer, _getActionHash(action), signature);
 
     return IMatchingModule.VerifiedAction({
-      accountId: action.accountId,
+      subaccountId: action.subaccountId,
       owner: action.owner,
       module: action.module,
       data: action.data,
@@ -118,7 +118,7 @@ contract ActionVerifier is IActionVerifier, SubAccountsManager, EIP712 {
     return keccak256(
       abi.encode(
         ACTION_TYPEHASH,
-        action.accountId,
+        action.subaccountId,
         action.nonce,
         address(action.module),
         keccak256(action.data),

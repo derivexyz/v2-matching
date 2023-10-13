@@ -116,7 +116,7 @@ contract MatchingBase is PMRMTestBase {
     address signer
   ) internal pure returns (IActionVerifier.Action memory action) {
     action = IActionVerifier.Action({
-      accountId: accountId,
+      subaccountId: accountId,
       nonce: nonce,
       module: IMatchingModule(module),
       data: data,

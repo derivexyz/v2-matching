@@ -7,7 +7,7 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 
 interface ITradeModule is IBaseModule {
   struct OptionLimitOrder {
-    uint accountId;
+    uint subaccountId;
     address owner;
     uint nonce;
     TradeData data;
