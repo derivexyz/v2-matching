@@ -156,6 +156,18 @@ contract TradeModuleTest is MatchingBase {
     assertEq(subAccounts.getBalance(dougAcc, option, defaultCallId), -0.3e18);
   }
 
+  function testCannotMatchOrdersForDifferentAssets() public {
+    (IActionVerifier.Action[] memory actions, bytes[] memory signatures) = _getActionsWithMisMatchAssets();
+    vm.expectRevert(ITradeModule.TM_AssetMismatch.selector);
+    _verifyAndMatch(actions, signatures, _createMatchedTrade(camAcc, dougAcc, 1e18, 78e18, 0, 0));
+  }
+
+  function testCannotMatchOrderForDifferentSubIds() public {
+    (IActionVerifier.Action[] memory actions, bytes[] memory signatures) = _getActionsWithMisMatchAssetSubId();
+    vm.expectRevert(ITradeModule.TM_AssetSubIdMismatch.selector);
+    _verifyAndMatch(actions, signatures, _createMatchedTrade(camAcc, dougAcc, 1e18, 78e18, 0, 0));
+  }
+
   // Test filling order limits
   // - cannot trade more than the limit
   // - fills are preserved across multiple (txs); limit = 10; fill 4, fill 4, fill 4 (reverts)
@@ -445,5 +457,40 @@ contract TradeModuleTest is MatchingBase {
 
     bytes memory encodedAction = abi.encode(orderData);
     return encodedAction;
+  }
+
+  function _getActionsWithMisMatchAssets() internal view returns (IActionVerifier.Action[] memory, bytes[] memory) {
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
+    bytes[] memory signatures = new bytes[](2);
+
+    ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
+    bytes memory camTrade = abi.encode(camTradeData);
+    (actions[0], signatures[0]) =
+      _createActionAndSign(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
+
+    ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
+    dougTradeData.asset = address(mockPerp);
+    dougTradeData.subId = 0;
+    bytes memory dougTrade = abi.encode(dougTradeData);
+    (actions[1], signatures[1]) =
+      _createActionAndSign(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
+    return (actions, signatures);
+  }
+
+  function _getActionsWithMisMatchAssetSubId() internal view returns (IActionVerifier.Action[] memory, bytes[] memory) {
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
+    bytes[] memory signatures = new bytes[](2);
+
+    ITradeModule.TradeData memory camTradeData = _getDefaultTrade(camAcc, true);
+    bytes memory camTrade = abi.encode(camTradeData);
+    (actions[0], signatures[0]) =
+      _createActionAndSign(camAcc, 0, address(tradeModule), camTrade, block.timestamp + 1 days, cam, cam, camPk);
+
+    ITradeModule.TradeData memory dougTradeData = _getDefaultTrade(dougAcc, false);
+    dougTradeData.subId = defaultCallId - 86400; // wrong SubId (different option!)
+    bytes memory dougTrade = abi.encode(dougTradeData);
+    (actions[1], signatures[1]) =
+      _createActionAndSign(dougAcc, 0, address(tradeModule), dougTrade, block.timestamp + 1 days, doug, doug, dougPk);
+    return (actions, signatures);
   }
 }

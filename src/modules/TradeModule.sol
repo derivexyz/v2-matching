@@ -118,9 +118,14 @@ contract TradeModule is ITradeModule, BaseModule {
       });
 
       _verifyFilledAccount(makerOrder, fillDetails.filledAccount);
+
       if (makerOrder.data.isBid == takerOrder.data.isBid) revert TM_IsBidMismatch();
+      if (makerOrder.data.asset != takerOrder.data.asset) revert TM_AssetMismatch();
+      if (makerOrder.data.subId != takerOrder.data.subId) revert TM_AssetSubIdMismatch();
 
       _fillLimitOrder(makerOrder, fillDetails);
+
+      // Attach transfer details to the execution batch
       _addAssetTransfers(transferBatch, fillDetails, takerOrder, makerOrder, (i - 1) * 3);
 
       totalFilled += fillDetails.amountFilled;
@@ -240,7 +245,7 @@ contract TradeModule is ITradeModule, BaseModule {
   }
 
   /**
-   * @dev send data to IDataReceiver contracts. Can be used to update oracles before pairing trades
+   * @dev Send data to IDataReceiver contracts. Can be used to update oracles before pairing trades
    */
   function _processManagerData(bytes memory managerData) internal {
     if (managerData.length == 0) return;

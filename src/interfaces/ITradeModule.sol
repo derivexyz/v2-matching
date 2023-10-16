@@ -20,7 +20,9 @@ interface ITradeModule is IBaseModule {
     int desiredAmount;
     // Fee per asset traded
     uint worstFee;
+    // AccountId to receive the quoteAsset for ask order, or receive baseAsset for bid order
     uint recipientId;
+    // True if this is an bid order
     bool isBid;
   }
 
@@ -70,4 +72,6 @@ interface ITradeModule is IBaseModule {
   error TM_PriceTooHigh();
   error TM_PriceTooLow();
   error TM_FillLimitCrossed();
+  error TM_AssetMismatch();
+  error TM_AssetSubIdMismatch();
 }

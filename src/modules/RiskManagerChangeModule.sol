@@ -10,7 +10,7 @@ import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
 /**
- * Helper module to change manager from one to another
+ * @notice Helper module to change manager from one to another
  */
 contract RiskManagerChangeModule is IRiskManagerChangeModule, BaseModule {
   constructor(IMatching _matching) BaseModule(_matching) {}
