@@ -246,21 +246,12 @@ contract TradeModule is ITradeModule, BaseModule {
     });
 
     emit OrderMatched(
-<<<<<<< HEAD
-      matchedOrder.subaccountId,
-      filledOrder.subaccountId,
-      isBidder,
-      amtQuote,
-      fillDetails.amountFilled,
-      fillDetails.fee
-=======
       matchedOrder.data.asset,
       matchedOrder.subaccountId,
       filledOrder.subaccountId,
       isBidder,
       amtQuote,
       fillDetails.amountFilled
->>>>>>> 7905132 (misc: add FeeCharged event)
     );
 
     emit FeeCharged(filledOrder.subaccountId, feeRecipient, fillDetails.fee);
