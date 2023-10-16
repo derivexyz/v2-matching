@@ -11,7 +11,10 @@ import {ISubAccountsManager} from "./interfaces/ISubAccountsManager.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 
-// Handle subAccounts, deposits, escape hatches etc.
+/**
+ * @title SubAccountsManager
+ * @dev Handle deposits, escape hatches for subAccounts. Users need to deposit their subAccount NFTs to use the Matching contract
+ */
 contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
   ///@dev Cooldown seconds a user must wait before withdrawing their account
   uint public constant WITHDRAW_COOLDOWN = 30 minutes;
@@ -28,10 +31,6 @@ contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
   constructor(ISubAccounts _subAccounts) {
     subAccounts = _subAccounts;
   }
-
-  ///////////////////////
-  //  Account actions  //
-  ///////////////////////
 
   /**
    * @notice Allows user to open an account by creating a new subAccount NFT.
