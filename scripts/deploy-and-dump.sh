@@ -9,6 +9,7 @@ cd ./lib/v2-core
 forge script scripts/deploy-mocks.s.sol --rpc-url http://localhost:$PORT/ --broadcast
 forge script scripts/deploy-core.s.sol --rpc-url http://localhost:$PORT/ --broadcast
 MARKET_NAME=weth forge script scripts/deploy-market.s.sol --rpc-url http://localhost:$PORT/ --broadcast
+MARKET_NAME=wbtc forge script scripts/deploy-market.s.sol --rpc-url http://localhost:$PORT/ --broadcast
 
 # Deploy matching contracts
 cd ../../
