@@ -49,7 +49,7 @@ contract MatchingBase is PMRMTestBase {
   uint cashDeposit = 10000e18;
   bytes32 domainSeparator;
 
-  function setUp() public override {
+  function setUp() public virtual override {
     super.setUp();
 
     // Setup signers
@@ -77,14 +77,6 @@ contract MatchingBase is PMRMTestBase {
     matching.setAllowedModule(address(transferModule), true);
     matching.setAllowedModule(address(tradeModule), true);
     matching.setAllowedModule(address(changeModule), true);
-
-    // console2.log("MATCHIN ADDY:", address(matching));
-    // console2.log("DEPOSIT ADDY:", address(depositModule));
-    // console2.log("WITHDWL ADDY:", address(withdrawalModule));
-
-    // console2.log("CAM  ADDY:", address(cam));
-    // console2.log("DOUG ADDY:", address(doug));
-    // console2.log("-------------------------------------------------");
 
     domainSeparator = matching.domainSeparator();
     matching.setTradeExecutor(tradeExecutor, true);

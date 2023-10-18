@@ -10,6 +10,7 @@ import {TransferModule} from "../src/modules/TransferModule.sol";
 import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
+import {ICash} from "v2-core/src/interfaces/ICash.sol";
 
 import "forge-std/console2.sol";
 import {Deployment, NetworkConfig} from "./types.sol";
@@ -58,6 +59,8 @@ contract DeployAll is Utils {
 
     deployment.matching.setTradeExecutor(0xf00A105BC009eA3a250024cbe1DCd0509c71C52b, true);
 
+    deployment.subAccountCreator = new SubAccountCreator(ISubAccounts(config.subAccounts), ICash(config.cash), deployment.matching);
+
     // write to output
     __writeToDeploymentsJson(deployment);
   }
@@ -76,6 +79,7 @@ contract DeployAll is Utils {
     vm.serializeAddress(objKey, "trade", address(deployment.trade));
     vm.serializeAddress(objKey, "transfer", address(deployment.transfer));
     vm.serializeAddress(objKey, "withdrawal", address(deployment.withdrawal));
+    vm.serializeAddress(objKey, "subaccountCreator", address(deployment.subAccountCreator));
     
     string memory finalObj = vm.serializeAddress(objKey, "withdrawal", address(deployment.withdrawal));
 

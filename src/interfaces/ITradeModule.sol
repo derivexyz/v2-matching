@@ -76,6 +76,5 @@ interface ITradeModule is IBaseModule {
   error TM_AssetSubIdMismatch();
 
   event OrderMatched(address base, uint taker, uint maker, bool takerIsBid, int amtQuote, uint amtBase);
-
   event FeeCharged(uint acc, uint recipient, uint takerFee);
 }
