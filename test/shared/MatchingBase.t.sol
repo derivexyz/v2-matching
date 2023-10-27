@@ -9,7 +9,6 @@ import {DepositModule, IDepositModule} from "src/modules/DepositModule.sol";
 import {WithdrawalModule, IWithdrawalModule} from "src/modules/WithdrawalModule.sol";
 import {TransferModule} from "src/modules/TransferModule.sol";
 import {TradeModule} from "src/modules/TradeModule.sol";
-import {RiskManagerChangeModule} from "src/modules/RiskManagerChangeModule.sol";
 import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
 import {IActionVerifier} from "src/interfaces/IActionVerifier.sol";
 import {PMRMTestBase} from "v2-core/test/risk-managers/unit-tests/PMRM/utils/PMRMTestBase.sol";
@@ -31,7 +30,6 @@ contract MatchingBase is PMRMTestBase {
   WithdrawalModule public withdrawalModule;
   TransferModule public transferModule;
   TradeModule public tradeModule;
-  RiskManagerChangeModule public changeModule;
 
   // signer
   uint internal camAcc;
@@ -70,13 +68,11 @@ contract MatchingBase is PMRMTestBase {
     transferModule = new TransferModule(matching);
     tradeModule = new TradeModule(matching, IAsset(address(cash)), aliceAcc);
     tradeModule.setPerpAsset(IPerpAsset(address(mockPerp)), true);
-    changeModule = new RiskManagerChangeModule(matching);
 
     matching.setAllowedModule(address(depositModule), true);
     matching.setAllowedModule(address(withdrawalModule), true);
     matching.setAllowedModule(address(transferModule), true);
     matching.setAllowedModule(address(tradeModule), true);
-    matching.setAllowedModule(address(changeModule), true);
 
     domainSeparator = matching.domainSeparator();
     matching.setTradeExecutor(tradeExecutor, true);

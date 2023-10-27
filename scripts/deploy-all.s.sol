@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 
 import {Matching} from "../src/Matching.sol";
 import {DepositModule} from "../src/modules/DepositModule.sol";
-import {RiskManagerChangeModule} from "../src/modules/RiskManagerChangeModule.sol";
 import {TradeModule} from "../src/modules/TradeModule.sol";
 import {TransferModule} from "../src/modules/TransferModule.sol";
 import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
@@ -45,7 +44,6 @@ contract DeployAll is Utils {
     deployment.matching = new Matching(ISubAccounts(config.subAccounts));
 
     deployment.deposit = new DepositModule(deployment.matching);
-    deployment.rmChange = new RiskManagerChangeModule(deployment.matching);
     deployment.trade = new TradeModule(deployment.matching, IAsset(config.cash), defaultFeeRecipient);
     deployment.transfer = new TransferModule(deployment.matching);
     deployment.withdrawal = new WithdrawalModule(deployment.matching);
