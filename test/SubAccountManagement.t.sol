@@ -28,6 +28,18 @@ contract SubAccountManagementTest is MatchingBase {
     assertEq(matching.subAccountToOwner(newAcc), cam);
   }
 
+  function testCanDepositAccountForOthers() public {
+    uint newAcc = subAccounts.createAccount(cam, pmrm);
+
+    vm.startPrank(cam);
+    subAccounts.approve(address(matching), newAcc);
+    matching.depositSubAccountFor(newAcc, doug);
+    vm.stopPrank();
+
+    assertEq(subAccounts.ownerOf(newAcc), address(matching));
+    assertEq(matching.subAccountToOwner(newAcc), doug);
+  }
+
   function testCanWithdrawAccount() public {
     // camAcc is already deposited
     vm.startPrank(cam);

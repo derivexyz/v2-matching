@@ -17,13 +17,13 @@ contract WithdrawalModule is IWithdrawalModule, BaseModule {
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
   {
     if (actions.length != 1) revert WM_InvalidWithdrawalActionLength();
-    if (actions[0].accountId == 0) revert WM_InvalidFromAccount();
+    if (actions[0].subaccountId == 0) revert WM_InvalidFromAccount();
 
     _checkAndInvalidateNonce(actions[0].owner, actions[0].nonce);
 
     WithdrawalData memory data = abi.decode(actions[0].data, (WithdrawalData));
 
-    IERC20BasedAsset(data.asset).withdraw(actions[0].accountId, data.assetAmount, actions[0].owner);
+    IERC20BasedAsset(data.asset).withdraw(actions[0].subaccountId, data.assetAmount, actions[0].owner);
 
     _returnAccounts(actions, newAccIds);
     return (newAccIds, newAccOwners);

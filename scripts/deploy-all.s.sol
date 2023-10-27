@@ -4,12 +4,12 @@ pragma solidity ^0.8.0;
 
 import {Matching} from "../src/Matching.sol";
 import {DepositModule} from "../src/modules/DepositModule.sol";
-import {RiskManagerChangeModule} from "../src/modules/RiskManagerChangeModule.sol";
 import {TradeModule} from "../src/modules/TradeModule.sol";
 import {TransferModule} from "../src/modules/TransferModule.sol";
 import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
+import {ICash} from "v2-core/src/interfaces/ICash.sol";
 
 import "forge-std/console2.sol";
 import {Deployment, NetworkConfig} from "./types.sol";
@@ -44,7 +44,6 @@ contract DeployAll is Utils {
     deployment.matching = new Matching(ISubAccounts(config.subAccounts));
 
     deployment.deposit = new DepositModule(deployment.matching);
-    deployment.rmChange = new RiskManagerChangeModule(deployment.matching);
     deployment.trade = new TradeModule(deployment.matching, IAsset(config.cash), defaultFeeRecipient);
     deployment.transfer = new TransferModule(deployment.matching);
     deployment.withdrawal = new WithdrawalModule(deployment.matching);
@@ -57,6 +56,8 @@ contract DeployAll is Utils {
     deployment.matching.setAllowedModule(address(deployment.withdrawal), true);
 
     deployment.matching.setTradeExecutor(0xf00A105BC009eA3a250024cbe1DCd0509c71C52b, true);
+
+    deployment.subAccountCreator = new SubAccountCreator(ISubAccounts(config.subAccounts), ICash(config.cash), deployment.matching);
 
     // write to output
     __writeToDeploymentsJson(deployment);
@@ -76,6 +77,7 @@ contract DeployAll is Utils {
     vm.serializeAddress(objKey, "trade", address(deployment.trade));
     vm.serializeAddress(objKey, "transfer", address(deployment.transfer));
     vm.serializeAddress(objKey, "withdrawal", address(deployment.withdrawal));
+    vm.serializeAddress(objKey, "subaccountCreator", address(deployment.subAccountCreator));
     
     string memory finalObj = vm.serializeAddress(objKey, "withdrawal", address(deployment.withdrawal));
 

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "forge-std/console2.sol";
-
 // Inherited
 import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {ISubAccountsManager} from "./interfaces/ISubAccountsManager.sol";
@@ -11,7 +9,10 @@ import {ISubAccountsManager} from "./interfaces/ISubAccountsManager.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 
-// Handle subAccounts, deposits, escape hatches etc.
+/**
+ * @title SubAccountsManager
+ * @dev Handle deposits, escape hatches for subAccounts. Users need to deposit their subAccount NFTs to use the Matching contract
+ */
 contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
   ///@dev Cooldown seconds a user must wait before withdrawing their account
   uint public constant WITHDRAW_COOLDOWN = 30 minutes;
@@ -29,10 +30,6 @@ contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
     subAccounts = _subAccounts;
   }
 
-  ///////////////////////
-  //  Account actions  //
-  ///////////////////////
-
   /**
    * @notice Allows user to open an account by creating a new subAccount NFT.
    * @param manager The address of the manager for the new subAccount
@@ -41,7 +38,7 @@ contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
     accountId = subAccounts.createAccount(address(this), manager);
     subAccountToOwner[accountId] = msg.sender;
 
-    emit DepositedSubAccount(accountId);
+    emit DepositedSubAccount(accountId, msg.sender);
   }
 
   /**
@@ -53,7 +50,20 @@ contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
     subAccounts.transferFrom(msg.sender, address(this), accountId);
     subAccountToOwner[accountId] = msg.sender;
 
-    emit DepositedSubAccount(accountId);
+    emit DepositedSubAccount(accountId, msg.sender);
+  }
+
+  /**
+   * @notice Allows user to open an account for another user by transferring subAccount NFT.
+   * @dev User must approve contract first
+   * @param accountId subAccount id to transfer
+   * @param recipient recipient address
+   */
+  function depositSubAccountFor(uint accountId, address recipient) external {
+    subAccounts.transferFrom(msg.sender, address(this), accountId);
+    subAccountToOwner[accountId] = recipient;
+
+    emit DepositedSubAccount(accountId, recipient);
   }
 
   /**

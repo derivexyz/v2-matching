@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-// inherited
+// Inherited
 import {ActionVerifier} from "./ActionVerifier.sol";
 import {IMatching} from "./interfaces/IMatching.sol";
 
-// interfaces
+// Interfaces
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IMatchingModule} from "./interfaces/IMatchingModule.sol";
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
@@ -17,14 +17,10 @@ contract Matching is IMatching, ActionVerifier {
   /// @dev Permissioned modules to be invoked
   mapping(address module => bool) public allowedModules;
 
-  ///////////////
-  // Functions //
-  ///////////////
-
   constructor(ISubAccounts _accounts) ActionVerifier(_accounts) {}
 
   ////////////////////////////
-  //  Owner-only Functions  //
+  //       Owner-only       //
   ////////////////////////////
 
   /**
@@ -53,7 +49,7 @@ contract Matching is IMatching, ActionVerifier {
   }
 
   /////////////////////////////
-  //  Whitelisted Functions  //
+  //    Guarded Functions    //
   /////////////////////////////
 
   function verifyAndMatch(Action[] memory actions, bytes[] memory signatures, bytes memory actionData)
@@ -73,9 +69,9 @@ contract Matching is IMatching, ActionVerifier {
     _submitModuleAction(module, verifiedActions, actionData);
   }
 
-  //////////////////////////
-  //  Internal Functions  //
-  //////////////////////////
+  /////////////////////////////
+  //    Internal Functions   //
+  /////////////////////////////
 
   /**
    * @notice sent array of signed actions to the module contract
@@ -89,19 +85,19 @@ contract Matching is IMatching, ActionVerifier {
     // Transfer accounts to the module contract
     for (uint i = 0; i < actions.length; ++i) {
       // Allow signing messages with accountId == 0, where no account needs to be transferred.
-      if (actions[i].accountId == 0) continue;
+      if (actions[i].subaccountId == 0) continue;
 
       // If the account has been previously sent (actions can share accounts), skip it.
-      if (subAccounts.ownerOf(actions[i].accountId) == address(module)) continue;
+      if (subAccounts.ownerOf(actions[i].subaccountId) == address(module)) continue;
 
-      subAccounts.transferFrom(address(this), address(module), actions[i].accountId);
+      subAccounts.transferFrom(address(this), address(module), actions[i].subaccountId);
     }
 
     (uint[] memory newAccIds, address[] memory newOwners) = module.executeAction(actions, actionData);
 
     // Ensure accounts are transferred back,
     for (uint i = 0; i < actions.length; ++i) {
-      if (actions[i].accountId != 0 && subAccounts.ownerOf(actions[i].accountId) != address(this)) {
+      if (actions[i].subaccountId != 0 && subAccounts.ownerOf(actions[i].subaccountId) != address(this)) {
         revert M_AccountNotReturned();
       }
     }
@@ -116,9 +112,9 @@ contract Matching is IMatching, ActionVerifier {
     }
   }
 
-  ///////////////
-  // Modifiers //
-  ///////////////
+  ///////////////////
+  //   Modifiers   //
+  ///////////////////
 
   modifier onlyTradeExecutor() {
     if (!tradeExecutors[msg.sender]) revert M_OnlyTradeExecutor();
