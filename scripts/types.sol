@@ -9,7 +9,7 @@ import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
 import {SubAccountCreator} from "../src/periphery/SubAccountCreator.sol";
 
 
-  struct NetworkConfig {
+struct NetworkConfig {
   address subAccounts;
   address cash;
 }
