@@ -63,5 +63,7 @@ interface ISubAccountsManager {
   // Errors //
   ////////////
   error SAM_NotOwnerAddress();
+  error SAM_AlreadyRequestedWithdraw();
+  error SAM_CooldownNotStarted();
   error SAM_CooldownNotElapsed();
 }
