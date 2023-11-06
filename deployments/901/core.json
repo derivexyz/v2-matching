@@ -9,5 +9,6 @@
   "srm": "0x28bE681F7bEa6f465cbcA1D25A2125fe7533391C",
   "srmViewer": "0x381aDbcA2b7Ca98A159477C9e3f47884B71a2D80",
   "stableFeed": "0x3187431EAAdf59425FAf9A5eEFc43786d070234e",
-  "subAccounts": "0xb9ed1cc0c50bca7a391a6819e9cAb466f5501d73"
+  "subAccounts": "0xb9ed1cc0c50bca7a391a6819e9cAb466f5501d73",
+  "settlementUtils": "0xbc75340f9354aE4293D16C691A6961B3e6B972F4"
 }

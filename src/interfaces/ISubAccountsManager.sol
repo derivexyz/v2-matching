@@ -45,7 +45,7 @@ interface ISubAccountsManager {
   ////////////
 
   /**
-   * @dev Emitted when a CLOB account is closed.
+   * @dev Emitted when a CLOB account is added to matching, or generated.
    */
   event DepositedSubAccount(uint indexed accountId, address indexed owner);
 
