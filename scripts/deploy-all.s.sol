@@ -7,9 +7,10 @@ import {DepositModule} from "../src/modules/DepositModule.sol";
 import {TradeModule} from "../src/modules/TradeModule.sol";
 import {TransferModule} from "../src/modules/TransferModule.sol";
 import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
+import {SubAccountCreator} from "../src/periphery/SubAccountCreator.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
-import {ICash} from "v2-core/src/interfaces/ICash.sol";
+import {ICashAsset} from "v2-core/src/interfaces/ICashAsset.sol";
 
 import "forge-std/console2.sol";
 import {Deployment, NetworkConfig} from "./types.sol";
@@ -45,19 +46,23 @@ contract DeployAll is Utils {
 
     deployment.deposit = new DepositModule(deployment.matching);
     deployment.trade = new TradeModule(deployment.matching, IAsset(config.cash), defaultFeeRecipient);
+    console2.log("trade address: ", address(deployment.trade));
     deployment.transfer = new TransferModule(deployment.matching);
     deployment.withdrawal = new WithdrawalModule(deployment.matching);
 
     // whitelist modules
     deployment.matching.setAllowedModule(address(deployment.deposit), true);
-    deployment.matching.setAllowedModule(address(deployment.rmChange), true);
     deployment.matching.setAllowedModule(address(deployment.trade), true);
     deployment.matching.setAllowedModule(address(deployment.transfer), true);
     deployment.matching.setAllowedModule(address(deployment.withdrawal), true);
 
     deployment.matching.setTradeExecutor(0xf00A105BC009eA3a250024cbe1DCd0509c71C52b, true);
 
-    deployment.subAccountCreator = new SubAccountCreator(ISubAccounts(config.subAccounts), ICash(config.cash), deployment.matching);
+    console2.log("subAccounts", address(config.subAccounts));
+    console2.log("cash", address(config.cash));
+
+    deployment.subAccountCreator = new SubAccountCreator(ISubAccounts(config.subAccounts), ICashAsset(config.cash), deployment.matching);
+    console2.log("subAccountCreator: ", address(deployment.subAccountCreator));
 
     // write to output
     __writeToDeploymentsJson(deployment);
@@ -73,11 +78,10 @@ contract DeployAll is Utils {
 
     vm.serializeAddress(objKey, "matching", address(deployment.matching));
     vm.serializeAddress(objKey, "deposit", address(deployment.deposit));
-    vm.serializeAddress(objKey, "rmChange", address(deployment.rmChange));
     vm.serializeAddress(objKey, "trade", address(deployment.trade));
     vm.serializeAddress(objKey, "transfer", address(deployment.transfer));
     vm.serializeAddress(objKey, "withdrawal", address(deployment.withdrawal));
-    vm.serializeAddress(objKey, "subaccountCreator", address(deployment.subAccountCreator));
+    vm.serializeAddress(objKey, "subAccountCreator", address(deployment.subAccountCreator));
     
     string memory finalObj = vm.serializeAddress(objKey, "withdrawal", address(deployment.withdrawal));
 

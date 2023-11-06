@@ -9,8 +9,7 @@ contract Utils is Script {
 
   /// @dev get config from current chainId
   function _loadConfig() internal view returns (NetworkConfig memory config) {
-    string memory file = _readInput("config");
-
+    string memory file = _readDeploymentFile("core");
     config.subAccounts = abi.decode(vm.parseJson(file, ".subAccounts"), (address));
     config.cash = abi.decode(vm.parseJson(file, ".cash"), (address));
   }
@@ -33,5 +32,12 @@ contract Utils is Script {
     vm.writeJson(content, string.concat(deploymentDir, chainDir, file));
 
     console2.log("Written to deployment ", string.concat(deploymentDir, chainDir, file));
+  }
+  ///@dev read deployment file from deployments/
+  function _readDeploymentFile(string memory fileName) internal view returns (string memory) {
+    string memory deploymentDir = string.concat(vm.projectRoot(), "/deployments/");
+    string memory chainDir = string.concat(vm.toString(block.chainid), "/");
+    string memory file = string.concat(fileName, ".json");
+    return vm.readFile(string.concat(deploymentDir, chainDir, file));
   }
 }
