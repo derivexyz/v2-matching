@@ -11,8 +11,13 @@ import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import "../interfaces/IMatching.sol";
 
 contract LyraSettlementUtils {
-  function settleOptionsWithFeedData(address manager, address option, uint[] memory subAccounts, bytes[] calldata feedDatas) external {
-    for (uint i=0 ; i<feedDatas.length; ++i) {
+  function settleOptionsWithFeedData(
+    address manager,
+    address option,
+    uint[] memory subAccounts,
+    bytes[] calldata feedDatas
+  ) external {
+    for (uint i = 0; i < feedDatas.length; ++i) {
       LyraForwardFeed(address(OptionAsset(option).settlementFeed())).acceptData(feedDatas[i]);
     }
 

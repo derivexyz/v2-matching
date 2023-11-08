@@ -35,7 +35,7 @@ contract SubAccountCreatorTest is MatchingBase {
 
     uint subA;
     uint subB;
-    for (uint i=0; i<50; ++i) {
+    for (uint i = 0; i < 50; ++i) {
       // create two subaccounts and trade an option
       subA = subAccounts.createAccount(alice, IManager(address(pmrm)));
       subB = subAccounts.createAccount(bob, IManager(address(pmrm)));
@@ -60,7 +60,6 @@ contract SubAccountCreatorTest is MatchingBase {
     assertEq(cashBefore - cashAfter, 500e18);
   }
 
-
   function testCanSettlePerps() public {
     uint strike = 2000e18;
 
@@ -73,7 +72,7 @@ contract SubAccountCreatorTest is MatchingBase {
 
     uint subA;
     uint subB;
-    for (uint i=0; i<50; ++i) {
+    for (uint i = 0; i < 50; ++i) {
       // create two subaccounts and trade an option
       subA = subAccounts.createAccount(alice, IManager(address(pmrm)));
       subB = subAccounts.createAccount(bob, IManager(address(pmrm)));
@@ -98,7 +97,6 @@ contract SubAccountCreatorTest is MatchingBase {
     assertEq(cashAfter - cashBefore, 100e18);
   }
 
-
   function _transferOption(uint fromAcc, uint toAcc, int amount, uint _expiry, uint strike, bool isCall) internal {
     ISubAccounts.AssetTransfer memory transfer = ISubAccounts.AssetTransfer({
       fromAcc: fromAcc,
@@ -110,7 +108,6 @@ contract SubAccountCreatorTest is MatchingBase {
     });
     subAccounts.submitTransfer(transfer, "");
   }
-
 
   function _transferPerp(uint fromAcc, uint toAcc, int amount) internal {
     ISubAccounts.AssetTransfer memory transfer = ISubAccounts.AssetTransfer({
