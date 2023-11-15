@@ -25,6 +25,8 @@ contract LyraAuctionUtils {
   address cash;
   address srm;
 
+  error LAU_NotOwner();
+
   constructor(ISubAccounts _subAccounts, DutchAuction _auction, address _srm) {
     subAccounts = _subAccounts;
     auction = _auction;
@@ -58,6 +60,10 @@ contract LyraAuctionUtils {
     bool mergeAccountBack,
     bytes memory managerData
   ) external returns (uint newBidder) {
+    if (subAccounts.ownerOf(bidderId) != msg.sender) {
+      revert LAU_NotOwner();
+    }
+
     if (!auction.isAuctionLive(accountId)) {
       auction.startAuction(accountId, worstScenarioId);
     }
