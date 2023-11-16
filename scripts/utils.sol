@@ -5,13 +5,13 @@ import "forge-std/Script.sol";
 import {NetworkConfig} from "./types.sol";
 
 contract Utils is Script {
-
-
   /// @dev get config from current chainId
   function _loadConfig() internal view returns (NetworkConfig memory config) {
     string memory file = _readDeploymentFile("core");
     config.subAccounts = abi.decode(vm.parseJson(file, ".subAccounts"), (address));
     config.cash = abi.decode(vm.parseJson(file, ".cash"), (address));
+    config.auction = abi.decode(vm.parseJson(file, ".auction"), (address));
+    config.srm = abi.decode(vm.parseJson(file, ".srm"), (address));
   }
 
   ///@dev read input from json 
@@ -33,6 +33,7 @@ contract Utils is Script {
 
     console2.log("Written to deployment ", string.concat(deploymentDir, chainDir, file));
   }
+
   ///@dev read deployment file from deployments/
   function _readDeploymentFile(string memory fileName) internal view returns (string memory) {
     string memory deploymentDir = string.concat(vm.projectRoot(), "/deployments/");

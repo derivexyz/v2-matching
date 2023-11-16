@@ -109,6 +109,7 @@ contract Matching is IMatching, ActionVerifier {
       if (subAccountToOwner[newAccIds[i]] != address(0)) revert M_AccountAlreadyExists();
 
       subAccountToOwner[newAccIds[i]] = newOwners[i];
+      emit DepositedSubAccount(newAccIds[i], newOwners[i]);
     }
   }
 

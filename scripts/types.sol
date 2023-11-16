@@ -7,11 +7,15 @@ import {TradeModule} from "../src/modules/TradeModule.sol";
 import {TransferModule} from "../src/modules/TransferModule.sol";
 import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
 import {SubAccountCreator} from "../src/periphery/SubAccountCreator.sol";
+import {LyraSettlementUtils} from "../src/periphery/LyraSettlementUtils.sol";
+import {LyraAuctionUtils} from "../src/periphery/LyraAuctionUtils.sol";
 
 
-struct NetworkConfig {
+  struct NetworkConfig {
   address subAccounts;
   address cash;
+  address srm;
+  address auction;
 }
 
 struct Deployment {
@@ -24,4 +28,6 @@ struct Deployment {
   WithdrawalModule withdrawal;
   // helper
   SubAccountCreator subAccountCreator;
+  LyraSettlementUtils settlementUtil;
+  LyraAuctionUtils auctionUtil;
 }

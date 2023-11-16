@@ -8,6 +8,9 @@ import {TradeModule} from "../src/modules/TradeModule.sol";
 import {TransferModule} from "../src/modules/TransferModule.sol";
 import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
 import {SubAccountCreator} from "../src/periphery/SubAccountCreator.sol";
+import {LyraSettlementUtils} from "../src/periphery/LyraSettlementUtils.sol";
+import {LyraAuctionUtils} from "../src/periphery/LyraAuctionUtils.sol";
+import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {ICashAsset} from "v2-core/src/interfaces/ICashAsset.sol";
@@ -64,6 +67,14 @@ contract DeployAll is Utils {
     deployment.subAccountCreator = new SubAccountCreator(ISubAccounts(config.subAccounts), ICashAsset(config.cash), deployment.matching);
     console2.log("subAccountCreator: ", address(deployment.subAccountCreator));
 
+    deployment.settlementUtil = new LyraSettlementUtils();
+    console2.log("settlementUtil: ", address(deployment.settlementUtil));
+
+    deployment.auctionUtil = new LyraAuctionUtils(
+      ISubAccounts(config.subAccounts), DutchAuction(config.auction), config.srm
+    );
+    console2.log("settlementUtil: ", address(deployment.settlementUtil));
+
     // write to output
     __writeToDeploymentsJson(deployment);
   }
@@ -82,7 +93,9 @@ contract DeployAll is Utils {
     vm.serializeAddress(objKey, "transfer", address(deployment.transfer));
     vm.serializeAddress(objKey, "withdrawal", address(deployment.withdrawal));
     vm.serializeAddress(objKey, "subAccountCreator", address(deployment.subAccountCreator));
-    
+    vm.serializeAddress(objKey, "settlementUtil", address(deployment.settlementUtil));
+    vm.serializeAddress(objKey, "auctionUtil", address(deployment.auctionUtil));
+
     string memory finalObj = vm.serializeAddress(objKey, "withdrawal", address(deployment.withdrawal));
 
     // build path
