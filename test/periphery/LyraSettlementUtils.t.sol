@@ -43,9 +43,6 @@ contract SubAccountCreatorTest is MatchingBase {
       _transferOption(subA, subB, 10e18, expiry, strike, true);
       toSettle[i * 2 / 8] = toSettle[i * 2 / 8] | (subA << ((i * 2 % 8) * 32)) | (subB << ((i * 2 % 8 + 1) * 32));
     }
-    console2.logBytes32(bytes32(toSettle[0]));
-    console2.logBytes32(bytes32(toSettle[1]));
-    console2.logBytes32(bytes32(toSettle[2]));
 
     int cashBefore = subAccounts.getBalance(subA, cash, 0);
 
@@ -84,9 +81,6 @@ contract SubAccountCreatorTest is MatchingBase {
       mockPerp.mockAccountPnlAndFunding(subA, 100e18, 0);
       mockPerp.mockAccountPnlAndFunding(subB, -100e18, 0);
     }
-    console2.logBytes32(bytes32(toSettle[0]));
-    console2.logBytes32(bytes32(toSettle[1]));
-    console2.logBytes32(bytes32(toSettle[2]));
 
     int cashBefore = subAccounts.getBalance(subA, cash, 0);
 

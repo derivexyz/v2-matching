@@ -45,7 +45,6 @@ contract LyraAuctionUtilsTest is IntegrationTestBase {
     _transferOption(subA, bobAcc, 10e18, expiry, strike, false);
 
     (address manager, int mm, int mtm, uint worstScenario) = auctionUtils.getMM(subA);
-    console2.log("mm", mm);
     assertGt(mm, 0);
     assertEq(manager, address(markets["weth"].pmrm));
     (manager, mm, mtm, worstScenario) = auctionUtils.getMM(bobAcc);
@@ -53,8 +52,6 @@ contract LyraAuctionUtilsTest is IntegrationTestBase {
 
     _setForwardPrice("weth", expiry, 1000e18, 1e18);
     (manager, mm, mtm, worstScenario) = auctionUtils.getMM(subA);
-    console2.log("mm", mm);
-    console2.log("mtm", mtm);
     assertEq(worstScenario, 18);
 
     vm.startPrank(bob);
