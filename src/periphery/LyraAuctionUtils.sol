@@ -78,7 +78,6 @@ contract LyraAuctionUtils {
 
     // even if empty, we just transfer the subaccount back to the liquidator
     subAccounts.transferFrom(address(this), msg.sender, newBidder);
-    return newBidder;
   }
 
   function _bidWithNewAccount(
