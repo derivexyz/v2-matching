@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.13;
 
 // Inherited
@@ -63,8 +63,8 @@ contract Matching is IMatching, ActionVerifier {
 
     IMatchingModule.VerifiedAction[] memory verifiedActions = new IMatchingModule.VerifiedAction[](actions.length);
     for (uint i = 0; i < actions.length; i++) {
-      verifiedActions[i] = _verifyAction(actions[i], signatures[i]);
       if (actions[i].module != module) revert M_MismatchedModule();
+      verifiedActions[i] = _verifyAction(actions[i], signatures[i]);
     }
     _submitModuleAction(module, verifiedActions, actionData);
   }
