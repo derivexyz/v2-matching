@@ -14,16 +14,6 @@ contract Utils is Script {
     config.srm = abi.decode(vm.parseJson(file, ".srm"), (address));
   }
 
-  ///@dev read input from json 
-  ///@dev standard path: scripts/input/{chainId}/{input}.json, as defined in 
-  ////    https://book.getfoundry.sh/tutorials/best-practices?highlight=script#scripts
-  function _readInput(string memory input) internal view returns (string memory) {
-    string memory inputDir = string.concat(vm.projectRoot(), "/scripts/input/");
-    string memory chainDir = string.concat(vm.toString(block.chainid), "/");
-    string memory file = string.concat(input, ".json");
-    return vm.readFile(string.concat(inputDir, chainDir, file));
-  }
-
   /// @dev use this function to write deployed contract address to deployments folder
   function _writeToDeployments(string memory filename, string memory content) internal {
     string memory deploymentDir = string.concat(vm.projectRoot(), "/deployments/");
