@@ -48,7 +48,9 @@ matching_contracts=(
 ################
 # V2 contracts #
 ################
-chainId=901
+chainId=957
+# https://explorerl2new-prod-testnet-0eakp60405.t.conduit.xyz/api
+explorer="https://explorer.lyra.finance/api"
 cd ./lib/v2-core
 
 # Core
@@ -63,7 +65,7 @@ for tuple in "${core_contracts[@]}"; do
   # shellcheck disable=SC2046
   address=$(cat ../../deployments/${chainId}/core.json | jq -r -c ".$name")
   echo "$address" "$name"
-  forge verify-contract --verifier blockscout --verifier-url https://explorerl2new-prod-testnet-0eakp60405.t.conduit.xyz/api "${address}" "${filepath}:${contract}"
+  forge verify-contract --verifier blockscout --verifier-url "$explorer" "${address}" "${filepath}:${contract}"
   # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ../../verification/"${name}".json
 done
 
@@ -78,7 +80,7 @@ for market in "ETH" "BTC"; do
     # shellcheck disable=SC2046
     address=$(cat ../../deployments/${chainId}/${market}.json | jq -r -c ".$name")
     echo "$address" "$name"
-    forge verify-contract --verifier blockscout --verifier-url https://explorerl2new-prod-testnet-0eakp60405.t.conduit.xyz/api "${address}" "${filepath}:${contract}"
+    forge verify-contract --verifier blockscout --verifier-url "$explorer" "${address}" "${filepath}:${contract}"
     # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ../../verification/"${name}".json
   done
 done
@@ -99,6 +101,6 @@ for tuple in "${matching_contracts[@]}"; do
   # shellcheck disable=SC2046
   address=$(cat ./deployments/${chainId}/matching.json | jq -r -c ".$name")
   echo "$address" "$name"
-  forge verify-contract --verifier blockscout --verifier-url https://explorerl2new-prod-testnet-0eakp60405.t.conduit.xyz/api "${address}" "${filepath}:${contract}"
+  forge verify-contract --verifier blockscout --verifier-url "$explorer" "${address}" "${filepath}:${contract}"
   # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ./verification/"${name}".json
 done
