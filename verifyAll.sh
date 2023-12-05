@@ -2,6 +2,8 @@
 
 set -e
 
+# TODO: doesnt handle libraries, must be manually added
+
 core_contracts=(
   "auction ./src/liquidation/DutchAuction.sol"
   "cash ./src/assets/CashAsset.sol"
