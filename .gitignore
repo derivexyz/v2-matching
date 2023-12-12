@@ -22,3 +22,5 @@ scripts/input/31337/*
 
 deployments/31337/*
 !deployments/31337/.gitkeep
+
+verification/
