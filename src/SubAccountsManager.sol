@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.13;
 
 // Inherited
@@ -71,6 +71,8 @@ contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
    */
   function requestWithdrawAccount(uint accountId) external {
     if (subAccountToOwner[accountId] != msg.sender) revert SAM_NotOwnerAddress();
+    if (withdrawTimestamp[accountId] != 0) revert SAM_AlreadyRequestedWithdraw();
+
     withdrawTimestamp[accountId] = block.timestamp;
 
     emit WithdrawAccountCooldown(accountId, msg.sender);
@@ -83,6 +85,7 @@ contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
    * @param accountId The users' accountId
    */
   function completeWithdrawAccount(uint accountId) external {
+    if (withdrawTimestamp[accountId] == 0) revert SAM_CooldownNotStarted();
     if (withdrawTimestamp[accountId] + WITHDRAW_COOLDOWN > block.timestamp) revert SAM_CooldownNotElapsed();
 
     subAccounts.transferFrom(address(this), subAccountToOwner[accountId], accountId);

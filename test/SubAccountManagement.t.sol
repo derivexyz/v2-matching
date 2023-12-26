@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.18;
 
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
@@ -59,6 +59,12 @@ contract SubAccountManagementTest is MatchingBase {
     matching.requestWithdrawAccount(camAcc);
   }
 
+  function testCannotWithdrawWithoutRequest() public {
+    vm.prank(doug);
+    vm.expectRevert(ISubAccountsManager.SAM_CooldownNotStarted.selector);
+    matching.completeWithdrawAccount(camAcc);
+  }
+
   function testCannotWithdrawDuringCooldown() public {
     vm.startPrank(cam);
     matching.requestWithdrawAccount(camAcc);
@@ -66,6 +72,16 @@ contract SubAccountManagementTest is MatchingBase {
     vm.expectRevert(ISubAccountsManager.SAM_CooldownNotElapsed.selector);
 
     matching.completeWithdrawAccount(camAcc);
+    vm.stopPrank();
+  }
+
+  function testCannotRerequestDuringCooldown() public {
+    vm.startPrank(cam);
+    matching.requestWithdrawAccount(camAcc);
+
+    vm.expectRevert(ISubAccountsManager.SAM_AlreadyRequestedWithdraw.selector);
+    matching.requestWithdrawAccount(camAcc);
+
     vm.stopPrank();
   }
 

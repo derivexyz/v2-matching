@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.13;
 
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
@@ -45,7 +45,7 @@ interface ISubAccountsManager {
   ////////////
 
   /**
-   * @dev Emitted when a CLOB account is closed.
+   * @dev Emitted when a CLOB account is added to matching, or generated.
    */
   event DepositedSubAccount(uint indexed accountId, address indexed owner);
 
@@ -63,5 +63,7 @@ interface ISubAccountsManager {
   // Errors //
   ////////////
   error SAM_NotOwnerAddress();
+  error SAM_AlreadyRequestedWithdraw();
+  error SAM_CooldownNotStarted();
   error SAM_CooldownNotElapsed();
 }
