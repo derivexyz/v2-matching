@@ -18,6 +18,7 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {ECDSA} from "openzeppelin/utils/cryptography/ECDSA.sol";
 import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
+import "../../src/modules/LiquidateModule.sol";
 
 /**
  * @dev we deploy actual Account contract in these tests to simplify verification process
@@ -30,6 +31,7 @@ contract MatchingBase is PMRMTestBase {
   WithdrawalModule public withdrawalModule;
   TransferModule public transferModule;
   TradeModule public tradeModule;
+  LiquidateModule public liquidateModule;
 
   // signer
   uint internal camAcc;
@@ -68,11 +70,13 @@ contract MatchingBase is PMRMTestBase {
     transferModule = new TransferModule(matching);
     tradeModule = new TradeModule(matching, IAsset(address(cash)), aliceAcc);
     tradeModule.setPerpAsset(IPerpAsset(address(mockPerp)), true);
+    liquidateModule = new LiquidateModule(matching, auction);
 
     matching.setAllowedModule(address(depositModule), true);
     matching.setAllowedModule(address(withdrawalModule), true);
     matching.setAllowedModule(address(transferModule), true);
     matching.setAllowedModule(address(tradeModule), true);
+    matching.setAllowedModule(address(liquidateModule), true);
 
     domainSeparator = matching.domainSeparator();
     matching.setTradeExecutor(tradeExecutor, true);
@@ -158,6 +162,25 @@ contract MatchingBase is PMRMTestBase {
   function _encodeWithdrawData(uint amount, address asset) internal pure returns (bytes memory) {
     IWithdrawalModule.WithdrawalData memory data = IWithdrawalModule.WithdrawalData({asset: asset, assetAmount: amount});
 
+    return abi.encode(data);
+  }
+
+  function _encodeLiquidateData(
+    uint liqAccId,
+    uint cashTransfer,
+    uint percent,
+    int priceLimit,
+    uint lastSeenTradeId,
+    bool merge
+  ) internal pure returns (bytes memory) {
+    ILiquidateModule.LiquidationData memory data = ILiquidateModule.LiquidationData({
+      liquidatedAccountId: liqAccId,
+      cashTransfer: cashTransfer,
+      percentOfAcc: percent,
+      priceLimit: priceLimit,
+      lastSeenTradeId: lastSeenTradeId,
+      mergeAccount: merge
+    });
     return abi.encode(data);
   }
 

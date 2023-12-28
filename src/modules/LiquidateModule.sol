@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+// Libraries
+import "openzeppelin/utils/math/SafeCast.sol";
+
 // Inherited
 import {IBaseModule} from "../interfaces/IBaseModule.sol";
 import {BaseModule} from "./BaseModule.sol";
@@ -9,35 +12,23 @@ import {BaseModule} from "./BaseModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
-import {IMatching} from "../interfaces/IMatching.sol";
-import {IDutchAuction} from "v2-core/src/interfaces/IDutchAuction.sol";
+import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
 import {ICashAsset} from "v2-core/src/interfaces/ICashAsset.sol";
 
+import {IMatching} from "../interfaces/IMatching.sol";
+import {ILiquidateModule} from "../interfaces/ILiquidateModule.sol";
 
-interface ILiquidateModule is IBaseModule {
-  struct LiquidationData {
-    uint liquidatedAccountId;
-    uint cashTransfer;
-    uint percentOfAcc;
-    uint maxBidPrice;
-    uint lastSeenTradeId;
-    bool toNewAccount;
-  }
-
-  error TFM_InvalidFromAccount();
-  error LM_InvalidLiquidateActionLength();
-  error TFM_ToAccountMismatch();
-}
-
-
-// Handles transferring assets from one subaccount to another
-// Verifies the owner of both subaccounts is the same.
-// Only has to sign from one side (so has to call out to the
+/**
+ * @title LiquidateModule
+ * @dev Module to liquidate an account using the DutchAuction module
+ */
 contract LiquidateModule is ILiquidateModule, BaseModule {
-  IDutchAuction public auction;
+  using SafeCast for uint;
+
+  DutchAuction public auction;
   ICashAsset public cashAsset;
 
-  constructor(IMatching _matching, IDutchAuction _auction) BaseModule(_matching) {
+  constructor(IMatching _matching, DutchAuction _auction) BaseModule(_matching) {
     auction = _auction;
     cashAsset = _auction.cash();
   }
@@ -46,7 +37,7 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
    * @notice transfer asset between 2 subAccounts
    * @dev the recipient need to sign the second action as prove of ownership
    */
-  function executeAction(VerifiedAction[] memory actions, bytes memory)
+  function executeAction(VerifiedAction[] memory actions, bytes memory managerData)
     external
     onlyMatching
     returns (uint[] memory newAccIds, address[] memory newAccOwners)
@@ -55,51 +46,41 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
     if (actions.length != 1) revert LM_InvalidLiquidateActionLength();
 
     VerifiedAction memory liqAction = actions[0];
-    LiquidationData memory liqData = abi.decode(actions[0], (LiquidationData));
+    LiquidationData memory liqData = abi.decode(actions[0].data, (LiquidationData));
 
-    if (liqAction.accountId == 0) revert TFM_InvalidFromAccount();
+    if (liqAction.subaccountId == 0) revert LM_InvalidFromAccount();
 
     _checkAndInvalidateNonce(liqAction.owner, liqAction.nonce);
 
-    address LIQUIDATED_ACCOUNT_MANAGER;
+    // Create a new subaccount for the liquidator;
+    // this way we create an account with only cash, that is the same manager as the account we are liquidating
+    uint liquidatorAcc = subAccounts.createAccount(address(this), subAccounts.manager(liqData.liquidatedAccountId));
 
-    //////
-    // Create a new subaccount for the liquidator, this way we have an account with only cash.
-    uint liquidatorAcc = subAccounts.createAccount(address(this), IManager(LIQUIDATED_ACCOUNT_MANAGER));
-
-    //////
     // Transfer the cash to the liquidatorAcc
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](1);
     transferBatch[0] = ISubAccounts.AssetTransfer({
-      asset: IAsset(cashAsset),
-      fromAcc: liqAction.accountId,
+      fromAcc: liqAction.subaccountId,
       toAcc: liquidatorAcc,
-      amount: liqData.cashTransfer
+      asset: IAsset(cashAsset),
+      subId: 0,
+      amount: liqData.cashTransfer.toInt256(),
+      assetData: bytes32(0)
     });
-    subAccounts.submitTransfers(transferBatch, bytes(0));
+    subAccounts.submitTransfers(transferBatch, managerData);
 
-    //////
     // Bid on the auction
     auction.bid(
-      liqData.liquidatedAccountId, liquidatorAcc, liqData.percentOfAcc, liqData.maxBidPrice, liqData.lastSeenTradeId
+      liqData.liquidatedAccountId, liquidatorAcc, liqData.percentOfAcc, liqData.priceLimit, liqData.lastSeenTradeId
     );
 
-    /////
     // Either send the subaccount back to the matching module or transfer the assets back to the original account
-    if (liqData.toNewAccount) {
+    if (liqData.mergeAccount) {
+      _transferAll(liquidatorAcc, liqAction.subaccountId);
+    } else {
       newAccIds = new uint[](1);
       newAccIds[0] = liquidatorAcc;
       newAccOwners = new address[](1);
       newAccOwners[0] = actions[0].owner;
-    } else {
-      transferBatch[0] = ISubAccounts.AssetTransfer({
-        asset: IAsset(cashAsset),
-        fromAcc: liquidatorAcc,
-        toAcc: liqAction.accountId,
-        amount: liqData.cashTransfer
-      });
-
-      subAccounts.submitTransfers(transferBatch, bytes(0));
     }
 
     // Return
@@ -107,20 +88,19 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
     return (newAccIds, newAccOwners);
   }
 
-  function _sendAllAssets(uint fromAcc, uint toAcc) internal {
-    ISubAccounts.AssetBalance[] memory allBalances = subAccounts.getAccountBalances(fromAcc);
-
-    ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](allBalances.length);
-    for (uint i = 0; i < allBalances.length; ++i) {
-      transferBatch[i] = ISubAccounts.AssetTransfer({
-        fromAcc: fromAcc,
-        toAcc: toAcc,
-        asset: allBalances[i].asset,
-        subId: allBalances[i].subId,
-        amount: allBalances[i].balance,
+  function _transferAll(uint fromId, uint toId) internal {
+    ISubAccounts.AssetBalance[] memory assetBalances = subAccounts.getAccountBalances(fromId);
+    ISubAccounts.AssetTransfer[] memory transfers = new ISubAccounts.AssetTransfer[](assetBalances.length);
+    for (uint i = 0; i < assetBalances.length; i++) {
+      transfers[i] = ISubAccounts.AssetTransfer({
+        fromAcc: fromId,
+        toAcc: toId,
+        asset: assetBalances[i].asset,
+        subId: assetBalances[i].subId,
+        amount: assetBalances[i].balance,
         assetData: bytes32(0)
       });
     }
-    subAccounts.submitTransfers(transferBatch, bytes(0));
+    subAccounts.submitTransfers(transfers, "");
   }
 }
