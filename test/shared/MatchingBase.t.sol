@@ -19,6 +19,7 @@ import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {ECDSA} from "openzeppelin/utils/cryptography/ECDSA.sol";
 import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
 import "../../src/modules/LiquidateModule.sol";
+import "../../src/modules/RfqModule.sol";
 
 /**
  * @dev we deploy actual Account contract in these tests to simplify verification process
@@ -32,6 +33,7 @@ contract MatchingBase is PMRMTestBase {
   TransferModule public transferModule;
   TradeModule public tradeModule;
   LiquidateModule public liquidateModule;
+  RfqModule public rfqModule;
 
   // signer
   uint internal camAcc;
@@ -71,12 +73,15 @@ contract MatchingBase is PMRMTestBase {
     tradeModule = new TradeModule(matching, IAsset(address(cash)), aliceAcc);
     tradeModule.setPerpAsset(IPerpAsset(address(mockPerp)), true);
     liquidateModule = new LiquidateModule(matching, auction);
+    rfqModule = new RfqModule(matching, IAsset(address(cash)), aliceAcc);
+    rfqModule.setPerpAsset(IPerpAsset(address(mockPerp)), true);
 
     matching.setAllowedModule(address(depositModule), true);
     matching.setAllowedModule(address(withdrawalModule), true);
     matching.setAllowedModule(address(transferModule), true);
     matching.setAllowedModule(address(tradeModule), true);
     matching.setAllowedModule(address(liquidateModule), true);
+    matching.setAllowedModule(address(rfqModule), true);
 
     domainSeparator = matching.domainSeparator();
     matching.setTradeExecutor(tradeExecutor, true);
