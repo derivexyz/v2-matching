@@ -10,6 +10,7 @@ import {MockDataReceiver} from "../mock/MockDataReceiver.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IDutchAuction} from "v2-core/src/interfaces/IDutchAuction.sol";
+import {IBaseModule} from "src/interfaces/IBaseModule.sol";
 
 import "forge-std/console2.sol";
 
@@ -21,6 +22,7 @@ contract LiquidationModuleTest is MatchingBase {
   // - Liquidates insolvent auction
   // - can submit feed data
   // - Reverts in different cases
+  //  - cannot resubmit same signed message/nonce
   //  - not enough cash transferred
   //  - invalid lastTradeId
   //  - min/max bid price for solvent/insolvent
@@ -112,7 +114,12 @@ contract LiquidationModuleTest is MatchingBase {
     _verifyAndMatch(actions, signatures, actionData);
 
     // Still succeeds normally
-    _bidOnAuction(1000e18, 1e18, 0, 0, true);
+    (actions, signatures, actionData) = _getBidActionData(1000e18, 1e18, 0, 0, true, "");
+    _verifyAndMatch(actions, signatures, actionData);
+
+    // Fails when trying to replay the same message
+    vm.expectRevert(IBaseModule.BM_NonceAlreadyUsed.selector);
+    _verifyAndMatch(actions, signatures, actionData);
   }
 
   function _bidOnAuction(uint cashTransfer, uint percent, int priceLimit, uint lastTradeId, bool merge) internal {

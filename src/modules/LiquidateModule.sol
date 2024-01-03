@@ -34,8 +34,7 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
   }
 
   /**
-   * @notice transfer asset between 2 subAccounts
-   * @dev the recipient need to sign the second action as prove of ownership
+   * @notice Execute the signed liquidation bid
    */
   function executeAction(VerifiedAction[] memory actions, bytes memory managerData)
     external
