@@ -36,7 +36,6 @@ interface ITradeModule is IBaseModule {
    * If the taker order is an ask;
    * the taker is sending the maker accounts baseAsset, and receiving the quoteAsset from the maker accounts.
    */
-
   struct OrderData {
     uint takerAccount;
     // total fee for taker
