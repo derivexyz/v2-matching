@@ -22,7 +22,8 @@ import "forge-std/console2.sol";
 
 /**
  * @title RfqModule
- * @dev Allows a user to request a bundle of trades to all be executed atomically
+ * @dev Allows a "maker" to request a bundle of trades to all be executed atomically by a single "taker". These trades
+ *      can have negative amounts or negative prices, so the maker can be both buyer and seller.
  */
 contract RfqModule is IRfqModule, BaseModule {
   using SafeCast for uint;
@@ -77,54 +78,66 @@ contract RfqModule is IRfqModule, BaseModule {
     // Verify
     if (actions.length != 2) revert RFQM_InvalidActionsLength();
 
-    // Maker (user placing RFQ order) is always receiving the assets from the taker (user filling order)
+    // Maker (user placing RFQ order) is always "receiving" the assets from the taker (user filling order). The amounts
+    // may be negative (so they receive a negative amount)
     VerifiedAction memory makerAction = actions[0];
     VerifiedAction memory takerAction = actions[1];
 
     _checkAndInvalidateNonce(makerAction.owner, makerAction.nonce);
     _checkAndInvalidateNonce(takerAction.owner, takerAction.nonce);
 
-    OrderData memory order = abi.decode(actionDataBytes, (OrderData));
+    FillData memory fill = abi.decode(actionDataBytes, (FillData));
 
     RfqOrder memory makerOrder = abi.decode(actions[0].data, (RfqOrder));
     TakerOrder memory takerOrder = abi.decode(actions[1].data, (TakerOrder));
 
-    if (makerAction.subaccountId != order.makerAccount || takerAction.subaccountId != order.takerAccount) {
+    if (makerAction.subaccountId != fill.makerAccount || takerAction.subaccountId != fill.takerAccount) {
       revert RFQM_SignedAccountMismatch();
     }
 
-    if (makerOrder.maxFee < order.makerFee || takerOrder.maxFee < order.takerFee) {
+    if (makerOrder.maxFee < fill.makerFee || takerOrder.maxFee < fill.takerFee) {
       revert RFQM_FeeTooHigh();
     }
 
     if (takerOrder.orderHash != keccak256(actions[0].data)) revert RFQM_InvalidTakerHash();
 
     // Update feeds in advance, so perpPrice is up to date before we use it for the trade
-    _processManagerData(order.managerData);
+    _processManagerData(fill.managerData);
 
     // Total transfers = number of assets + 3 (cash transfer, maker fee, taker fee)
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](makerOrder.trades.length + 3);
 
     int totalCashTransfer = 0;
 
+    IRfqModule.MatchedOrderData[] memory matchedOrders = new IRfqModule.MatchedOrderData[](makerOrder.trades.length);
+
     // Iterate over the trades in the order and sum total cash to transfer
     for (uint i = 0; i < makerOrder.trades.length; i++) {
       TradeData memory tradeData = makerOrder.trades[i];
 
-      if (_isPerp(tradeData.asset)) {
-        int perpDelta = _getPerpDelta(tradeData.asset, tradeData.markPrice);
-        totalCashTransfer += perpDelta.multiplyDecimal(tradeData.amount);
+      int cashTransfer;
+      if (isPerpAsset[IPerpAsset(tradeData.asset)]) {
+        int perpDelta = _getPerpDelta(tradeData.asset, tradeData.price);
+        cashTransfer = perpDelta.multiplyDecimal(tradeData.amount);
       } else {
-        totalCashTransfer += tradeData.markPrice.multiplyDecimal(tradeData.amount);
+        cashTransfer = tradeData.price.multiplyDecimal(tradeData.amount);
       }
+      totalCashTransfer += cashTransfer;
 
       transferBatch[i] = ISubAccounts.AssetTransfer({
         asset: IAsset(tradeData.asset),
         subId: tradeData.subId,
         amount: tradeData.amount,
-        fromAcc: order.takerAccount,
-        toAcc: order.makerAccount,
+        fromAcc: fill.takerAccount,
+        toAcc: fill.makerAccount,
         assetData: bytes32(0)
+      });
+
+      matchedOrders[i] = IRfqModule.MatchedOrderData({
+        asset: tradeData.asset,
+        subId: tradeData.subId,
+        quoteAmt: cashTransfer,
+        baseAmt: tradeData.amount
       });
     }
 
@@ -133,8 +146,8 @@ contract RfqModule is IRfqModule, BaseModule {
       asset: quoteAsset,
       subId: 0,
       amount: totalCashTransfer,
-      fromAcc: order.makerAccount,
-      toAcc: order.takerAccount,
+      fromAcc: fill.makerAccount,
+      toAcc: fill.takerAccount,
       assetData: bytes32(0)
     });
 
@@ -142,8 +155,8 @@ contract RfqModule is IRfqModule, BaseModule {
     transferBatch[transferBatch.length - 2] = ISubAccounts.AssetTransfer({
       asset: quoteAsset,
       subId: 0,
-      amount: order.makerFee.toInt256(),
-      fromAcc: order.makerAccount,
+      amount: fill.makerFee.toInt256(),
+      fromAcc: fill.makerAccount,
       toAcc: feeRecipient,
       assetData: bytes32(0)
     });
@@ -152,16 +165,18 @@ contract RfqModule is IRfqModule, BaseModule {
     transferBatch[transferBatch.length - 1] = ISubAccounts.AssetTransfer({
       asset: quoteAsset,
       subId: 0,
-      amount: order.takerFee.toInt256(),
-      fromAcc: order.takerAccount,
+      amount: fill.takerFee.toInt256(),
+      fromAcc: fill.takerAccount,
       toAcc: feeRecipient,
       assetData: bytes32(0)
     });
 
-    // TODO: events!!!!
-
     // Execute all trades, no need to resubmit manager data
     subAccounts.submitTransfers(transferBatch, "");
+
+    emit RFQTradeCompleted(fill.makerAccount, fill.takerAccount, matchedOrders);
+    emit FeeCharged(fill.makerAccount, feeRecipient, fill.makerFee);
+    emit FeeCharged(fill.takerAccount, feeRecipient, fill.takerFee);
 
     // Return SubAccounts
     _returnAccounts(actions, newAccIds);
@@ -178,10 +193,6 @@ contract RfqModule is IRfqModule, BaseModule {
     for (uint i; i < managerDatas.length; i++) {
       IDataReceiver(managerDatas[i].receiver).acceptData(managerDatas[i].data);
     }
-  }
-
-  function _isPerp(address baseAsset) internal view returns (bool) {
-    return isPerpAsset[IPerpAsset(baseAsset)];
   }
 
   /**

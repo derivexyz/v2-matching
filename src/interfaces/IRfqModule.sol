@@ -20,11 +20,11 @@ interface IRfqModule is IBaseModule {
   struct TradeData {
     address asset;
     uint subId;
-    int markPrice;
+    int price;
     int amount;
   }
 
-  struct OrderData {
+  struct FillData {
     uint makerAccount;
     uint makerFee;
     uint takerAccount;
@@ -32,12 +32,22 @@ interface IRfqModule is IBaseModule {
     bytes managerData;
   }
 
+  event OrderMatched(address base, uint taker, uint maker, bool takerIsBid, int amtQuote, uint amtBase);
+
+  struct MatchedOrderData {
+    address asset;
+    uint subId;
+    int quoteAmt;
+    int baseAmt;
+  }
+
+  event RFQTradeCompleted(uint indexed maker, uint indexed taker, MatchedOrderData[] trades);
+
   error RFQM_InvalidActionsLength();
   error RFQM_InvalidSubaccountId();
   error RFQM_SignedAccountMismatch();
   error RFQM_InvalidTakerHash();
   error RFQM_FeeTooHigh();
 
-  event OrderMatched(address base, uint taker, uint maker, bool takerIsBid, int amtQuote, uint amtBase);
   event FeeCharged(uint acc, uint recipient, uint takerFee);
 }

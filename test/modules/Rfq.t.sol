@@ -34,7 +34,7 @@ contract RfqModuleTest is MatchingBase {
     baseAsset.deposit(dougAcc, 10e18);
 
     IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](1);
-    trades[0] = IRfqModule.TradeData({asset: address(baseAsset), subId: 0, markPrice: 1500e18, amount: 10e18});
+    trades[0] = IRfqModule.TradeData({asset: address(baseAsset), subId: 0, price: 1500e18, amount: 10e18});
     _submitRfqTrade(trades);
 
     assertEq(subAccounts.getBalance(camAcc, baseAsset, 0), 10e18);
@@ -48,25 +48,25 @@ contract RfqModuleTest is MatchingBase {
     trades[0] = IRfqModule.TradeData({
       asset: address(option),
       subId: OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, true),
-      markPrice: 300e18,
+      price: 300e18,
       amount: 2e18
     });
     trades[1] = IRfqModule.TradeData({
       asset: address(option),
       subId: OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, false),
-      markPrice: -300e18,
+      price: -300e18,
       amount: -2e18
     });
     trades[2] = IRfqModule.TradeData({
       asset: address(option),
       subId: OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, true),
-      markPrice: 200e18,
+      price: 200e18,
       amount: -2e18
     });
     trades[3] = IRfqModule.TradeData({
       asset: address(option),
       subId: OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, false),
-      markPrice: -400e18,
+      price: -400e18,
       amount: 2e18
     });
     _submitRfqTrade(trades);
@@ -76,7 +76,7 @@ contract RfqModuleTest is MatchingBase {
     mockPerp.setMockPerpPrice(1500e18, 1e18);
 
     IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](1);
-    trades[0] = IRfqModule.TradeData({asset: address(mockPerp), subId: 0, markPrice: 1490e18, amount: 10e18});
+    trades[0] = IRfqModule.TradeData({asset: address(mockPerp), subId: 0, price: 1490e18, amount: 10e18});
     _submitRfqTrade(trades);
 
     assertEq(subAccounts.getBalance(camAcc, mockPerp, 0), 10e18);
@@ -92,9 +92,9 @@ contract RfqModuleTest is MatchingBase {
     baseAsset.deposit(dougAcc, 10e18);
 
     IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](3);
-    trades[0] = IRfqModule.TradeData({asset: address(baseAsset), subId: 0, markPrice: 1490e18, amount: 2e18});
-    trades[1] = IRfqModule.TradeData({asset: address(baseAsset), subId: 0, markPrice: 1490e18, amount: 3e18});
-    trades[2] = IRfqModule.TradeData({asset: address(baseAsset), subId: 0, markPrice: 1490e18, amount: 1e18});
+    trades[0] = IRfqModule.TradeData({asset: address(baseAsset), subId: 0, price: 1490e18, amount: 2e18});
+    trades[1] = IRfqModule.TradeData({asset: address(baseAsset), subId: 0, price: 1490e18, amount: 3e18});
+    trades[2] = IRfqModule.TradeData({asset: address(baseAsset), subId: 0, price: 1490e18, amount: 1e18});
     _submitRfqTrade(trades);
 
     assertEq(subAccounts.getBalance(camAcc, baseAsset, 0), 6e18);
@@ -107,7 +107,7 @@ contract RfqModuleTest is MatchingBase {
   function testCanFillCash() public {
     IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](1);
     // asking for $100 from others
-    trades[0] = IRfqModule.TradeData({asset: address(cash), subId: 0, markPrice: 0, amount: 100e18});
+    trades[0] = IRfqModule.TradeData({asset: address(cash), subId: 0, price: 0, amount: 100e18});
     _submitRfqTrade(trades);
 
     assertEq(subAccounts.getBalance(camAcc, cash, 0), int(cashDeposit) + 100e18);
@@ -116,7 +116,7 @@ contract RfqModuleTest is MatchingBase {
   function testCanSubmitFeedDataWithTransfer() public {
     IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](1);
     // asking for $100 from others
-    trades[0] = IRfqModule.TradeData({asset: address(cash), subId: 0, markPrice: 0, amount: 100e18});
+    trades[0] = IRfqModule.TradeData({asset: address(cash), subId: 0, price: 0, amount: 100e18});
 
     IBaseManager.ManagerData[] memory data = new IBaseManager.ManagerData[](1);
     data[0] = IBaseManager.ManagerData({receiver: bob, data: ""});
@@ -140,15 +140,15 @@ contract RfqModuleTest is MatchingBase {
       asset: address(baseAsset),
       subId: 0,
       // 0 mark price so no funds are sent besides fees
-      markPrice: 0,
+      price: 0,
       amount: 1e18
     });
 
     IRfqModule.RfqOrder memory rfqOrder = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
     IRfqModule.TakerOrder memory takerOrder =
       IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(rfqOrder)), maxFee: 0});
-    IRfqModule.OrderData memory orderData =
-      IRfqModule.OrderData({makerAccount: camAcc, makerFee: 0, takerAccount: dougAcc, takerFee: 0, managerData: ""});
+    IRfqModule.FillData memory orderData =
+      IRfqModule.FillData({makerAccount: camAcc, makerFee: 0, takerAccount: dougAcc, takerFee: 0, managerData: ""});
     // Reverts if trying to charge a fee when no allowance set
     orderData.makerFee = 1;
     IActionVerifier.Action[] memory actions;
@@ -207,15 +207,15 @@ contract RfqModuleTest is MatchingBase {
       asset: address(baseAsset),
       subId: 0,
       // 0 mark price so no funds are sent besides fees
-      markPrice: 0,
+      price: 0,
       amount: 1e18
     });
 
     IRfqModule.RfqOrder memory rfqOrder = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
     IRfqModule.TakerOrder memory takerOrder =
       IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(rfqOrder)), maxFee: 0});
-    IRfqModule.OrderData memory orderData =
-      IRfqModule.OrderData({makerAccount: camAcc, makerFee: 0, takerAccount: dougAcc, takerFee: 0, managerData: ""});
+    IRfqModule.FillData memory orderData =
+      IRfqModule.FillData({makerAccount: camAcc, makerFee: 0, takerAccount: dougAcc, takerFee: 0, managerData: ""});
 
     IActionVerifier.Action[] memory actions;
     bytes[] memory signatures;
@@ -274,7 +274,7 @@ contract RfqModuleTest is MatchingBase {
     IRfqModule.RfqOrder memory rfqOrder = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
     IRfqModule.TakerOrder memory takerOrder =
       IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(rfqOrder)), maxFee: 0});
-    IRfqModule.OrderData memory orderData = IRfqModule.OrderData({
+    IRfqModule.FillData memory orderData = IRfqModule.FillData({
       makerAccount: camAcc,
       makerFee: 0,
       takerAccount: dougAcc,
