@@ -8,7 +8,6 @@ import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
 import {IntegrationTestBase} from "v2-core/test/integration-tests/shared/IntegrationTestBase.t.sol";
-import {SubAccountCreator} from "src/periphery/SubAccountCreator.sol";
 
 import "forge-std/console2.sol";
 import "../../src/periphery/LyraAuctionUtils.sol";

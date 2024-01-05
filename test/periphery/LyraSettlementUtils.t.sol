@@ -7,13 +7,12 @@ import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
 import {MatchingBase} from "test/shared/MatchingBase.t.sol";
-import {SubAccountCreator} from "src/periphery/SubAccountCreator.sol";
 
 import "../../src/periphery/LyraSettlementUtils.sol";
 
 import "forge-std/console2.sol";
 
-contract SubAccountCreatorTest is MatchingBase {
+contract SettlementUtilTest is MatchingBase {
   LyraSettlementUtils public settler;
   uint64 expiry = 100000;
 

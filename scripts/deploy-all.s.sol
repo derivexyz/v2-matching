@@ -64,7 +64,7 @@ contract DeployAll is Utils {
     console2.log("subAccounts", address(config.subAccounts));
     console2.log("cash", address(config.cash));
 
-    deployment.subAccountCreator = new SubAccountCreator(ISubAccounts(config.subAccounts), ICashAsset(config.cash), deployment.matching);
+    deployment.subAccountCreator = new SubAccountCreator(ISubAccounts(config.subAccounts), deployment.matching);
     console2.log("subAccountCreator: ", address(deployment.subAccountCreator));
 
     deployment.settlementUtil = new LyraSettlementUtils();

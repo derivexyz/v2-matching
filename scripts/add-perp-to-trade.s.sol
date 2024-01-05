@@ -7,7 +7,6 @@ import {DepositModule} from "../src/modules/DepositModule.sol";
 import {TradeModule} from "../src/modules/TradeModule.sol";
 import {TransferModule} from "../src/modules/TransferModule.sol";
 import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
-import {SubAccountCreator} from "../src/periphery/SubAccountCreator.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {PerpAsset} from "v2-core/src/assets/PerpAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";

@@ -20,10 +20,11 @@ if [[ "$ETH_RPC_URL" =~ .*local.* ]]; then
   # Only deploy mocks for local
   forge script scripts/deploy-mocks.s.sol --rpc-url $ETH_RPC_URL --broadcast
 fi
-#
-#forge script scripts/deploy-core.s.sol --rpc-url $ETH_RPC_URL --broadcast
-#MARKET_NAME=ETH forge script scripts/deploy-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
-#MARKET_NAME=BTC forge script scripts/deploy-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
+
+# Deploy core contracts
+forge script scripts/deploy-core.s.sol --rpc-url $ETH_RPC_URL --broadcast
+MARKET_NAME=ETH forge script scripts/deploy-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
+MARKET_NAME=BTC forge script scripts/deploy-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
 
 # Deploy matching contracts
 cd ../../
