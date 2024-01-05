@@ -12,7 +12,7 @@ contract SubAccountCreatorTest is MatchingBase {
   function setUp() public override {
     super.setUp();
 
-    creator = new SubAccountCreator(subAccounts, cash, matching);
+    creator = new SubAccountCreator(subAccounts, matching);
   }
 
   function testCanCreateWithInitDeposit() public {
@@ -22,7 +22,7 @@ contract SubAccountCreatorTest is MatchingBase {
     vm.startPrank(cam);
     usdc.approve(address(creator), type(uint).max);
 
-    uint accId = creator.createAndDepositSubAccount(amount, pmrm);
+    uint accId = creator.createAndDepositSubAccount(cash, amount, pmrm);
 
     assertEq(matching.subAccountToOwner(accId), cam);
     assertEq(subAccounts.getBalance(accId, cash, 0), int(amount));
@@ -31,7 +31,18 @@ contract SubAccountCreatorTest is MatchingBase {
 
   function testCanCreateWithNoUSDC() public {
     vm.startPrank(cam);
-    uint accId = creator.createAndDepositSubAccount(0, pmrm);
+    uint accId = creator.createAndDepositSubAccount(cash, 0, pmrm);
     assertEq(matching.subAccountToOwner(accId), cam);
+  }
+
+  function testCanCreateWithBaseAsset() public {
+    uint amount = 100e18;
+    weth.mint(cam, amount);
+
+    vm.startPrank(cam);
+    weth.approve(address(creator), type(uint).max);
+    uint accId = creator.createAndDepositSubAccount(baseAsset, amount, pmrm);
+    assertEq(matching.subAccountToOwner(accId), cam);
+    assertEq(subAccounts.getBalance(accId, baseAsset, 0), int(amount));
   }
 }
