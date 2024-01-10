@@ -135,7 +135,7 @@ contract LiquidationModuleTest is MatchingBase {
     uint lastTradeId,
     bool merge,
     bytes memory matchData
-  ) internal returns (IActionVerifier.Action[] memory actions, bytes[] memory signatures, bytes memory actionData) {
+  ) internal view returns (IActionVerifier.Action[] memory actions, bytes[] memory signatures, bytes memory actionData) {
     actions = new IActionVerifier.Action[](1);
     actionData = _encodeLiquidateData(liqAcc, cashTransfer, percent, priceLimit, lastTradeId, merge);
 

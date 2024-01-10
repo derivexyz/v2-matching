@@ -5,12 +5,10 @@ pragma solidity ^0.8.13;
 import "openzeppelin/utils/math/SafeCast.sol";
 
 // Inherited
-import {IBaseModule} from "../interfaces/IBaseModule.sol";
 import {BaseModule} from "./BaseModule.sol";
 
 // Interfaces
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
-import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
 import {ICashAsset} from "v2-core/src/interfaces/ICashAsset.sol";
@@ -68,7 +66,7 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
     subAccounts.submitTransfers(transferBatch, managerData);
 
     // Bid on the auction
-    auction.bid(
+    (uint finalPercentage, uint cashFromBidder, uint cashToBidder) = auction.bid(
       liqData.liquidatedAccountId, liquidatorAcc, liqData.percentOfAcc, liqData.priceLimit, liqData.lastSeenTradeId
     );
 
@@ -81,6 +79,8 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
       newAccOwners = new address[](1);
       newAccOwners[0] = actions[0].owner;
     }
+
+    emit Liquidate(liqData.liquidatedAccountId, liquidatorAcc, finalPercentage, cashFromBidder, cashToBidder);
 
     // Return
     _returnAccounts(actions, newAccIds);

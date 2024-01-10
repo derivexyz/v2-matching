@@ -146,7 +146,7 @@ contract RfqModuleTest is MatchingBase {
 
     IRfqModule.RfqOrder memory rfqOrder = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
     IRfqModule.TakerOrder memory takerOrder =
-      IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(rfqOrder)), maxFee: 0});
+      IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(rfqOrder.trades)), maxFee: 0});
     IRfqModule.FillData memory orderData =
       IRfqModule.FillData({makerAccount: camAcc, makerFee: 0, takerAccount: dougAcc, takerFee: 0, managerData: ""});
     // Reverts if trying to charge a fee when no allowance set
@@ -169,7 +169,7 @@ contract RfqModuleTest is MatchingBase {
 
     // charges only maker fee
     rfqOrder.maxFee = 10e18;
-    takerOrder.orderHash = keccak256(abi.encode(rfqOrder));
+    takerOrder.orderHash = keccak256(abi.encode(rfqOrder.trades));
     orderData.makerFee = 8e18;
 
     (actions, signatures) = _signAndGetActions(rfqOrder, takerOrder, 0, 0);
@@ -213,7 +213,7 @@ contract RfqModuleTest is MatchingBase {
 
     IRfqModule.RfqOrder memory rfqOrder = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
     IRfqModule.TakerOrder memory takerOrder =
-      IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(rfqOrder)), maxFee: 0});
+      IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(rfqOrder.trades)), maxFee: 0});
     IRfqModule.FillData memory orderData =
       IRfqModule.FillData({makerAccount: camAcc, makerFee: 0, takerAccount: dougAcc, takerFee: 0, managerData: ""});
 
@@ -235,7 +235,7 @@ contract RfqModuleTest is MatchingBase {
     orderData.makerAccount = camAcc;
 
     // hashed order mismatch
-    rfqOrder.maxFee = 10e18;
+    rfqOrder.trades[0].amount = 7.7e18;
     (actions, signatures) = _signAndGetActions(rfqOrder, takerOrder, 0, 0);
     vm.expectRevert(IRfqModule.RFQM_InvalidTakerHash.selector);
     _verifyAndMatch(actions, signatures, abi.encode(orderData));
@@ -273,7 +273,7 @@ contract RfqModuleTest is MatchingBase {
   {
     IRfqModule.RfqOrder memory rfqOrder = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
     IRfqModule.TakerOrder memory takerOrder =
-      IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(rfqOrder)), maxFee: 0});
+      IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(rfqOrder.trades)), maxFee: 0});
     IRfqModule.FillData memory orderData = IRfqModule.FillData({
       makerAccount: camAcc,
       makerFee: 0,
@@ -292,7 +292,7 @@ contract RfqModuleTest is MatchingBase {
     IRfqModule.TakerOrder memory takerOrder,
     uint makerNonce,
     uint takerNonce
-  ) internal returns (IActionVerifier.Action[] memory actions, bytes[] memory signatures) {
+  ) internal view returns (IActionVerifier.Action[] memory actions, bytes[] memory signatures) {
     actions = new IActionVerifier.Action[](2);
     signatures = new bytes[](2);
 

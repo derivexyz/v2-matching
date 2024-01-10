@@ -15,4 +15,9 @@ interface ILiquidateModule is IBaseModule {
 
   error LM_InvalidFromAccount();
   error LM_InvalidLiquidateActionLength();
+
+  event Liquidate(
+    uint indexed account, uint indexed liquidator, uint finalPercentage, uint cashFromBidder, uint cashToBidder
+  );
+  // uint perpPrice
 }
