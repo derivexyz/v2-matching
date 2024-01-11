@@ -98,16 +98,14 @@ contract LiquidationModuleTest is MatchingBase {
   }
 
   function testLiquidationEmitPerpPrice() public {
+    ISubAccounts.AssetBalance[] memory balances = new ISubAccounts.AssetBalance[](1);
+    balances[0] = ISubAccounts.AssetBalance({asset: baseAsset, subId: 0, balance: 0.05e18});
+    setBalances(liqAcc, balances);
+
     vm.expectEmit(true, false, false, true, address(liquidateModule)); // topic0, topic1, topic2, checkData, emitter
     // We emit the event we expect to see.
     emit LiquidationPerpPrice(address(mockPerp), 7000e18, 1e18);
     _bidOnAuction(1000e18, 1e18, 0, 0, false);
-  }
-
-  function testSetPerpAsset() public {
-    assertEq(liquidateModule.isPerpAsset(mockPerp), true);
-    liquidateModule.setPerpAsset(mockPerp, false);
-    assertEq(liquidateModule.isPerpAsset(mockPerp), false);
   }
 
   function testRevertsInDifferentCases() public {

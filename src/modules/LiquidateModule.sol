@@ -27,8 +27,6 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
   DutchAuction public auction;
   ICashAsset public cashAsset;
 
-  mapping(IAsset => bool) public isPerpAsset;
-
   constructor(IMatching _matching, DutchAuction _auction) BaseModule(_matching) {
     auction = _auction;
     cashAsset = _auction.cash();
@@ -68,15 +66,13 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
     });
     subAccounts.submitTransfers(transferBatch, managerData);
 
-    // emit event for perp price for convenience
+    // Emit event for perp price for convenience
     ISubAccounts.AssetBalance[] memory assetBalances = subAccounts.getAccountBalances(liqData.liquidatedAccountId);
-    for (uint i = 0; i < assetBalances.length; i++) {
-      if (isPerpAsset[assetBalances[i].asset]) {
-        // if owner wrongly set the isPerp flag, we don't want to revert
-        try IPerpAsset(address(assetBalances[i].asset)).getPerpPrice() returns (uint perpPrice, uint confidence) {
-          emit LiquidationPerpPrice(address(assetBalances[i].asset), perpPrice, confidence);
-        } catch {}
-      }
+    for (uint i = 0; i < assetBalances.length; i++) {      
+      // If the asset is a perp, emit the price, otherwise just ignore
+      try IPerpAsset(address(assetBalances[i].asset)).getPerpPrice() returns (uint perpPrice, uint confidence) {
+        emit LiquidationPerpPrice(address(assetBalances[i].asset), perpPrice, confidence);
+      } catch {}
     }
 
     // Bid on the auction
@@ -97,10 +93,6 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
     // Return
     _returnAccounts(actions, newAccIds);
     return (newAccIds, newAccOwners);
-  }
-
-  function setPerpAsset(IAsset asset, bool isPerp) external onlyOwner {
-    isPerpAsset[asset] = isPerp;
   }
 
   function _transferAll(uint fromId, uint toId) internal {
