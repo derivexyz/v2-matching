@@ -12,6 +12,7 @@ import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
 import {ICashAsset} from "v2-core/src/interfaces/ICashAsset.sol";
+import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 
 import {IMatching} from "../interfaces/IMatching.sol";
 import {ILiquidateModule} from "../interfaces/ILiquidateModule.sol";
@@ -25,6 +26,8 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
 
   DutchAuction public auction;
   ICashAsset public cashAsset;
+
+  mapping(IAsset => bool) public isPerpAsset;
 
   constructor(IMatching _matching, DutchAuction _auction) BaseModule(_matching) {
     auction = _auction;
@@ -65,8 +68,19 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
     });
     subAccounts.submitTransfers(transferBatch, managerData);
 
+    // emit event for perp price for convenience
+    ISubAccounts.AssetBalance[] memory assetBalances = subAccounts.getAccountBalances(liqData.liquidatedAccountId);
+    for (uint i = 0; i < assetBalances.length; i++) {
+      if (isPerpAsset[assetBalances[i].asset]) {
+        // if owner wrongly set the isPerp flag, we don't want to revert
+        try IPerpAsset(address(assetBalances[i].asset)).getPerpPrice() returns (uint perpPrice, uint confidence) {
+          emit LiquidationPerpPrice(address(assetBalances[i].asset), perpPrice, confidence);
+        } catch {}
+      }
+    }
+
     // Bid on the auction
-    (uint finalPercentage, uint cashFromBidder, uint cashToBidder) = auction.bid(
+    auction.bid(
       liqData.liquidatedAccountId, liquidatorAcc, liqData.percentOfAcc, liqData.priceLimit, liqData.lastSeenTradeId
     );
 
@@ -80,11 +94,13 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
       newAccOwners[0] = actions[0].owner;
     }
 
-    emit Liquidate(liqData.liquidatedAccountId, liquidatorAcc, finalPercentage, cashFromBidder, cashToBidder);
-
     // Return
     _returnAccounts(actions, newAccIds);
     return (newAccIds, newAccOwners);
+  }
+
+  function setPerpAsset(IAsset asset, bool isPerp) external onlyOwner {
+    isPerpAsset[asset] = isPerp;
   }
 
   function _transferAll(uint fromId, uint toId) internal {

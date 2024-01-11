@@ -3,8 +3,7 @@ pragma solidity ^0.8.18;
 
 import {MatchingBase} from "test/shared/MatchingBase.t.sol";
 import {IActionVerifier} from "src/interfaces/IActionVerifier.sol";
-import {TradeModule, ITradeModule} from "src/modules/TradeModule.sol";
-import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
+import {ILiquidateModule} from "src/interfaces/ILiquidateModule.sol";
 import {IBaseManager} from "v2-core/src/interfaces/IBaseManager.sol";
 import {MockDataReceiver} from "../mock/MockDataReceiver.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
@@ -15,6 +14,8 @@ import {IBaseModule} from "src/interfaces/IBaseModule.sol";
 import "forge-std/console2.sol";
 
 contract LiquidationModuleTest is MatchingBase {
+  event LiquidationPerpPrice(address perp, uint perpPrice, uint confidence);
+
   // Test liquidations
   // - Liquidate partially
   // - Liquidates fully, merging
@@ -94,6 +95,19 @@ contract LiquidationModuleTest is MatchingBase {
     // Easiest way to test that the call to the receiver happened, since tests aren't setup to support full feeds
     vm.expectRevert(IBaseManager.BM_UnauthorizedCall.selector);
     _verifyAndMatch(actions, signatures, actionData);
+  }
+
+  function testLiquidationEmitPerpPrice() public {
+    vm.expectEmit(true, false, false, true, address(liquidateModule)); // topic0, topic1, topic2, checkData, emitter
+    // We emit the event we expect to see.
+    emit LiquidationPerpPrice(address(mockPerp), 7000e18, 1e18);
+    _bidOnAuction(1000e18, 1e18, 0, 0, false);
+  }
+
+  function testSetPerpAsset() public {
+    assertEq(liquidateModule.isPerpAsset(mockPerp), true);
+    liquidateModule.setPerpAsset(mockPerp, false);
+    assertEq(liquidateModule.isPerpAsset(mockPerp), false);
   }
 
   function testRevertsInDifferentCases() public {

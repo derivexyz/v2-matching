@@ -73,6 +73,7 @@ contract MatchingBase is PMRMTestBase {
     tradeModule = new TradeModule(matching, IAsset(address(cash)), aliceAcc);
     tradeModule.setPerpAsset(IPerpAsset(address(mockPerp)), true);
     liquidateModule = new LiquidateModule(matching, auction);
+    liquidateModule.setPerpAsset(IPerpAsset(address(mockPerp)), true);
     rfqModule = new RfqModule(matching, IAsset(address(cash)), aliceAcc);
     rfqModule.setPerpAsset(IPerpAsset(address(mockPerp)), true);
 

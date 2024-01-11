@@ -269,6 +269,7 @@ contract RfqModuleTest is MatchingBase {
 
   function _getRfqTradeData(IRfqModule.TradeData[] memory trades, bytes memory managerData)
     internal
+    view
     returns (IActionVerifier.Action[] memory actions, bytes[] memory signatures, bytes memory actionData)
   {
     IRfqModule.RfqOrder memory rfqOrder = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
