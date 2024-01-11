@@ -68,7 +68,7 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
 
     // Emit event for perp price for convenience
     ISubAccounts.AssetBalance[] memory assetBalances = subAccounts.getAccountBalances(liqData.liquidatedAccountId);
-    for (uint i = 0; i < assetBalances.length; i++) {      
+    for (uint i = 0; i < assetBalances.length; i++) {
       // If the asset is a perp, emit the price, otherwise just ignore
       try IPerpAsset(address(assetBalances[i].asset)).getPerpPrice() returns (uint perpPrice, uint confidence) {
         emit LiquidationPerpPrice(address(assetBalances[i].asset), perpPrice, confidence);
