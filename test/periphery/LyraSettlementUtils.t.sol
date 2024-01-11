@@ -57,8 +57,6 @@ contract SettlementUtilTest is MatchingBase {
   }
 
   function testCanSettlePerps() public {
-    uint strike = 2000e18;
-
     feed.setSpot(1500e18, 1e18);
 
     usdc.mint(address(this), 1e36);

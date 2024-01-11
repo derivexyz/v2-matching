@@ -5,15 +5,14 @@ pragma solidity ^0.8.13;
 import "openzeppelin/utils/math/SafeCast.sol";
 
 // Inherited
-import {IBaseModule} from "../interfaces/IBaseModule.sol";
 import {BaseModule} from "./BaseModule.sol";
 
 // Interfaces
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
-import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
 import {ICashAsset} from "v2-core/src/interfaces/ICashAsset.sol";
+import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 
 import {IMatching} from "../interfaces/IMatching.sol";
 import {ILiquidateModule} from "../interfaces/ILiquidateModule.sol";
@@ -66,6 +65,15 @@ contract LiquidateModule is ILiquidateModule, BaseModule {
       assetData: bytes32(0)
     });
     subAccounts.submitTransfers(transferBatch, managerData);
+
+    // Emit event for perp price for convenience
+    ISubAccounts.AssetBalance[] memory assetBalances = subAccounts.getAccountBalances(liqData.liquidatedAccountId);
+    for (uint i = 0; i < assetBalances.length; i++) {
+      // If the asset is a perp, emit the price, otherwise just ignore
+      try IPerpAsset(address(assetBalances[i].asset)).getPerpPrice() returns (uint perpPrice, uint confidence) {
+        emit LiquidationPerpPrice(address(assetBalances[i].asset), perpPrice, confidence);
+      } catch {}
+    }
 
     // Bid on the auction
     auction.bid(

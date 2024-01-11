@@ -3,8 +3,7 @@ pragma solidity ^0.8.18;
 
 import {MatchingBase} from "test/shared/MatchingBase.t.sol";
 import {IActionVerifier} from "src/interfaces/IActionVerifier.sol";
-import {TradeModule, ITradeModule} from "src/modules/TradeModule.sol";
-import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
+import {ILiquidateModule} from "src/interfaces/ILiquidateModule.sol";
 import {IBaseManager} from "v2-core/src/interfaces/IBaseManager.sol";
 import {MockDataReceiver} from "../mock/MockDataReceiver.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
@@ -15,6 +14,8 @@ import {IBaseModule} from "src/interfaces/IBaseModule.sol";
 import "forge-std/console2.sol";
 
 contract LiquidationModuleTest is MatchingBase {
+  event LiquidationPerpPrice(address perp, uint perpPrice, uint confidence);
+
   // Test liquidations
   // - Liquidate partially
   // - Liquidates fully, merging
@@ -96,6 +97,17 @@ contract LiquidationModuleTest is MatchingBase {
     _verifyAndMatch(actions, signatures, actionData);
   }
 
+  function testLiquidationEmitPerpPrice() public {
+    ISubAccounts.AssetBalance[] memory balances = new ISubAccounts.AssetBalance[](1);
+    balances[0] = ISubAccounts.AssetBalance({asset: baseAsset, subId: 0, balance: 0.05e18});
+    setBalances(liqAcc, balances);
+
+    vm.expectEmit(true, false, false, true, address(liquidateModule)); // topic0, topic1, topic2, checkData, emitter
+    // We emit the event we expect to see.
+    emit LiquidationPerpPrice(address(mockPerp), 7000e18, 1e18);
+    _bidOnAuction(1000e18, 1e18, 0, 0, false);
+  }
+
   function testRevertsInDifferentCases() public {
     // Reverts when not enough cash transferred to cover margin/bid price
     (IActionVerifier.Action[] memory actions, bytes[] memory signatures, bytes memory actionData) =
@@ -135,7 +147,7 @@ contract LiquidationModuleTest is MatchingBase {
     uint lastTradeId,
     bool merge,
     bytes memory matchData
-  ) internal returns (IActionVerifier.Action[] memory actions, bytes[] memory signatures, bytes memory actionData) {
+  ) internal view returns (IActionVerifier.Action[] memory actions, bytes[] memory signatures, bytes memory actionData) {
     actions = new IActionVerifier.Action[](1);
     actionData = _encodeLiquidateData(liqAcc, cashTransfer, percent, priceLimit, lastTradeId, merge);
 

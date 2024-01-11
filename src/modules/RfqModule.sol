@@ -18,8 +18,6 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 
-import "forge-std/console2.sol";
-
 /**
  * @title RfqModule
  * @dev Allows a "maker" to request a bundle of trades to all be executed atomically by a single "taker". These trades
@@ -99,7 +97,7 @@ contract RfqModule is IRfqModule, BaseModule {
       revert RFQM_FeeTooHigh();
     }
 
-    if (takerOrder.orderHash != keccak256(actions[0].data)) revert RFQM_InvalidTakerHash();
+    if (takerOrder.orderHash != keccak256(abi.encode(makerOrder.trades))) revert RFQM_InvalidTakerHash();
 
     // Update feeds in advance, so perpPrice is up to date before we use it for the trade
     _processManagerData(fill.managerData);
