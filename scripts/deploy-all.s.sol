@@ -6,6 +6,8 @@ import {Matching} from "../src/Matching.sol";
 import {DepositModule} from "../src/modules/DepositModule.sol";
 import {TradeModule} from "../src/modules/TradeModule.sol";
 import {TransferModule} from "../src/modules/TransferModule.sol";
+import {LiquidateModule} from "../src/modules/LiquidateModule.sol";
+import {RfqModule} from "../src/modules/RfqModule.sol";
 import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
 import {SubAccountCreator} from "../src/periphery/SubAccountCreator.sol";
 import {LyraSettlementUtils} from "../src/periphery/LyraSettlementUtils.sol";
@@ -49,15 +51,18 @@ contract DeployAll is Utils {
 
     deployment.deposit = new DepositModule(deployment.matching);
     deployment.trade = new TradeModule(deployment.matching, IAsset(config.cash), defaultFeeRecipient);
-    console2.log("trade address: ", address(deployment.trade));
     deployment.transfer = new TransferModule(deployment.matching);
     deployment.withdrawal = new WithdrawalModule(deployment.matching);
+    deployment.liquidate = new LiquidateModule(deployment.matching, DutchAuction(config.auction));
+    deployment.rfq = new RfqModule(deployment.matching, ICashAsset(config.cash), defaultFeeRecipient);
 
     // whitelist modules
     deployment.matching.setAllowedModule(address(deployment.deposit), true);
     deployment.matching.setAllowedModule(address(deployment.trade), true);
     deployment.matching.setAllowedModule(address(deployment.transfer), true);
     deployment.matching.setAllowedModule(address(deployment.withdrawal), true);
+    deployment.matching.setAllowedModule(address(deployment.liquidate), true);
+    deployment.matching.setAllowedModule(address(deployment.rfq), true);
 
     deployment.matching.setTradeExecutor(0xf00A105BC009eA3a250024cbe1DCd0509c71C52b, true);
 
@@ -95,6 +100,8 @@ contract DeployAll is Utils {
     vm.serializeAddress(objKey, "subAccountCreator", address(deployment.subAccountCreator));
     vm.serializeAddress(objKey, "settlementUtil", address(deployment.settlementUtil));
     vm.serializeAddress(objKey, "auctionUtil", address(deployment.auctionUtil));
+    vm.serializeAddress(objKey, "liquidate", address(deployment.liquidate));
+    vm.serializeAddress(objKey, "rfq", address(deployment.rfq));
 
     string memory finalObj = vm.serializeAddress(objKey, "withdrawal", address(deployment.withdrawal));
 

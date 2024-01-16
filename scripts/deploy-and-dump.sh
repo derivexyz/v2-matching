@@ -38,12 +38,12 @@ cp lib/v2-core/scripts/input/$chainId/config.json deployments/$chainId/shared.js
 
 # forge build
 forge script scripts/deploy-all.s.sol --rpc-url $ETH_RPC_URL --broadcast
-MARKET_NAME=ETH forge script scripts/add-perp-to-trade.s.sol --rpc-url $ETH_RPC_URL --broadcast
-MARKET_NAME=BTC forge script scripts/add-perp-to-trade.s.sol --rpc-url $ETH_RPC_URL --broadcast
-
-forge script scripts/deploy-rfq-liquidation.s.sol --rpc-url $ETH_RPC_URL --broadcast
+MARKET_NAME=ETH forge script scripts/add-perp-to-modules.s.sol --rpc-url $ETH_RPC_URL --broadcast
+MARKET_NAME=BTC forge script scripts/add-perp-to-modules.s.sol --rpc-url $ETH_RPC_URL --broadcast
 
 if [[ "$ETH_RPC_URL" =~ .*local.* ]]; then
+  forge script scripts/update-callees.s.sol --rpc-url $ETH_RPC_URL --broadcast
+
   # store output as file
   cast rpc anvil_dumpState > deployments/$chainId/state.txt
 fi

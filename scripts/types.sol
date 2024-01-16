@@ -9,9 +9,11 @@ import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
 import {SubAccountCreator} from "../src/periphery/SubAccountCreator.sol";
 import {LyraSettlementUtils} from "../src/periphery/LyraSettlementUtils.sol";
 import {LyraAuctionUtils} from "../src/periphery/LyraAuctionUtils.sol";
+import {RfqModule} from "../src/modules/RfqModule.sol";
+import {LiquidateModule} from "../src/modules/LiquidateModule.sol";
 
 
-  struct NetworkConfig {
+struct NetworkConfig {
   address subAccounts;
   address cash;
   address srm;
@@ -26,6 +28,8 @@ struct Deployment {
   TradeModule trade;
   TransferModule transfer;
   WithdrawalModule withdrawal;
+  LiquidateModule liquidate;
+  RfqModule rfq;
   // helper
   SubAccountCreator subAccountCreator;
   LyraSettlementUtils settlementUtil;
