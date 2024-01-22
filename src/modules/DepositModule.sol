@@ -40,10 +40,16 @@ contract DepositModule is IDepositModule, BaseModule {
     }
 
     IERC20Metadata depositToken = IERC20BasedAsset(data.asset).wrappedAsset();
-    depositToken.transferFrom(action.owner, address(this), data.amount);
 
-    depositToken.approve(address(data.asset), data.amount);
-    IERC20BasedAsset(data.asset).deposit(subaccountId, data.amount);
+    uint depositAmount = data.amount;
+    if (data.amount == type(uint).max) {
+      depositAmount = depositToken.balanceOf(action.owner);
+    }
+    
+    depositToken.transferFrom(action.owner, address(this), depositAmount);
+
+    depositToken.approve(address(data.asset), depositAmount);
+    IERC20BasedAsset(data.asset).deposit(subaccountId, depositAmount);
 
     // Return
     _returnAccounts(actions, newAccIds);
