@@ -45,7 +45,7 @@ contract DepositModule is IDepositModule, BaseModule {
     if (data.amount == type(uint).max) {
       depositAmount = depositToken.balanceOf(action.owner);
     }
-    
+
     depositToken.transferFrom(action.owner, address(this), depositAmount);
 
     depositToken.approve(address(data.asset), depositAmount);
