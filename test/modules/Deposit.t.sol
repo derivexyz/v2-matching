@@ -39,6 +39,34 @@ contract DepositModuleTest is MatchingBase {
     assertEq(uint(balanceDiff), deposit);
   }
 
+  function testDepositMax() public {
+    uint deposit = 10e18;
+    usdc.mint(cam, deposit);
+
+    // Create signed action for cash deposit
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
+    bytes[] memory signatures = new bytes[](1);
+
+    bytes memory depositData = _encodeDepositData(UINT256_MAX, address(cash), address(pmrm));
+    (actions[0], signatures[0]) =
+      _createActionAndSign(camAcc, 0, address(depositModule), depositData, block.timestamp + 1 days, cam, cam, camPk);
+
+    int camBalBefore = subAccounts.getBalance(camAcc, cash, 0);
+    IERC20Metadata cashToken = IERC20BasedAsset(address(cash)).wrappedAsset();
+    vm.startPrank(cam);
+    cashToken.approve(address(depositModule), deposit);
+    vm.stopPrank();
+
+    // Submit actions
+    _verifyAndMatch(actions, signatures, bytes(""));
+
+    int camBalAfter = subAccounts.getBalance(camAcc, cash, 0);
+    int balanceDiff = camBalAfter - camBalBefore;
+
+    // Assert balance change
+    assertEq(uint(balanceDiff), deposit);
+  }
+
   function testCannotCallDepositWithWrongActionLength() public {
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     bytes[] memory signatures = new bytes[](2);
