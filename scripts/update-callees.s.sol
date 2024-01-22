@@ -20,11 +20,14 @@ import {BaseManager} from "v2-core/src/risk-managers/BaseManager.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 
+import {LyraERC20} from "v2-core/src/l2/LyraERC20.sol";
+
 import "forge-std/console2.sol";
 import {Deployment, NetworkConfig} from "./types.sol";
 import {Utils} from "./utils.sol";
 
 
+/// @dev For local dev only
 contract UpdateCallees is Utils {
 
   /// @dev main function
@@ -36,6 +39,7 @@ contract UpdateCallees is Utils {
     address deployer = vm.addr(deployerPrivateKey);
     console2.log("deployer: ", deployer);
 
+    string memory shared = _readDeploymentFile("shared");
     string memory core = _readDeploymentFile("core");
     string memory ethMarket = _readDeploymentFile("ETH");
     string memory btcMarket = _readDeploymentFile("BTC");
@@ -76,6 +80,11 @@ contract UpdateCallees is Utils {
     WrappedERC20Asset(_getContract(usdtMarket, "base")).setTotalPositionCap(
       IManager(_getContract(core, "srm")), 100_000 ether
     );
+
+    LyraERC20(_getContract(shared, "usdc")).configureMinter(deployer, true);
+    LyraERC20(_getContract(shared, "eth")).configureMinter(deployer, true);
+    LyraERC20(_getContract(shared, "btc")).configureMinter(deployer, true);
+    LyraERC20(_getContract(shared, "usdt")).configureMinter(deployer, true);
 
     vm.stopBroadcast();
   }
