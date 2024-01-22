@@ -6,6 +6,7 @@ import {Matching} from "../src/Matching.sol";
 import {DepositModule} from "../src/modules/DepositModule.sol";
 import {TradeModule} from "../src/modules/TradeModule.sol";
 import {TransferModule} from "../src/modules/TransferModule.sol";
+import {RfqModule} from "../src/modules/RfqModule.sol";
 import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {PerpAsset} from "v2-core/src/assets/PerpAsset.sol";
@@ -17,7 +18,7 @@ import {Deployment, NetworkConfig} from "./types.sol";
 import {Utils} from "./utils.sol";
 
 
-contract AddPerpToTrade is Utils {
+contract AddPerpToModules is Utils {
 
   /// @dev main function
   function run() external {
@@ -29,6 +30,7 @@ contract AddPerpToTrade is Utils {
     console2.log("deployer: ", deployer);
 
     TradeModule trade = TradeModule(__getTradeAddress());
+    RfqModule rfq = RfqModule(__getTradeAddress());
 
     console2.log("trade address: ", address(trade));
 
@@ -39,6 +41,9 @@ contract AddPerpToTrade is Utils {
     console2.log(trade.owner());
 
     trade.setPerpAsset(IPerpAsset(perp), true);
+    rfq.setPerpAsset(IPerpAsset(perp), true);
+
+    vm.stopBroadcast();
   }
 
   /**
