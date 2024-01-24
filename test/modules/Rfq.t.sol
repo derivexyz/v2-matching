@@ -69,7 +69,23 @@ contract RfqModuleTest is MatchingBase {
       price: 400e18,
       amount: 2e18
     });
+
+    assertEq(subAccounts.getBalance(camAcc, cash, 0), int(cashDeposit));
+
     _submitRfqTrade(trades);
+
+    // option 1: paid 600
+    // option 2: received 600
+    // option 3: received 400
+    // option 4: paid 800
+    assertEq(subAccounts.getBalance(camAcc, cash, 0), int(cashDeposit) - 400e18);
+    assertEq(subAccounts.getBalance(dougAcc, cash, 0), int(cashDeposit) + 400e18);
+
+    assertEq(subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, true)), 2e18);
+    assertEq(subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, false)), -2e18);
+    assertEq(subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, true)), -2e18);
+    assertEq(subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, false)), 2e18);
+
   }
 
   function testFillPerpRfqOrder() public {
@@ -85,6 +101,21 @@ contract RfqModuleTest is MatchingBase {
     // cam receives 10 per perp, as the mark price is 10 under the perp price
     assertEq(subAccounts.getBalance(camAcc, cash, 0), int(cashDeposit) + 100e18);
   }
+
+  function testFillShortPerpRfqOrder() public {
+    mockPerp.setMockPerpPrice(1500e18, 1e18);
+
+    IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](1);
+    trades[0] = IRfqModule.TradeData({asset: address(mockPerp), subId: 0, price: 1490e18, amount: -10e18});
+    _submitRfqTrade(trades);
+
+    assertEq(subAccounts.getBalance(camAcc, mockPerp, 0), -10e18);
+    assertEq(subAccounts.getBalance(dougAcc, mockPerp, 0), 10e18);
+
+    // cam receives 10 per perp, as the mark price is 10 under the perp price
+    assertEq(subAccounts.getBalance(camAcc, cash, 0), int(cashDeposit) - 100e18);
+  }
+
 
   function testFillSameAssetMultipleTimes() public {
     weth.mint(address(this), 10e18);
