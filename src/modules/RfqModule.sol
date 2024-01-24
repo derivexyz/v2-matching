@@ -105,22 +105,19 @@ contract RfqModule is IRfqModule, BaseModule {
     // Total transfers = number of assets + 3 (cash transfer, maker fee, taker fee)
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](makerOrder.trades.length + 3);
 
-    int totalCashTransfer = 0;
-
-    IRfqModule.MatchedOrderData[] memory matchedOrders = new IRfqModule.MatchedOrderData[](makerOrder.trades.length);
+    int totalCashToTaker = 0;
 
     // Iterate over the trades in the order and sum total cash to transfer
     for (uint i = 0; i < makerOrder.trades.length; i++) {
       TradeData memory tradeData = makerOrder.trades[i];
 
-      int cashTransfer;
+      int price = tradeData.price.toInt256();
       if (isPerpAsset[IPerpAsset(tradeData.asset)]) {
-        int perpDelta = _getPerpDelta(tradeData.asset, tradeData.price);
-        cashTransfer = perpDelta.multiplyDecimal(tradeData.amount);
+        int perpDelta = _getPerpDelta(tradeData.asset, price);
+        totalCashToTaker += perpDelta.multiplyDecimal(tradeData.amount);
       } else {
-        cashTransfer = tradeData.price.multiplyDecimal(tradeData.amount);
+        totalCashToTaker += price.multiplyDecimal(tradeData.amount);
       }
-      totalCashTransfer += cashTransfer;
 
       transferBatch[i] = ISubAccounts.AssetTransfer({
         asset: IAsset(tradeData.asset),
@@ -130,20 +127,13 @@ contract RfqModule is IRfqModule, BaseModule {
         toAcc: fill.makerAccount,
         assetData: bytes32(0)
       });
-
-      matchedOrders[i] = IRfqModule.MatchedOrderData({
-        asset: tradeData.asset,
-        subId: tradeData.subId,
-        quoteAmt: cashTransfer,
-        baseAmt: tradeData.amount
-      });
     }
 
     // Transfer the total payment for the order
     transferBatch[transferBatch.length - 3] = ISubAccounts.AssetTransfer({
       asset: quoteAsset,
       subId: 0,
-      amount: totalCashTransfer,
+      amount: totalCashToTaker,
       fromAcc: fill.makerAccount,
       toAcc: fill.takerAccount,
       assetData: bytes32(0)
@@ -172,7 +162,7 @@ contract RfqModule is IRfqModule, BaseModule {
     // Execute all trades, no need to resubmit manager data
     subAccounts.submitTransfers(transferBatch, "");
 
-    emit RFQTradeCompleted(fill.makerAccount, fill.takerAccount, matchedOrders);
+    emit RFQTradeCompleted(fill.makerAccount, fill.takerAccount, makerOrder.trades);
     emit FeeCharged(fill.makerAccount, feeRecipient, fill.makerFee);
     emit FeeCharged(fill.takerAccount, feeRecipient, fill.takerFee);
 

@@ -20,7 +20,9 @@ interface IRfqModule is IBaseModule {
   struct TradeData {
     address asset;
     uint subId;
-    int price;
+    /// @dev The mark price for the asset traded. Always positive.
+    /// e.g. If opening a short, this will be paid to the seller/taken from the buyer
+    uint price;
     int amount;
   }
 
@@ -32,14 +34,7 @@ interface IRfqModule is IBaseModule {
     bytes managerData;
   }
 
-  struct MatchedOrderData {
-    address asset;
-    uint subId;
-    int quoteAmt;
-    int baseAmt;
-  }
-
-  event RFQTradeCompleted(uint indexed maker, uint indexed taker, MatchedOrderData[] trades);
+  event RFQTradeCompleted(uint indexed maker, uint indexed taker, TradeData[] trades);
   event FeeCharged(uint acc, uint recipient, uint takerFee);
 
   error RFQM_InvalidActionsLength();

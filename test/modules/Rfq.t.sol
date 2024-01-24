@@ -54,7 +54,7 @@ contract RfqModuleTest is MatchingBase {
     trades[1] = IRfqModule.TradeData({
       asset: address(option),
       subId: OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, false),
-      price: -300e18,
+      price: 300e18,
       amount: -2e18
     });
     trades[2] = IRfqModule.TradeData({
@@ -66,7 +66,7 @@ contract RfqModuleTest is MatchingBase {
     trades[3] = IRfqModule.TradeData({
       asset: address(option),
       subId: OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, false),
-      price: -400e18,
+      price: 400e18,
       amount: 2e18
     });
     _submitRfqTrade(trades);
