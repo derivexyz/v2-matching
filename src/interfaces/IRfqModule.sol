@@ -34,7 +34,15 @@ interface IRfqModule is IBaseModule {
     bytes managerData;
   }
 
-  event RFQTradeCompleted(uint indexed maker, uint indexed taker, TradeData[] trades);
+  struct MatchedOrderData {
+    address asset;
+    uint subId;
+    /// @dev Includes the perp price difference
+    int quoteAmt;
+    int baseAmt;
+  }
+
+  event RFQTradeCompleted(uint indexed maker, uint indexed taker, MatchedOrderData[] trades);
   event FeeCharged(uint acc, uint recipient, uint takerFee);
 
   error RFQM_InvalidActionsLength();

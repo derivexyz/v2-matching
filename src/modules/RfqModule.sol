@@ -105,19 +105,23 @@ contract RfqModule is IRfqModule, BaseModule {
     // Total transfers = number of assets + 3 (cash transfer, maker fee, taker fee)
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](makerOrder.trades.length + 3);
 
+    // For event
+    IRfqModule.MatchedOrderData[] memory matchedOrders = new IRfqModule.MatchedOrderData[](makerOrder.trades.length);
+
     int totalCashToTaker = 0;
 
     // Iterate over the trades in the order and sum total cash to transfer
     for (uint i = 0; i < makerOrder.trades.length; i++) {
       TradeData memory tradeData = makerOrder.trades[i];
 
-      int price = tradeData.price.toInt256();
+      int cashTransfer;
       if (isPerpAsset[IPerpAsset(tradeData.asset)]) {
-        int perpDelta = _getPerpDelta(tradeData.asset, price);
-        totalCashToTaker += perpDelta.multiplyDecimal(tradeData.amount);
+        int perpDelta = _getPerpDelta(tradeData.asset, tradeData.price.toInt256());
+        cashTransfer = perpDelta.multiplyDecimal(tradeData.amount);
       } else {
-        totalCashToTaker += price.multiplyDecimal(tradeData.amount);
+        cashTransfer = tradeData.price.toInt256().multiplyDecimal(tradeData.amount);
       }
+      totalCashToTaker += cashTransfer;
 
       transferBatch[i] = ISubAccounts.AssetTransfer({
         asset: IAsset(tradeData.asset),
@@ -126,6 +130,13 @@ contract RfqModule is IRfqModule, BaseModule {
         fromAcc: fill.takerAccount,
         toAcc: fill.makerAccount,
         assetData: bytes32(0)
+      });
+
+      matchedOrders[i] = IRfqModule.MatchedOrderData({
+        asset: tradeData.asset,
+        subId: tradeData.subId,
+        quoteAmt: cashTransfer,
+        baseAmt: tradeData.amount
       });
     }
 
@@ -162,7 +173,7 @@ contract RfqModule is IRfqModule, BaseModule {
     // Execute all trades, no need to resubmit manager data
     subAccounts.submitTransfers(transferBatch, "");
 
-    emit RFQTradeCompleted(fill.makerAccount, fill.takerAccount, makerOrder.trades);
+    emit RFQTradeCompleted(fill.makerAccount, fill.takerAccount, matchedOrders);
     emit FeeCharged(fill.makerAccount, feeRecipient, fill.makerFee);
     emit FeeCharged(fill.takerAccount, feeRecipient, fill.takerFee);
 

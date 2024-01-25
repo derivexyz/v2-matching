@@ -81,11 +81,18 @@ contract RfqModuleTest is MatchingBase {
     assertEq(subAccounts.getBalance(camAcc, cash, 0), int(cashDeposit) - 400e18);
     assertEq(subAccounts.getBalance(dougAcc, cash, 0), int(cashDeposit) + 400e18);
 
-    assertEq(subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, true)), 2e18);
-    assertEq(subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, false)), -2e18);
-    assertEq(subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, true)), -2e18);
-    assertEq(subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, false)), 2e18);
-
+    assertEq(
+      subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, true)), 2e18
+    );
+    assertEq(
+      subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, false)), -2e18
+    );
+    assertEq(
+      subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, true)), -2e18
+    );
+    assertEq(
+      subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, false)), 2e18
+    );
   }
 
   function testFillPerpRfqOrder() public {
@@ -115,7 +122,6 @@ contract RfqModuleTest is MatchingBase {
     // cam receives 10 per perp, as the mark price is 10 under the perp price
     assertEq(subAccounts.getBalance(camAcc, cash, 0), int(cashDeposit) - 100e18);
   }
-
 
   function testFillSameAssetMultipleTimes() public {
     weth.mint(address(this), 10e18);
