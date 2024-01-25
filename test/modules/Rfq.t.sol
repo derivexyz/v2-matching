@@ -52,30 +52,10 @@ contract RfqModuleTest is MatchingBase {
     boxSubIds[3] = OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, false);
 
     IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](4);
-    trades[0] = IRfqModule.TradeData({
-      asset: address(option),
-      subId: boxSubIds[0],
-      price: 300e18,
-      amount: 2e18
-    });
-    trades[1] = IRfqModule.TradeData({
-      asset: address(option),
-      subId: boxSubIds[1],
-      price: 300e18,
-      amount: -2e18
-    });
-    trades[2] = IRfqModule.TradeData({
-      asset: address(option),
-      subId: boxSubIds[2],
-      price: 200e18,
-      amount: -2e18
-    });
-    trades[3] = IRfqModule.TradeData({
-      asset: address(option),
-      subId: boxSubIds[3],
-      price: 400e18,
-      amount: 2e18
-    });
+    trades[0] = IRfqModule.TradeData({asset: address(option), subId: boxSubIds[0], price: 300e18, amount: 2e18});
+    trades[1] = IRfqModule.TradeData({asset: address(option), subId: boxSubIds[1], price: 300e18, amount: -2e18});
+    trades[2] = IRfqModule.TradeData({asset: address(option), subId: boxSubIds[2], price: 200e18, amount: -2e18});
+    trades[3] = IRfqModule.TradeData({asset: address(option), subId: boxSubIds[3], price: 400e18, amount: 2e18});
 
     assertEq(subAccounts.getBalance(camAcc, cash, 0), int(cashDeposit));
 
