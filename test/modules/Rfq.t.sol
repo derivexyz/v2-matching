@@ -44,28 +44,35 @@ contract RfqModuleTest is MatchingBase {
   }
 
   function testFillOptionBox() public {
+    uint96[] memory boxSubIds = new uint96[](4);
+
+    boxSubIds[0] = OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, true);
+    boxSubIds[1] = OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, false);
+    boxSubIds[2] = OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, true);
+    boxSubIds[3] = OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, false);
+
     IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](4);
     trades[0] = IRfqModule.TradeData({
       asset: address(option),
-      subId: OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, true),
+      subId: boxSubIds[0],
       price: 300e18,
       amount: 2e18
     });
     trades[1] = IRfqModule.TradeData({
       asset: address(option),
-      subId: OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, false),
+      subId: boxSubIds[1],
       price: 300e18,
       amount: -2e18
     });
     trades[2] = IRfqModule.TradeData({
       asset: address(option),
-      subId: OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, true),
+      subId: boxSubIds[2],
       price: 200e18,
       amount: -2e18
     });
     trades[3] = IRfqModule.TradeData({
       asset: address(option),
-      subId: OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, false),
+      subId: boxSubIds[3],
       price: 400e18,
       amount: 2e18
     });
@@ -81,18 +88,10 @@ contract RfqModuleTest is MatchingBase {
     assertEq(subAccounts.getBalance(camAcc, cash, 0), int(cashDeposit) - 400e18);
     assertEq(subAccounts.getBalance(dougAcc, cash, 0), int(cashDeposit) + 400e18);
 
-    assertEq(
-      subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, true)), 2e18
-    );
-    assertEq(
-      subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1500e18, false)), -2e18
-    );
-    assertEq(
-      subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, true)), -2e18
-    );
-    assertEq(
-      subAccounts.getBalance(camAcc, option, OptionEncoding.toSubId(block.timestamp + 1 weeks, 1700e18, false)), 2e18
-    );
+    assertEq(subAccounts.getBalance(camAcc, option, boxSubIds[0]), 2e18);
+    assertEq(subAccounts.getBalance(camAcc, option, boxSubIds[1]), -2e18);
+    assertEq(subAccounts.getBalance(camAcc, option, boxSubIds[2]), -2e18);
+    assertEq(subAccounts.getBalance(camAcc, option, boxSubIds[3]), 2e18);
   }
 
   function testFillPerpRfqOrder() public {
