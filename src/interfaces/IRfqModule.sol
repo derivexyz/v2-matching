@@ -20,7 +20,9 @@ interface IRfqModule is IBaseModule {
   struct TradeData {
     address asset;
     uint subId;
-    int price;
+    /// @dev The mark price for the asset traded. Always positive.
+    /// e.g. If opening a short, this will be paid to the seller/taken from the buyer
+    uint price;
     int amount;
   }
 
@@ -35,6 +37,7 @@ interface IRfqModule is IBaseModule {
   struct MatchedOrderData {
     address asset;
     uint subId;
+    /// @dev Includes the perp price difference
     int quoteAmt;
     int baseAmt;
   }

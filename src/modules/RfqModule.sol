@@ -105,9 +105,10 @@ contract RfqModule is IRfqModule, BaseModule {
     // Total transfers = number of assets + 3 (cash transfer, maker fee, taker fee)
     ISubAccounts.AssetTransfer[] memory transferBatch = new ISubAccounts.AssetTransfer[](makerOrder.trades.length + 3);
 
-    int totalCashTransfer = 0;
-
+    // For event
     IRfqModule.MatchedOrderData[] memory matchedOrders = new IRfqModule.MatchedOrderData[](makerOrder.trades.length);
+
+    int totalCashToTaker = 0;
 
     // Iterate over the trades in the order and sum total cash to transfer
     for (uint i = 0; i < makerOrder.trades.length; i++) {
@@ -115,12 +116,12 @@ contract RfqModule is IRfqModule, BaseModule {
 
       int cashTransfer;
       if (isPerpAsset[IPerpAsset(tradeData.asset)]) {
-        int perpDelta = _getPerpDelta(tradeData.asset, tradeData.price);
+        int perpDelta = _getPerpDelta(tradeData.asset, tradeData.price.toInt256());
         cashTransfer = perpDelta.multiplyDecimal(tradeData.amount);
       } else {
-        cashTransfer = tradeData.price.multiplyDecimal(tradeData.amount);
+        cashTransfer = tradeData.price.toInt256().multiplyDecimal(tradeData.amount);
       }
-      totalCashTransfer += cashTransfer;
+      totalCashToTaker += cashTransfer;
 
       transferBatch[i] = ISubAccounts.AssetTransfer({
         asset: IAsset(tradeData.asset),
@@ -143,7 +144,7 @@ contract RfqModule is IRfqModule, BaseModule {
     transferBatch[transferBatch.length - 3] = ISubAccounts.AssetTransfer({
       asset: quoteAsset,
       subId: 0,
-      amount: totalCashTransfer,
+      amount: totalCashToTaker,
       fromAcc: fill.makerAccount,
       toAcc: fill.takerAccount,
       assetData: bytes32(0)
