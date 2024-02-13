@@ -4,13 +4,13 @@ pragma solidity ^0.8.0;
 import "forge-std/console2.sol";
 import {Utils} from "./utils.sol";
 import "v2-core/src/assets/WrappedERC20Asset.sol";
+import "v2-core/src/l2/LyraERC20.sol";
 
 
-contract DeploySettlementUtils is Utils {
+contract DeployBaseAsset is Utils {
   /// @dev main function
   function run() external {
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-    address erc20Address = vm.envAddress("ERC20_ADDRESS");
 
     vm.startBroadcast(deployerPrivateKey);
 
@@ -22,9 +22,10 @@ contract DeploySettlementUtils is Utils {
     address subAccounts = abi.decode(vm.parseJson(file, ".subAccounts"), (address));
 
     // constructor(ISubAccounts _subAccounts, IERC20Metadata _wrappedAsset)
-    WrappedERC20Asset wrappedERC20Asset = new WrappedERC20Asset(ISubAccounts(subAccounts), IERC20Metadata(erc20Address));
+    LyraERC20 erc20 = new LyraERC20("Synthetix Network Token", "SNX", 18);
+//    WrappedERC20Asset wrappedERC20Asset = new WrappedERC20Asset(ISubAccounts(subAccounts), IERC20Metadata(erc20Address));
 
-    console2.log("ERC20 address: ", erc20Address);
-    console2.log("WrappedERC20Asset: ", address(wrappedERC20Asset));
+    console2.log("ERC20 address: ", address(erc20));
+//    console2.log("WrappedERC20Asset: ", address(wrappedERC20Asset));
   }
 }

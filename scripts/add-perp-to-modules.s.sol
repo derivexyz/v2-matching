@@ -30,7 +30,7 @@ contract AddPerpToModules is Utils {
     console2.log("deployer: ", deployer);
 
     TradeModule trade = TradeModule(__getTradeAddress());
-    RfqModule rfq = RfqModule(__getTradeAddress());
+    RfqModule rfq = RfqModule(__getRfqAddress());
 
     console2.log("trade address: ", address(trade));
 
@@ -51,6 +51,10 @@ contract AddPerpToModules is Utils {
    */
   function __getTradeAddress() internal returns (address) {
     return abi.decode(vm.parseJson(_readDeploymentFile("matching"), ".trade"), (address));
+  }
+
+  function __getRfqAddress() internal returns (address) {
+    return abi.decode(vm.parseJson(_readDeploymentFile("matching"), ".rfq"), (address));
   }
 
   /**
