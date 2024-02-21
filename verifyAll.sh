@@ -44,6 +44,8 @@ matching_contracts=(
   "trade ./src/modules/TradeModule.sol"
   "transfer ./src/modules/TransferModule.sol"
   "withdrawal ./src/modules/WithdrawalModule.sol"
+  "liquidate ./src/modules/LiquidateModule.sol"
+  "rfq ./src/modules/RfqModule.sol"
 )
 
 
@@ -58,6 +60,9 @@ cd ./lib/v2-core
 # Core
 echo "Core"
 
+# TODO: handle individual ERC20s nicer
+#forge verify-contract --verifier blockscout --verifier-url "$explorer" "0xE4e6F3feeAD9C3714F3c9380F91CB56E04F7297E" "./src/l2/LyraERC20.sol:LyraERC20"
+
 
 for tuple in "${core_contracts[@]}"; do
   name=$(echo "$tuple" | cut -d' ' -f1)
@@ -71,7 +76,13 @@ for tuple in "${core_contracts[@]}"; do
   # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ../../verification/"${name}".json
 done
 
-for market in "ETH" "BTC"; do
+# TODO: markets have different sets of contracts
+for market in
+  "ETH"
+  "BTC"
+  "USDT"
+  "SNX"
+; do
   echo $market
 
   for tuple in "${market_contracts[@]}"; do

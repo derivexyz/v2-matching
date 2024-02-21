@@ -27,6 +27,7 @@ MARKET_NAME=ETH forge script scripts/deploy-market.s.sol --rpc-url $ETH_RPC_URL 
 MARKET_NAME=BTC forge script scripts/deploy-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
 MARKET_NAME=USDT forge script scripts/deploy-base-only-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
 MARKET_NAME=SNX forge script scripts/deploy-srm-option-only-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
+#MARKET_NAME=WSTETH forge script scripts/deploy-base-only-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
 
 # Deploy matching contracts
 cd ../../
@@ -36,6 +37,7 @@ cp lib/v2-core/deployments/$chainId/ETH.json deployments/$chainId/ETH.json
 cp lib/v2-core/deployments/$chainId/BTC.json deployments/$chainId/BTC.json
 cp lib/v2-core/deployments/$chainId/USDT.json deployments/$chainId/USDT.json
 cp lib/v2-core/deployments/$chainId/SNX.json deployments/$chainId/SNX.json
+#cp lib/v2-core/deployments/$chainId/SNX.json deployments/$chainId/WSTETH.json
 cp lib/v2-core/scripts/input/$chainId/config.json deployments/$chainId/shared.json
 
 # forge build
