@@ -63,5 +63,19 @@ contract FeeSplitterTest is IntegrationTestBase {
     assertEq(
       subAccounts.getBalance(accountB, cash, 0), int(50e18), "Account B should have half of the funds after split"
     );
+
+    vm.expectRevert(FeeSplitter.FS_NoBalanceToSplit.selector);
+    feeSplitter.split();
+  }
+
+  function test_recover() public {
+    uint oldSubAcc = feeSplitter.subAcc();
+    feeSplitter.recoverSubAccount(address(this));
+    uint newSubAcc = feeSplitter.subAcc();
+    assertEq(
+      subAccounts.ownerOf(newSubAcc), address(feeSplitter), "New subAcc should be owned by fee splitter contract"
+    );
+    assertEq(subAccounts.ownerOf(oldSubAcc), address(this), "Old subAcc should be owned by this contract");
+    assertFalse(oldSubAcc == newSubAcc);
   }
 }

@@ -11,9 +11,9 @@ contract FeeSplitter is Ownable2Step {
 
   ISubAccounts public immutable subAccounts;
   IAsset public immutable cashAsset;
-  uint public immutable subAcc;
 
-  uint public splitPercent;
+  uint public subAcc;
+  uint public splitPercent = 0.5e18;
   uint public accountA;
   uint public accountB;
 
@@ -32,15 +32,23 @@ contract FeeSplitter is Ownable2Step {
       revert FS_InvalidSplitPercentage();
     }
     splitPercent = _splitPercent;
+
+    emit SplitPercentSet(_splitPercent);
   }
 
   function setSubAccounts(uint _accountA, uint _accountB) external onlyOwner {
     accountA = _accountA;
     accountB = _accountB;
+
+    emit SubAccountsSet(_accountA, _accountB);
   }
 
   function recoverSubAccount(address recipient) external onlyOwner {
-    subAccounts.transferFrom(address(this), recipient, subAcc);
+    uint oldSubAcc = subAcc;
+    subAccounts.transferFrom(address(this), recipient, oldSubAcc);
+    subAcc = subAccounts.createAccount(address(this), subAccounts.manager(oldSubAcc));
+
+    emit SubAccountRecovered(oldSubAcc, recipient, subAcc);
   }
 
   //////////////
@@ -48,48 +56,49 @@ contract FeeSplitter is Ownable2Step {
   //////////////
   /// @notice Work out the balance of the subaccount held by this contract, and split it based on the % split
   function split() external {
-    ISubAccounts.AssetBalance[] memory balances = subAccounts.getAccountBalances(subAcc);
+    int balance = subAccounts.getBalance(subAcc, cashAsset, 0);
 
-    for (uint i = 0; i < balances.length; i++) {
-      IAsset asset = balances[i].asset;
-
-      if (asset != cashAsset) {
-        continue;
-      }
-
-      int balance = balances[i].balance;
-
-      if (balance <= 0) {
-        return;
-      }
-
-      int splitAmountA = balance.multiplyDecimal(int(splitPercent));
-      int splitAmountB = balance - splitAmountA;
-
-      ISubAccounts.AssetTransfer[] memory transfers = new ISubAccounts.AssetTransfer[](2);
-      transfers[0] = ISubAccounts.AssetTransfer({
-        fromAcc: subAcc,
-        toAcc: accountA,
-        asset: cashAsset,
-        subId: 0,
-        amount: int(splitAmountA),
-        assetData: bytes32(0)
-      });
-      transfers[1] = ISubAccounts.AssetTransfer({
-        fromAcc: subAcc,
-        toAcc: accountB,
-        asset: cashAsset,
-        subId: 0,
-        amount: int(splitAmountB),
-        assetData: bytes32(0)
-      });
-
-      subAccounts.submitTransfers(transfers, "");
+    if (balance <= 0) {
+      revert FS_NoBalanceToSplit();
     }
+
+    int splitAmountA = balance.multiplyDecimal(int(splitPercent));
+    int splitAmountB = balance - splitAmountA;
+
+    ISubAccounts.AssetTransfer[] memory transfers = new ISubAccounts.AssetTransfer[](2);
+    transfers[0] = ISubAccounts.AssetTransfer({
+      fromAcc: subAcc,
+      toAcc: accountA,
+      asset: cashAsset,
+      subId: 0,
+      amount: int(splitAmountA),
+      assetData: bytes32(0)
+    });
+    transfers[1] = ISubAccounts.AssetTransfer({
+      fromAcc: subAcc,
+      toAcc: accountB,
+      asset: cashAsset,
+      subId: 0,
+      amount: int(splitAmountB),
+      assetData: bytes32(0)
+    });
+
+    subAccounts.submitTransfers(transfers, "");
+
+    emit BalanceSplit(subAcc, accountA, accountB, splitAmountA, splitAmountB);
   }
 
   ////////////
   // Errors //
   ////////////
   error FS_InvalidSplitPercentage();
+  error FS_NoBalanceToSplit();
+
+  ////////////
+  // Events //
+  ////////////
+  event SplitPercentSet(uint splitPercent);
+  event SubAccountsSet(uint accountA, uint accountB);
+  event SubAccountRecovered(uint oldSubAcc, address recipient, uint newSubAcc);
+  event BalanceSplit(uint subAcc, uint accountA, uint accountB, int splitAmountA, int splitAmountB);
 }
