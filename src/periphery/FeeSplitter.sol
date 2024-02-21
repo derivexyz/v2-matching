@@ -1,33 +1,46 @@
 pragma solidity ^0.8.18;
 
+import "lyra-utils/decimals/SignedDecimalMath.sol";
+
 import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
-import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
+import {ISubAccounts, IAsset} from "v2-core/src/interfaces/ISubAccounts.sol";
 
 contract FeeSplitter is Ownable2Step {
-  ISubAccounts public immutable subAccounts;
-  uint public immutable subAcc;
-  uint private splitPercent;
-  uint private accountA;
-  uint private accountB;
+  using SignedDecimalMath for int;
 
-  constructor(ISubAccounts _subAccounts, IManager manager) {
+  ISubAccounts public immutable subAccounts;
+  IAsset public immutable cashAsset;
+  uint public immutable subAcc;
+
+  uint public splitPercent;
+  uint public accountA;
+  uint public accountB;
+
+  constructor(ISubAccounts _subAccounts, IManager manager, IAsset _cashAsset) {
     subAccounts = _subAccounts;
     subAcc = _subAccounts.createAccount(address(this), manager);
+    cashAsset = _cashAsset;
   }
 
   ///////////
   // Admin //
   ///////////
 
-  function setSplit(uint splitPercent) external onlyOwner {
-    require(_splitPercent <= 100, "Invalid percentage");
+  function setSplit(uint _splitPercent) external onlyOwner {
+    if (_splitPercent > 1e18) {
+      revert FS_InvalidSplitPercentage();
+    }
     splitPercent = _splitPercent;
   }
 
   function setSubAccounts(uint _accountA, uint _accountB) external onlyOwner {
     accountA = _accountA;
     accountB = _accountB;
+  }
+
+  function recoverSubAccount(address recipient) external onlyOwner {
+    subAccounts.transferFrom(address(this), recipient, subAcc);
   }
 
   //////////////
@@ -38,34 +51,45 @@ contract FeeSplitter is Ownable2Step {
     ISubAccounts.AssetBalance[] memory balances = subAccounts.getAccountBalances(subAcc);
 
     for (uint i = 0; i < balances.length; i++) {
-        IAsset asset = balances[i].asset;
-        uint subId = balances[i].subId;
-        int balance = balances[i].balance;
+      IAsset asset = balances[i].asset;
 
-        if (balance > 0) {
-            uint splitAmountA = uint(balance) * splitPercent / 100;
-            uint splitAmountB = uint(balance) - splitAmountA;
+      if (asset != cashAsset) {
+        continue;
+      }
 
-            ISubAccounts.AssetTransfer[] memory transfers = new ISubAccounts.AssetTransfer[](2);
-            transfers[0] = ISubAccounts.AssetTransfer({
-                fromAcc: subAcc,
-                toAcc: accountA,
-                asset: asset,
-                subId: subId,
-                amount: int(splitAmountA),
-                assetData: bytes32(0)
-            });
-            transfers[1] = ISubAccounts.AssetTransfer({
-                fromAcc: subAcc,
-                toAcc: accountB,
-                asset: asset,
-                subId: subId,
-                amount: int(splitAmountB),
-                assetData: bytes32(0)
-            });
+      int balance = balances[i].balance;
 
-            subAccounts.submitTransfers(transfers, "");
-        }
+      if (balance <= 0) {
+        return;
+      }
+
+      int splitAmountA = balance.multiplyDecimal(int(splitPercent));
+      int splitAmountB = balance - splitAmountA;
+
+      ISubAccounts.AssetTransfer[] memory transfers = new ISubAccounts.AssetTransfer[](2);
+      transfers[0] = ISubAccounts.AssetTransfer({
+          fromAcc: subAcc,
+          toAcc: accountA,
+          asset: cashAsset,
+          subId: 0,
+          amount: int(splitAmountA),
+          assetData: bytes32(0)
+      });
+      transfers[1] = ISubAccounts.AssetTransfer({
+          fromAcc: subAcc,
+          toAcc: accountB,
+          asset: cashAsset,
+          subId: 0,
+          amount: int(splitAmountB),
+          assetData: bytes32(0)
+      });
+
+      subAccounts.submitTransfers(transfers, "");
     }
   }
+
+  ////////////
+  // Errors //
+  ////////////
+  error FS_InvalidSplitPercentage();
 }
