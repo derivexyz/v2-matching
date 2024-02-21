@@ -29,16 +29,39 @@ contract FeeSplitterTest is IntegrationTestBase {
     cash.deposit(feeSplitter.subAcc(), amount);
   }
 
+  function test_constructor() public {
+    assertEq(address(feeSplitter.subAccounts()), address(subAccounts), "Incorrect subAccounts");
+    assertEq(address(feeSplitter.cashAsset()), address(cash), "Incorrect cashAsset");
+    assertFalse(feeSplitter.subAcc() == 0, "Incorrect subAcc");
+    assertEq(feeSplitter.splitPercent(), 0.5e18, "Incorrect splitPercent");
+    assertEq(feeSplitter.accountA(), accountA, "Incorrect accountA");
+    assertEq(feeSplitter.accountB(), accountB, "Incorrect accountB");
+  }
+
+  function test_setSplit() public {
+    feeSplitter.setSplit(0.6e18);
+    assertEq(feeSplitter.splitPercent(), 0.6e18, "Incorrect splitPercent");
+
+    vm.expectRevert(FeeSplitter.FS_InvalidSplitPercentage.selector);
+    feeSplitter.setSplit(1.1e18);
+  }
+
   function test_split() public {
     // before split
-    assertEq(subAccounts.getBalance(feeSplitter.subAcc(), cash, 0), int(100e18), "Incorrect initial balance in FeeSplitter");
+    assertEq(
+      subAccounts.getBalance(feeSplitter.subAcc(), cash, 0), int(100e18), "Incorrect initial balance in FeeSplitter"
+    );
     assertEq(subAccounts.getBalance(accountA, cash, 0), 0, "Account A should initially have 0 balance");
     assertEq(subAccounts.getBalance(accountB, cash, 0), 0, "Account B should initially have 0 balance");
 
     feeSplitter.split();
 
     // after split
-    assertEq(subAccounts.getBalance(accountA, cash, 0), int(50e18), "Account A should have half of the funds after split");
-    assertEq(subAccounts.getBalance(accountB, cash, 0), int(50e18), "Account B should have half of the funds after split");
+    assertEq(
+      subAccounts.getBalance(accountA, cash, 0), int(50e18), "Account A should have half of the funds after split"
+    );
+    assertEq(
+      subAccounts.getBalance(accountB, cash, 0), int(50e18), "Account B should have half of the funds after split"
+    );
   }
 }

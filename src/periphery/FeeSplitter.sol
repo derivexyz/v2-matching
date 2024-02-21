@@ -68,20 +68,20 @@ contract FeeSplitter is Ownable2Step {
 
       ISubAccounts.AssetTransfer[] memory transfers = new ISubAccounts.AssetTransfer[](2);
       transfers[0] = ISubAccounts.AssetTransfer({
-          fromAcc: subAcc,
-          toAcc: accountA,
-          asset: cashAsset,
-          subId: 0,
-          amount: int(splitAmountA),
-          assetData: bytes32(0)
+        fromAcc: subAcc,
+        toAcc: accountA,
+        asset: cashAsset,
+        subId: 0,
+        amount: int(splitAmountA),
+        assetData: bytes32(0)
       });
       transfers[1] = ISubAccounts.AssetTransfer({
-          fromAcc: subAcc,
-          toAcc: accountB,
-          asset: cashAsset,
-          subId: 0,
-          amount: int(splitAmountB),
-          assetData: bytes32(0)
+        fromAcc: subAcc,
+        toAcc: accountB,
+        asset: cashAsset,
+        subId: 0,
+        amount: int(splitAmountB),
+        assetData: bytes32(0)
       });
 
       subAccounts.submitTransfers(transfers, "");
