@@ -17,9 +17,9 @@ contract DeployBaseAsset is Utils {
     address deployer = vm.addr(deployerPrivateKey);
     console2.log("deployer: ", deployer);
 
-    string memory file = _readDeploymentFile("core");
+//    string memory file = _readDeploymentFile("core");
 
-    address subAccounts = abi.decode(vm.parseJson(file, ".subAccounts"), (address));
+//    address subAccounts = abi.decode(vm.parseJson(file, ".subAccounts"), (address));
 
     // constructor(ISubAccounts _subAccounts, IERC20Metadata _wrappedAsset)
     LyraERC20 erc20 = new LyraERC20("Synthetix Network Token", "SNX", 18);
