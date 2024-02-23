@@ -20,9 +20,7 @@ contract FeeSplitterTest is IntegrationTestBase {
     accountA = subAccounts.createAccount(address(this), srm);
     accountB = subAccounts.createAccount(address(this), markets["weth"].pmrm);
 
-    feeSplitter = new FeeSplitter(subAccounts, srm, cash);
-    feeSplitter.setSubAccounts(accountA, accountB);
-    feeSplitter.setSplit(0.5e18);
+    feeSplitter = new FeeSplitter(subAccounts, srm, cash, 0.5e18, accountA, accountB);
     uint amount = 100e6;
     usdc.mint(address(this), amount);
     usdc.approve(address(cash), amount);
@@ -77,5 +75,39 @@ contract FeeSplitterTest is IntegrationTestBase {
     );
     assertEq(subAccounts.ownerOf(oldSubAcc), address(this), "Old subAcc should be owned by this contract");
     assertFalse(oldSubAcc == newSubAcc);
+  }
+
+  function test_split100percent() public {
+    feeSplitter.setSplit(1e18);
+    feeSplitter.split();
+    assertEq(
+      subAccounts.getBalance(accountA, cash, 0), int(100e18), "Account A should have all of the funds after split"
+    );
+    assertEq(
+      subAccounts.getBalance(accountB, cash, 0), 0, "Account B should have 0 balance after split"
+    );
+  }
+
+  function test_split0percent() public {
+    feeSplitter.setSplit(0);
+    feeSplitter.split();
+    assertEq(
+      subAccounts.getBalance(accountA, cash, 0), 0, "Account A should have 0 balance after split"
+    );
+    assertEq(
+      subAccounts.getBalance(accountB, cash, 0), int(100e18), "Account B should have all of the funds after split"
+    );
+  }
+
+  function test_setSubAccounts() public {
+    feeSplitter.setSubAccounts(accountB, accountA);
+    assertEq(feeSplitter.accountA(), accountB, "Incorrect accountA");
+    assertEq(feeSplitter.accountB(), accountA, "Incorrect accountB");
+
+    vm.expectRevert(FeeSplitter.FS_InvalidSubAccount.selector);
+    feeSplitter.setSubAccounts(0, accountA);
+
+    vm.expectRevert(FeeSplitter.FS_InvalidSubAccount.selector);
+    feeSplitter.setSubAccounts(accountB, 0);
   }
 }

@@ -18,14 +18,24 @@ contract FeeSplitter is Ownable2Step {
   IAsset public immutable cashAsset;
 
   uint public subAcc;
-  uint public splitPercent = 0.5e18;
+  uint public splitPercent;
   uint public accountA;
   uint public accountB;
 
-  constructor(ISubAccounts _subAccounts, IManager manager, IAsset _cashAsset) {
+  constructor(
+    ISubAccounts _subAccounts,
+    IManager manager,
+    IAsset _cashAsset,
+    uint _splitPercent,
+    uint _accountA,
+    uint _accountB
+  ) {
     subAccounts = _subAccounts;
     subAcc = _subAccounts.createAccount(address(this), manager);
     cashAsset = _cashAsset;
+
+    _setSplit(_splitPercent);
+    _setSubAccounts(_accountA, _accountB);
   }
 
   ///////////
@@ -34,6 +44,10 @@ contract FeeSplitter is Ownable2Step {
 
   /// @notice Set the % split
   function setSplit(uint _splitPercent) external onlyOwner {
+    _setSplit(_splitPercent);
+  }
+
+  function _setSplit(uint _splitPercent) internal {
     if (_splitPercent > 1e18) {
       revert FS_InvalidSplitPercentage();
     }
@@ -44,6 +58,14 @@ contract FeeSplitter is Ownable2Step {
 
   /// @notice Set the subaccounts to split the balance between
   function setSubAccounts(uint _accountA, uint _accountB) external onlyOwner {
+    _setSubAccounts(_accountA, _accountB);
+  }
+
+  function _setSubAccounts(uint _accountA, uint _accountB) internal {
+    if (_accountA == 0 || _accountB == 0) {
+      revert FS_InvalidSubAccount();
+    }
+
     accountA = _accountA;
     accountB = _accountB;
 
@@ -100,6 +122,7 @@ contract FeeSplitter is Ownable2Step {
   // Errors //
   ////////////
   error FS_InvalidSplitPercentage();
+  error FS_InvalidSubAccount();
   error FS_NoBalanceToSplit();
 
   ////////////
