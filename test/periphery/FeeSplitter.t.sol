@@ -83,17 +83,13 @@ contract FeeSplitterTest is IntegrationTestBase {
     assertEq(
       subAccounts.getBalance(accountA, cash, 0), int(100e18), "Account A should have all of the funds after split"
     );
-    assertEq(
-      subAccounts.getBalance(accountB, cash, 0), 0, "Account B should have 0 balance after split"
-    );
+    assertEq(subAccounts.getBalance(accountB, cash, 0), 0, "Account B should have 0 balance after split");
   }
 
   function test_split0percent() public {
     feeSplitter.setSplit(0);
     feeSplitter.split();
-    assertEq(
-      subAccounts.getBalance(accountA, cash, 0), 0, "Account A should have 0 balance after split"
-    );
+    assertEq(subAccounts.getBalance(accountA, cash, 0), 0, "Account A should have 0 balance after split");
     assertEq(
       subAccounts.getBalance(accountB, cash, 0), int(100e18), "Account B should have all of the funds after split"
     );
