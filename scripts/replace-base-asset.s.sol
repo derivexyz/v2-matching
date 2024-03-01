@@ -22,8 +22,8 @@ contract DeployBaseAsset is Utils {
 //    address subAccounts = abi.decode(vm.parseJson(file, ".subAccounts"), (address));
 
     // constructor(ISubAccounts _subAccounts, IERC20Metadata _wrappedAsset)
-    LyraERC20 erc20 = new LyraERC20("Synthetix Network Token", "SNX", 18);
-//    WrappedERC20Asset wrappedERC20Asset = new WrappedERC20Asset(ISubAccounts(subAccounts), IERC20Metadata(erc20Address));
+    LyraERC20 erc20 = new LyraERC20("Wrapped liquid staked Ether 2.0", "WstETH", 18);
+    // WrappedERC20Asset wrappedERC20Asset = new WrappedERC20Asset(ISubAccounts(subAccounts), IERC20Metadata(address(erc20)));
 
     console2.log("ERC20 address: ", address(erc20));
 //    console2.log("WrappedERC20Asset: ", address(wrappedERC20Asset));
