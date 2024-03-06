@@ -61,59 +61,67 @@ cd ./lib/v2-core
 echo "Core"
 
 # TODO: handle individual ERC20s nicer
-#forge verify-contract --verifier blockscout --verifier-url "$explorer" "0xE4e6F3feeAD9C3714F3c9380F91CB56E04F7297E" "./src/l2/LyraERC20.sol:LyraERC20"
-
-
-for tuple in "${core_contracts[@]}"; do
-  name=$(echo "$tuple" | cut -d' ' -f1)
-  filepath=$(echo "$tuple" | cut -d' ' -f2)
-  filename=$(basename "$filepath")
-  contract="${filename%.sol}"
-  # shellcheck disable=SC2046
-  address=$(cat ../../deployments/${chainId}/core.json | jq -r -c ".$name")
-  echo "$address" "$name"
-  forge verify-contract --verifier blockscout --verifier-url "$explorer" "${address}" "${filepath}:${contract}"
-  # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ../../verification/"${name}".json
-done
-
-# TODO: markets have different sets of contracts
-for market in
-  "ETH"
-  "BTC"
-  "USDT"
-  "SNX"
-; do
-  echo $market
-
-  for tuple in "${market_contracts[@]}"; do
-    name=$(echo "$tuple" | cut -d' ' -f1)
-    filepath=$(echo "$tuple" | cut -d' ' -f2)
-    filename=$(basename "$filepath")
-    contract="${filename%.sol}"
-    # shellcheck disable=SC2046
-    address=$(cat ../../deployments/${chainId}/${market}.json | jq -r -c ".$name")
-    echo "$address" "$name"
-    forge verify-contract --verifier blockscout --verifier-url "$explorer" "${address}" "${filepath}:${contract}"
-    # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ../../verification/"${name}".json
-  done
-done
-
-######################
-# Matching contracts #
-######################
-
-cd ../..
-
-echo "Matching"
-
-for tuple in "${matching_contracts[@]}"; do
-  name=$(echo "$tuple" | cut -d' ' -f1)
-  filepath=$(echo "$tuple" | cut -d' ' -f2)
-  filename=$(basename "$filepath")
-  contract="${filename%.sol}"
-  # shellcheck disable=SC2046
-  address=$(cat ./deployments/${chainId}/matching.json | jq -r -c ".$name")
-  echo "$address" "$name"
-  forge verify-contract --verifier blockscout --verifier-url "$explorer" "${address}" "${filepath}:${contract}"
-  # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ./verification/"${name}".json
-done
+forge verify-contract --verifier blockscout --verifier-url "$explorer" "0x954bE1803546150bfd887c9ff70fd221F2F505d3" "./src/l2/LyraERC20.sol:LyraERC20"
+forge verify-contract --verifier blockscout --verifier-url "$explorer" "0xE4e6F3feeAD9C3714F3c9380F91CB56E04F7297E" "./src/l2/LyraERC20.sol:LyraERC20"
+forge verify-contract --verifier blockscout --verifier-url "$explorer" "0xdf77b286eDa539CCb6326e9eDB86aa69D83108a5" "./src/l2/LyraERC20.sol:LyraERC20"
+forge verify-contract --verifier blockscout --verifier-url "$explorer" "0xB696F009e23B31F6a565E187604e43F5B030b241" "./src/l2/LyraERC20.sol:LyraERC20"
+forge verify-contract --verifier blockscout --verifier-url "$explorer" "0xdf77b286eDa539CCb6326e9eDB86aa69D83108a5" "./src/l2/LyraERC20.sol:LyraERC20"
+forge verify-contract --verifier blockscout --verifier-url "$explorer" "0xdf77b286eDa539CCb6326e9eDB86aa69D83108a5" "./src/l2/LyraERC20.sol:LyraERC20"
+forge verify-contract --verifier blockscout --verifier-url "$explorer" "0xdf77b286eDa539CCb6326e9eDB86aa69D83108a5" "./src/l2/LyraERC20.sol:LyraERC20"
+forge verify-contract --verifier blockscout --verifier-url "$explorer" "0xdf77b286eDa539CCb6326e9eDB86aa69D83108a5" "./src/l2/LyraERC20.sol:LyraERC20"
+forge verify-contract --verifier blockscout --verifier-url "$explorer" "0xdf77b286eDa539CCb6326e9eDB86aa69D83108a5" "./src/l2/LyraERC20.sol:LyraERC20"
+#
+#
+#for tuple in "${core_contracts[@]}"; do
+#  name=$(echo "$tuple" | cut -d' ' -f1)
+#  filepath=$(echo "$tuple" | cut -d' ' -f2)
+#  filename=$(basename "$filepath")
+#  contract="${filename%.sol}"
+#  # shellcheck disable=SC2046
+#  address=$(cat ../../deployments/${chainId}/core.json | jq -r -c ".$name")
+#  echo "$address" "$name"
+#  forge verify-contract --verifier blockscout --verifier-url "$explorer" "${address}" "${filepath}:${contract}"
+#  # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ../../verification/"${name}".json
+#done
+#
+## TODO: markets have different sets of contracts
+#for market in
+#  "ETH"
+#  "BTC"
+#  "USDT"
+#  "SNX"
+#; do
+#  echo $market
+#
+#  for tuple in "${market_contracts[@]}"; do
+#    name=$(echo "$tuple" | cut -d' ' -f1)
+#    filepath=$(echo "$tuple" | cut -d' ' -f2)
+#    filename=$(basename "$filepath")
+#    contract="${filename%.sol}"
+#    # shellcheck disable=SC2046
+#    address=$(cat ../../deployments/${chainId}/${market}.json | jq -r -c ".$name")
+#    echo "$address" "$name"
+#    forge verify-contract --verifier blockscout --verifier-url "$explorer" "${address}" "${filepath}:${contract}"
+#    # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ../../verification/"${name}".json
+#  done
+#done
+#
+#######################
+## Matching contracts #
+#######################
+#
+#cd ../..
+#
+#echo "Matching"
+#
+#for tuple in "${matching_contracts[@]}"; do
+#  name=$(echo "$tuple" | cut -d' ' -f1)
+#  filepath=$(echo "$tuple" | cut -d' ' -f2)
+#  filename=$(basename "$filepath")
+#  contract="${filename%.sol}"
+#  # shellcheck disable=SC2046
+#  address=$(cat ./deployments/${chainId}/matching.json | jq -r -c ".$name")
+#  echo "$address" "$name"
+#  forge verify-contract --verifier blockscout --verifier-url "$explorer" "${address}" "${filepath}:${contract}"
+#  # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ./verification/"${name}".json
+#done
