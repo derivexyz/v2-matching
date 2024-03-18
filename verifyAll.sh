@@ -4,6 +4,15 @@ set -e
 
 # TODO: doesnt handle libraries, must be manually added
 
+markets=(
+#  "ETH"
+#  "BTC"
+  "USDT"
+  "SNX"
+  "WSTETH"
+  "SFP"
+)
+
 core_contracts=(
   "auction ./src/liquidation/DutchAuction.sol"
   "cash ./src/assets/CashAsset.sol"
@@ -31,6 +40,7 @@ market_contracts=(
   "pmrmViewer ./src/risk-managers/BasePortfolioViewer.sol"
   "rateFeed ./src/feeds/LyraRateFeedStatic.sol"
   "spotFeed ./src/feeds/LyraSpotFeed.sol"
+  "spotFeed ./src/feeds/SFPSpotFeed.sol"
   "volFeed ./src/feeds/LyraVolFeed.sol"
 )
 
@@ -52,9 +62,10 @@ matching_contracts=(
 ################
 # V2 contracts #
 ################
-chainId=957
-# https://explorerl2new-prod-testnet-0eakp60405.t.conduit.xyz/api
-explorer="https://explorer.lyra.finance/api"
+chainId=901
+explorer=https://explorerl2new-prod-testnet-0eakp60405.t.conduit.xyz/api
+#chainId=957
+#explorer="https://explorer.lyra.finance/api"
 cd ./lib/v2-core
 
 # Core
@@ -76,13 +87,7 @@ for tuple in "${core_contracts[@]}"; do
   # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ../../verification/"${name}".json
 done
 
-# TODO: markets have different sets of contracts
-for market in
-  "ETH"
-  "BTC"
-  "USDT"
-  "SNX"
-; do
+for market in "${markets[@]}"; do
   echo $market
 
   for tuple in "${market_contracts[@]}"; do
@@ -92,6 +97,9 @@ for market in
     contract="${filename%.sol}"
     # shellcheck disable=SC2046
     address=$(cat ../../deployments/${chainId}/${market}.json | jq -r -c ".$name")
+    if [[ "$address" == "" || "$address" = "null" ]]; then
+      continue
+    fi
     echo "$address" "$name"
     forge verify-contract --verifier blockscout --verifier-url "$explorer" "${address}" "${filepath}:${contract}"
     # forge verify-contract "${address}" "${filepath}":"${contract}" --show-standard-json-input > ../../verification/"${name}".json

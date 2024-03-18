@@ -43,23 +43,17 @@ contract UpdateCallees is Utils {
     string memory core = _readDeploymentFile("core");
     string memory ethMarket = _readDeploymentFile("ETH");
     string memory btcMarket = _readDeploymentFile("BTC");
-    string memory usdtMarket = _readDeploymentFile("USDT");
     string memory snxMarket = _readDeploymentFile("SNX");
+
+    // USDC
 
     _addWhitelistedCallee(_getContract(core, "srm"), _getContract(core, "stableFeed"));
     _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(core, "stableFeed"));
     _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(core, "stableFeed"));
 
-    _addWhitelistedCallee(_getContract(core, "srm"), _getContract(usdtMarket, "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(usdtMarket, "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(usdtMarket, "spotFeed"));
+    LyraERC20(_getContract(shared, "usdc")).configureMinter(deployer, true);
 
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "volFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "forwardFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "perpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "ibpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "iapFeed"));
+    // ETH
 
     _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(ethMarket, "spotFeed"));
     _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(ethMarket, "volFeed"));
@@ -68,6 +62,33 @@ contract UpdateCallees is Utils {
     _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(ethMarket, "ibpFeed"));
     _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(ethMarket, "iapFeed"));
 
+    LyraRateFeedStatic(_getContract(ethMarket, "rateFeed")).setRate(0, 1 ether);
+
+    LyraERC20(_getContract(shared, "eth")).configureMinter(deployer, true);
+
+    // BTC
+
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "volFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "forwardFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "perpFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "ibpFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(btcMarket, "iapFeed"));
+
+    LyraRateFeedStatic(_getContract(btcMarket, "rateFeed")).setRate(0, 1 ether);
+
+    LyraERC20(_getContract(shared, "btc")).configureMinter(deployer, true);
+
+    // USDT
+
+    _addWhitelistedCallee(_getContract(core, "srm"), _getContract(_readDeploymentFile("USDT"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("USDT"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("USDT"), "spotFeed"));
+
+    LyraERC20(_getContract(shared, "usdt")).configureMinter(deployer, true);
+
+    // SNX
+
     _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(snxMarket, "spotFeed"));
     _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(snxMarket, "volFeed"));
     _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(snxMarket, "forwardFeed"));
@@ -75,26 +96,27 @@ contract UpdateCallees is Utils {
     _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(snxMarket, "volFeed"));
     _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(snxMarket, "forwardFeed"));
 
-    LyraRateFeedStatic(_getContract(ethMarket, "rateFeed")).setRate(0, 1 ether);
-    LyraRateFeedStatic(_getContract(btcMarket, "rateFeed")).setRate(0, 1 ether);
-    LyraRateFeedStatic(_getContract(snxMarket, "rateFeed")).setRate(0, 1 ether);
+    LyraERC20(_getContract(shared, "snx")).configureMinter(deployer, true);
 
-    // market.base.setTotalPositionCap(IManager(manager), baseCap);
+    // WSTETH
+
+    _addWhitelistedCallee(_getContract(core, "srm"), _getContract(_readDeploymentFile("WSTETH"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("WSTETH"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("WSTETH"), "spotFeed"));
+
+    LyraERC20(_getContract(shared, "wsteth")).configureMinter(deployer, true);
+
+    // Set custom caps for local testing
+
     WrappedERC20Asset(_getContract(ethMarket, "base")).setTotalPositionCap(
       IManager(_getContract(core, "srm")), 10_000 ether
     );
     WrappedERC20Asset(_getContract(btcMarket, "base")).setTotalPositionCap(
       IManager(_getContract(core, "srm")), 10_000 ether
     );
-    WrappedERC20Asset(_getContract(usdtMarket, "base")).setTotalPositionCap(
+    WrappedERC20Asset(_getContract(_readDeploymentFile("USDT"), "base")).setTotalPositionCap(
       IManager(_getContract(core, "srm")), 100_000 ether
     );
-
-    LyraERC20(_getContract(shared, "usdc")).configureMinter(deployer, true);
-    LyraERC20(_getContract(shared, "eth")).configureMinter(deployer, true);
-    LyraERC20(_getContract(shared, "btc")).configureMinter(deployer, true);
-    LyraERC20(_getContract(shared, "usdt")).configureMinter(deployer, true);
-    LyraERC20(_getContract(shared, "snx")).configureMinter(deployer, true);
 
     vm.stopBroadcast();
   }
