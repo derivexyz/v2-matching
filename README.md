@@ -13,6 +13,12 @@ Other Modules: contract that take ownership of user's subAccounts from the match
 
 For detailed information about the contracts, modules, and installation instructions, please refer to [Notion](https://www.notion.so/lyra-finance/Matching-59db600914334665ba7179c1f03ac6c2).
 
+## Installation:
+
+```shell
+git submodule update --init --recursive --force
+```
+
 ## Building and Testing:
 
 ```shell
