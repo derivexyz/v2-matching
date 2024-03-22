@@ -5,8 +5,8 @@ set -e
 # TODO: doesnt handle libraries, must be manually added
 
 markets=(
-#  "ETH"
-#  "BTC"
+  "ETH"
+  "BTC"
   "USDT"
   "SNX"
   "WSTETH"
