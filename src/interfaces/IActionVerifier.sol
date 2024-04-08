@@ -25,7 +25,7 @@ interface IActionVerifier is ISubAccountsManager {
   function registerSessionKey(address toAllow, uint expiry) external;
   function deregisterSessionKey(address sessionKey) external;
   function domainSeparator() external view returns (bytes32);
-  function getActionHash(Action memory action) external pure returns (bytes32);
+  function getActionHash(Action memory action) external view returns (bytes32);
 
   /**
    * @dev Emitted when a session key is registered to an owner account.

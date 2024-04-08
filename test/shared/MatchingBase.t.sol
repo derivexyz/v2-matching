@@ -153,6 +153,8 @@ contract MatchingBase is PMRMTestBase {
   }
 
   function _signAction(bytes32 actionHash, uint signerPk) internal view returns (bytes memory) {
+    console2.log("typed hash");
+    console2.logBytes32(domainSeparator);
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, ECDSA.toTypedDataHash(domainSeparator, actionHash));
     return bytes.concat(r, s, bytes1(v));
   }
