@@ -43,6 +43,10 @@ contract DeployNewAuction is Utils {
     BaseManager(ethPMRM).setLiquidation(auction);
     BaseManager(btcPMRM).setLiquidation(auction);
 
+    auction.setWhitelistManager(srm, true);
+    auction.setWhitelistManager(ethPMRM, true);
+    auction.setWhitelistManager(btcPMRM, true);
+
     CashAsset(address(cash)).setLiquidationModule(auction);
 
     LiquidateModule liquidateModule = new LiquidateModule(matching, auction);

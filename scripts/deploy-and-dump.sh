@@ -28,13 +28,12 @@ MARKET_NAME=BTC forge script scripts/deploy-market.s.sol --rpc-url $ETH_RPC_URL 
 MARKET_NAME=USDT forge script scripts/deploy-base-only-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
 MARKET_NAME=SNX forge script scripts/deploy-srm-option-only-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
 MARKET_NAME=WSTETH forge script scripts/deploy-base-only-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
-
-# Deploy SFPs
 if [[ "$ETH_RPC_URL" =~ .*local.* ]]; then
   forge script scripts/deploy-mock-sfp.s.sol --rpc-url $ETH_RPC_URL --broadcast
 fi
-
 MARKET_NAME=SFP forge script scripts/deploy-base-only-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
+MARKET_NAME=SOL forge script scripts/deploy-perp-only-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
+MARKET_NAME=DOGE forge script scripts/deploy-perp-only-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
 
 # Copy previous outputs to deployments folder
 cd ../../
@@ -46,6 +45,8 @@ cp lib/v2-core/deployments/$chainId/SNX.json deployments/$chainId/SNX.json
 cp lib/v2-core/deployments/$chainId/WSTETH.json deployments/$chainId/WSTETH.json
 cp lib/v2-core/deployments/$chainId/strands.json deployments/$chainId/strands.json
 cp lib/v2-core/deployments/$chainId/SFP.json deployments/$chainId/SFP.json
+cp lib/v2-core/deployments/$chainId/SOL.json deployments/$chainId/SOL.json
+cp lib/v2-core/deployments/$chainId/DOGE.json deployments/$chainId/DOGE.json
 cp lib/v2-core/scripts/input/$chainId/config.json deployments/$chainId/shared.json
 
 
@@ -54,6 +55,8 @@ cp lib/v2-core/scripts/input/$chainId/config.json deployments/$chainId/shared.js
 forge script scripts/deploy-all.s.sol --rpc-url $ETH_RPC_URL --broadcast
 MARKET_NAME=ETH forge script scripts/add-perp-to-modules.s.sol --rpc-url $ETH_RPC_URL --broadcast
 MARKET_NAME=BTC forge script scripts/add-perp-to-modules.s.sol --rpc-url $ETH_RPC_URL --broadcast
+MARKET_NAME=SOL forge script scripts/add-perp-to-modules.s.sol --rpc-url $ETH_RPC_URL --broadcast
+MARKET_NAME=DOGE forge script scripts/add-perp-to-modules.s.sol --rpc-url $ETH_RPC_URL --broadcast
 
 if [[ "$ETH_RPC_URL" =~ .*local.* ]]; then
   forge script scripts/update-callees.s.sol --rpc-url $ETH_RPC_URL --broadcast
