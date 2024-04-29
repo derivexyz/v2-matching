@@ -156,6 +156,23 @@ contract LiquidationModuleTest is MatchingBase {
     (actions[0], signatures[0]) =
       _createActionAndSign(camAcc, 0, address(liquidateModule), actionData, block.timestamp + 1 days, cam, cam, camPk);
 
+    console2.log("liquidateModule:", address(liquidateModule));
+
+    console2.log("Action Data:");
+    console2.logBytes(actionData);
+
+    console2.log("liqAcc:", liqAcc);
+    console2.log("cashTransfer:", cashTransfer);
+    console2.log("percent:", percent);
+    console2.log("priceLimit:", priceLimit);
+    console2.log("lastTradeId:", lastTradeId);
+    console2.log("merge:", merge);
+
+    console2.logBytes(signatures[0]);
+    console2.log("signer", cam);
+    console2.log("bidder subacc:", camAcc);
+    console2.log("timestamp:", block.timestamp + 1 days);
+
     return (actions, signatures, matchData);
   }
 }

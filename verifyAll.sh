@@ -11,6 +11,8 @@ markets=(
   "SNX"
   "WSTETH"
   "SFP"
+  "SOL"
+  "DOGE"
 )
 
 core_contracts=(
@@ -62,10 +64,10 @@ matching_contracts=(
 ################
 # V2 contracts #
 ################
-chainId=901
-explorer=https://explorerl2new-prod-testnet-0eakp60405.t.conduit.xyz/api
-#chainId=957
-#explorer="https://explorer.lyra.finance/api"
+#chainId=901
+#explorer=https://explorerl2new-prod-testnet-0eakp60405.t.conduit.xyz/api
+chainId=957
+explorer="https://explorer.lyra.finance/api"
 cd ./lib/v2-core
 
 # Core

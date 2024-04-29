@@ -106,6 +106,29 @@ contract UpdateCallees is Utils {
 
     LyraERC20(_getContract(shared, "wsteth")).configureMinter(deployer, true);
 
+
+    // SOL
+
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("SOL"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("SOL"), "perpFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("SOL"), "ibpFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("SOL"), "iapFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("SOL"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("SOL"), "perpFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("SOL"), "ibpFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("SOL"), "iapFeed"));
+
+    // DOGE
+
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("DOGE"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("DOGE"), "perpFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("DOGE"), "ibpFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("DOGE"), "iapFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("DOGE"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("DOGE"), "perpFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("DOGE"), "ibpFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("DOGE"), "iapFeed"));
+
     // Set custom caps for local testing
 
     WrappedERC20Asset(_getContract(ethMarket, "base")).setTotalPositionCap(
