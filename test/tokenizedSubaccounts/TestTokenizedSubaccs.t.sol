@@ -14,29 +14,14 @@ import {IntegrationTestBase} from "v2-core/test/integration-tests/shared/Integra
 import {DNLRTTSA} from "../../src/tokenizedSubaccounts/DNLRTTSA.sol";
 import {BaseTSA} from "../../src/tokenizedSubaccounts/BaseTSA.sol";
 
-contract TokenizedSubaccountsTest is IntegrationTestBase {
+contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
   DNLRTTSA public tokenizedSubacc;
-
-  Matching public matching;
-  DepositModule public depositModule;
-  WithdrawalModule public withdrawalModule;
-  TransferModule public transferModule;
-  TradeModule public tradeModule;
-  LiquidateModule public liquidateModule;
-  RfqModule public rfqModule;
 
   function setUp() public {
     _setupIntegrationTestComplete();
 
-    _deployMatching();
+    MatchingHelpers._deployMatching(subAccounts, address(cash), auction, 0);
 
-    //     ISubAccounts subAccounts;
-    //    DutchAuction auction;
-    //    IWrappedERC20Asset wrappedDepositAsset;
-    //    ILiquidatableManager manager;
-    //    IMatching matching;
-    //    string symbol;
-    //    string name;
     tokenizedSubacc = new DNLRTTSA(
       BaseTSA.BaseTSAInitParams({
         subAccounts: subAccounts,
@@ -51,30 +36,6 @@ contract TokenizedSubaccountsTest is IntegrationTestBase {
     );
   }
 
-
-  function _deployMatching() internal {
-    // Setup matching contract and modules
-    matching = new Matching(subAccounts);
-    depositModule = new DepositModule(matching);
-    withdrawalModule = new WithdrawalModule(matching);
-    transferModule = new TransferModule(matching);
-    tradeModule = new TradeModule(matching, IAsset(address(cash)), aliceAcc);
-    tradeModule.setPerpAsset(IPerpAsset(address(markets["weth"].perp)), true);
-    liquidateModule = new LiquidateModule(matching, auction);
-    rfqModule = new RfqModule(matching, IAsset(address(cash)), aliceAcc);
-    rfqModule.setPerpAsset(IPerpAsset(address(markets["weth"].perp)), true);
-
-    matching.setAllowedModule(address(depositModule), true);
-    matching.setAllowedModule(address(withdrawalModule), true);
-    matching.setAllowedModule(address(transferModule), true);
-    matching.setAllowedModule(address(tradeModule), true);
-    matching.setAllowedModule(address(liquidateModule), true);
-    matching.setAllowedModule(address(rfqModule), true);
-
-//    domainSeparator = matching.domainSeparator();
-    matching.setTradeExecutor(address(this), true);
-
-  }
 
   function testCanDepositTradeWithdraw() public {
     markets["weth"].erc20.mint(address(this), 1e18);
@@ -91,16 +52,4 @@ contract TokenizedSubaccountsTest is IntegrationTestBase {
 
   }
 
-//
-//  function _transferOption(uint fromAcc, uint toAcc, int amount, uint _expiry, uint strike, bool isCall) internal {
-//    ISubAccounts.AssetTransfer memory transfer = ISubAccounts.AssetTransfer({
-//      fromAcc: fromAcc,
-//      toAcc: toAcc,
-//      asset: markets["weth"].option,
-//      subId: OptionEncoding.toSubId(_expiry, strike, isCall),
-//      amount: amount,
-//      assetData: ""
-//    });
-//    subAccounts.submitTransfer(transfer, "");
-//  }
 }
