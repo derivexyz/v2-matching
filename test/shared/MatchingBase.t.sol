@@ -21,7 +21,6 @@ import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
 import "../../src/modules/LiquidateModule.sol";
 import "../../src/modules/RfqModule.sol";
 
-
 contract MatchingHelpers is Test {
   address tradeExecutor = address(0xaaaa);
 
@@ -34,7 +33,6 @@ contract MatchingHelpers is Test {
   RfqModule public rfqModule;
 
   bytes32 domainSeparator;
-
 
   function _deployMatching(ISubAccounts subAccounts, address cash, DutchAuction auction, uint feeRecipient) internal {
     // Setup matching contract and modules
@@ -62,21 +60,20 @@ contract MatchingHelpers is Test {
     rfqModule.setPerpAsset(IPerpAsset(perp), true);
   }
 
-
   function _getActionHash(IActionVerifier.Action memory action) internal view returns (bytes32) {
     return matching.getActionHash(action);
   }
 
   function _signAction(bytes32 actionHash, uint signerPk) internal view returns (bytes memory) {
-    console2.log("typed hash");
-    console2.logBytes32(domainSeparator);
+    //    console2.log("typed hash");
+    //    console2.logBytes32(domainSeparator);
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, ECDSA.toTypedDataHash(domainSeparator, actionHash));
     return bytes.concat(r, s, bytes1(v));
   }
 
   function _encodeDepositData(uint amount, address asset, address newManager) internal pure returns (bytes memory) {
     IDepositModule.DepositData memory data =
-              IDepositModule.DepositData({amount: amount, asset: asset, managerForNewAccount: newManager});
+      IDepositModule.DepositData({amount: amount, asset: asset, managerForNewAccount: newManager});
 
     return abi.encode(data);
   }
@@ -105,8 +102,50 @@ contract MatchingHelpers is Test {
     });
     return abi.encode(data);
   }
-}
 
+  function _verifyAndMatch(IActionVerifier.Action[] memory actions, bytes[] memory signatures, bytes memory actionData)
+    internal
+  {
+    vm.startPrank(tradeExecutor);
+    matching.verifyAndMatch(actions, signatures, actionData);
+    vm.stopPrank();
+  }
+
+  // Creates SignedAction with empty signature field. This action must be signed for.
+  function _createUnsignedAction(
+    uint accountId,
+    uint nonce,
+    address module,
+    bytes memory data,
+    uint expiry,
+    address owner,
+    address signer
+  ) internal pure returns (IActionVerifier.Action memory action) {
+    action = IActionVerifier.Action({
+      subaccountId: accountId,
+      nonce: nonce,
+      module: IMatchingModule(module),
+      data: data,
+      expiry: expiry,
+      owner: owner,
+      signer: signer
+    });
+  }
+
+  function _createActionAndSign(
+    uint accountId,
+    uint nonce,
+    address module,
+    bytes memory data,
+    uint expiry,
+    address owner,
+    address signer,
+    uint pk
+  ) internal view returns (IActionVerifier.Action memory action, bytes memory signature) {
+    action = _createUnsignedAction(accountId, nonce, module, data, expiry, owner, signer);
+    signature = _signAction(matching.getActionHash(action), pk);
+  }
+}
 
 /**
  * @dev we deploy actual Account contract in these tests to simplify verification process
@@ -153,49 +192,6 @@ contract MatchingBase is PMRMTestBase, MatchingHelpers {
     _depositCash(dougAcc, cashDeposit);
   }
 
-  function _verifyAndMatch(IActionVerifier.Action[] memory actions, bytes[] memory signatures, bytes memory actionData)
-    internal
-  {
-    vm.startPrank(tradeExecutor);
-    matching.verifyAndMatch(actions, signatures, actionData);
-    vm.stopPrank();
-  }
-
-  // Creates SignedAction with empty signature field. This action must be signed for.
-  function _createUnsignedAction(
-    uint accountId,
-    uint nonce,
-    address module,
-    bytes memory data,
-    uint expiry,
-    address owner,
-    address signer
-  ) internal pure returns (IActionVerifier.Action memory action) {
-    action = IActionVerifier.Action({
-      subaccountId: accountId,
-      nonce: nonce,
-      module: IMatchingModule(module),
-      data: data,
-      expiry: expiry,
-      owner: owner,
-      signer: signer
-    });
-  }
-
-  function _createActionAndSign(
-    uint accountId,
-    uint nonce,
-    address module,
-    bytes memory data,
-    uint expiry,
-    address owner,
-    address signer,
-    uint pk
-  ) internal view returns (IActionVerifier.Action memory action, bytes memory signature) {
-    action = _createUnsignedAction(accountId, nonce, module, data, expiry, owner, signer);
-    signature = _signAction(matching.getActionHash(action), pk);
-  }
-
   function _createNewAccount(address owner) internal returns (uint) {
     // create a new account
     uint newAccountId = subAccounts.createAccount(owner, IManager(address(pmrm)));
@@ -206,7 +202,6 @@ contract MatchingBase is PMRMTestBase, MatchingHelpers {
 
     return newAccountId;
   }
-
 
   function _setupAccounts() internal {
     vm.label(cam, "cam");

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.18;
 
-
 import {StandardManager} from "v2-core/src/risk-managers/StandardManager.sol";
 import {PMRM, IPMRM} from "v2-core/src/risk-managers/PMRM.sol";
 import {IBaseManager} from "v2-core/src/interfaces/IBaseManager.sol";
@@ -22,13 +21,9 @@ import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
 /// @title DNLRTTSA
 /// @dev Prices shares in USD, but accepts baseAsset as deposit. Vault intended to try remain delta neutral.
 contract DNLRTTSA is BaseTSA {
-
   ISpotFeed public conversionFeed;
 
-  constructor(
-    BaseTSA.BaseTSAInitParams memory initParams,
-    ISpotFeed _conversionFeed
-  ) BaseTSA(initParams) {
+  constructor(BaseTSA.BaseTSAInitParams memory initParams, ISpotFeed _conversionFeed) BaseTSA(initParams) {
     conversionFeed = _conversionFeed;
   }
 
@@ -42,14 +37,16 @@ contract DNLRTTSA is BaseTSA {
   function _getAccountValue() internal view override returns (int) {
     // TODO: must account for lyra system insolvency/withdrawal fee
     (, int mtm) = manager.getMarginAndMarkToMarket(subAccount, true, 0);
+
+    (uint spotPrice,) = conversionFeed.getSpot();
     uint depositAssetBalance = depositAsset.balanceOf(address(this));
 
-    return mtm + int(depositAssetBalance);
+    return mtm + int(depositAssetBalance * spotPrice / 1e18);
   }
 
-  function _getDepositWithdrawFactor() internal override view returns (uint) {
-    (uint spotPrice, ) = conversionFeed.getSpot();
+  // @dev Conversion factor for deposit asset to shares
+  function _getDepositWithdrawFactor() internal view override returns (uint) {
+    (uint spotPrice,) = conversionFeed.getSpot();
     return spotPrice;
   }
 }
-

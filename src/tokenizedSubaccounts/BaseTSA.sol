@@ -16,7 +16,7 @@ import {BaseModule} from "../modules/BaseModule.sol";
 import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 
-
+// TODO: handle valuation when there is an insolvency
 abstract contract BaseTSA is ERC20, Ownable2Step {
   struct Params {
     uint depositCap;
@@ -26,8 +26,8 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
 
   struct WithdrawalRequest {
     address beneficiary;
-    uint256 amountShares;
-    uint256 timestamp;
+    uint amountShares;
+    uint timestamp;
   }
 
   struct BaseTSAInitParams {
@@ -39,25 +39,24 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     string symbol;
     string name;
   }
-  
-  ISubAccounts subAccounts;
-  DutchAuction auction;
-  IWrappedERC20Asset wrappedDepositAsset;
-  IERC20Metadata depositAsset;
-  ILiquidatableManager manager;
-  IMatching matching;
 
-  uint subAccount;
+  ISubAccounts public subAccounts;
+  DutchAuction public auction;
+  IWrappedERC20Asset public wrappedDepositAsset;
+  IERC20Metadata public depositAsset;
+  ILiquidatableManager public manager;
+  IMatching public matching;
 
-  Params params;
+  uint public subAccount;
 
-  mapping(uint => WithdrawalRequest) queuedWithdrawals;
-  uint totalQueuedWithdrawals;
-  uint queuedWithdrawalHead;
+  Params public params;
 
-  constructor(
-    BaseTSAInitParams memory initParams
-  ) ERC20(initParams.name, initParams.symbol) Ownable2Step() {
+  mapping(uint => WithdrawalRequest) public queuedWithdrawals;
+  uint public nextQueuedWithdrawalId;
+  uint public queuedWithdrawalHead;
+  uint public totalPendingWithdrawals;
+
+  constructor(BaseTSAInitParams memory initParams) ERC20(initParams.name, initParams.symbol) Ownable2Step() {
     subAccounts = initParams.subAccounts;
     auction = initParams.auction;
     wrappedDepositAsset = initParams.wrappedDepositAsset;
@@ -85,23 +84,31 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     matching.deregisterSessionKey(sessionKey);
   }
 
-  function approveDepositModule(address depositModule) external onlyOwner {
-    depositAsset.approve(depositModule, type(uint).max);
+  function approveModule(address module) external onlyOwner {
+    require(matching.allowedModules(module), "module not approved");
+
+    depositAsset.approve(module, type(uint).max);
   }
 
   //////////////////////////
   // Deposit and Withdraw //
   //////////////////////////
   function deposit(uint depositAmount) external preTransfer {
-    depositAsset.transferFrom(msg.sender, address(this), depositAmount);
+    // TODO: reentrancy guard
+    // Work out value of pool excluding the new funds to work out number of shares
     _mint(msg.sender, _getSharesForDeposit(depositAmount));
+    // Then transfer in assets once shares are minted
+    depositAsset.transferFrom(msg.sender, address(this), depositAmount);
+
+    // check if deposit cap is exceeded
+    require(_getAccountValue() <= int(params.depositCap), "deposit cap exceeded");
   }
 
   function _getSharesForDeposit(uint depositAmount) internal view returns (uint) {
     uint depositAmount18 = ConvertDecimals.to18Decimals(depositAmount, depositAsset.decimals());
-    // scale depositAmount by factor
-    depositAmount18 = _getDepositWithdrawFactor() * _getDepositWithdrawFactor() / 1e18;
-    return _getNumShares(depositAmount18);
+    // scale depositAmount by factor and convert to shares
+    uint scaledDeposit18 = _getDepositWithdrawFactor() * depositAmount18 / 1e18;
+    return _getNumShares(scaledDeposit18);
   }
 
   function requestWithdrawal(uint amount) external {
@@ -110,11 +117,10 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
 
     _burn(msg.sender, amount);
 
-    queuedWithdrawals[totalQueuedWithdrawals++] = WithdrawalRequest({
-      beneficiary: msg.sender,
-      amountShares: amount,
-      timestamp: block.timestamp
-    });
+    queuedWithdrawals[nextQueuedWithdrawalId++] =
+      WithdrawalRequest({beneficiary: msg.sender, amountShares: amount, timestamp: block.timestamp});
+
+    totalPendingWithdrawals += amount;
   }
 
   function processWithdrawalRequests(uint limit) external onlyOwner {
@@ -133,10 +139,13 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
         uint withdrawAmount = totalBalance;
         depositAsset.transfer(request.beneficiary, withdrawAmount);
         uint difference = requiredAmount - withdrawAmount;
-        request.amountShares = request.amountShares * difference / requiredAmount;
+        uint finalShareAmount = request.amountShares * difference / requiredAmount;
+        totalPendingWithdrawals -= (request.amountShares - finalShareAmount);
+        request.amountShares = finalShareAmount;
         break;
       } else {
         depositAsset.transfer(request.beneficiary, requiredAmount);
+        totalPendingWithdrawals -= request.amountShares;
         request.amountShares = 0;
       }
       queuedWithdrawalHead++;
@@ -154,7 +163,7 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   // Account and share value //
   /////////////////////////////
 
-  function _getAccountValue() internal virtual view returns (int);
+  function _getAccountValue() internal view virtual returns (int);
 
   function _getSharePrice() internal view returns (int) {
     // TODO: avoid the small balance mint/burn share price manipulation
@@ -175,8 +184,12 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     return uint(numSharesInt * _getSharePrice() / 1e18);
   }
 
-  function _getDepositWithdrawFactor() internal virtual view returns (uint) {
+  function _getDepositWithdrawFactor() internal view virtual returns (uint) {
     return 1e18;
+  }
+
+  function totalSupply() public view override returns (uint) {
+    return ERC20.totalSupply() + totalPendingWithdrawals;
   }
 
   /////////////////////
@@ -184,7 +197,6 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   /////////////////////
 
   function _isBlocked() internal view returns (bool) {
-    // TODO: handle valuation when there is an insolvency
     return auction.isAuctionLive(subAccount) || auction.getIsWithdrawBlocked();
   }
 
