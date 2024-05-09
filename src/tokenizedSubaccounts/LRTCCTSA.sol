@@ -18,35 +18,26 @@ import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {BaseTSA} from "./BaseTSA.sol";
 import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
 
-/// @title DNLRTTSA
+/// @title LRTCCTSA
 /// @dev Prices shares in USD, but accepts baseAsset as deposit. Vault intended to try remain delta neutral.
-contract DNLRTTSA is BaseTSA {
-  ISpotFeed public conversionFeed;
+contract LRTCCTSA is BaseTSA {
+  ISpotFeed public baseFeed;
 
-  constructor(BaseTSA.BaseTSAInitParams memory initParams, ISpotFeed _conversionFeed) BaseTSA(initParams) {
-    conversionFeed = _conversionFeed;
+  constructor(BaseTSA.BaseTSAInitParams memory initParams, ISpotFeed _baseFeed) BaseTSA(initParams) {
+    baseFeed = _baseFeed;
   }
 
-  ///////////
-  // Admin //
-  ///////////
-  function setConversionFeed(ISpotFeed _conversionFeed) external onlyOwner {
-    conversionFeed = _conversionFeed;
-  }
+  ///////////////
+  // Overrides //
+  ///////////////
 
   function _getAccountValue() internal view override returns (int) {
     // TODO: must account for lyra system insolvency/withdrawal fee
-    (, int mtm) = manager.getMarginAndMarkToMarket(subAccount, true, 0);
-
-    (uint spotPrice,) = conversionFeed.getSpot();
     uint depositAssetBalance = depositAsset.balanceOf(address(this));
 
-    return mtm + int(depositAssetBalance * spotPrice / 1e18);
-  }
+    (, int mtm) = manager.getMarginAndMarkToMarket(subAccount, true, 0);
+    (uint spotPrice,) = baseFeed.getSpot();
 
-  // @dev Conversion factor for deposit asset to shares
-  function _getDepositWithdrawFactor() internal view override returns (uint) {
-    (uint spotPrice,) = conversionFeed.getSpot();
-    return spotPrice;
+    return int(depositAssetBalance) + mtm * 1e18 / int(spotPrice) - int(totalPendingDeposits);
   }
 }

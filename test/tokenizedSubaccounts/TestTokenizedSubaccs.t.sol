@@ -12,11 +12,11 @@ import "forge-std/console2.sol";
 import "../../src/periphery/LyraAuctionUtils.sol";
 import "../shared/MatchingBase.t.sol";
 import {IntegrationTestBase} from "v2-core/test/integration-tests/shared/IntegrationTestBase.t.sol";
-import {DNLRTTSA} from "../../src/tokenizedSubaccounts/DNLRTTSA.sol";
+import {LRTCCTSA} from "../../src/tokenizedSubaccounts/LRTCCTSA.sol";
 import {BaseTSA} from "../../src/tokenizedSubaccounts/BaseTSA.sol";
 
 contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
-  DNLRTTSA public tokenizedSubacc;
+  LRTCCTSA public tokenizedSubacc;
 
   uint internal signerPk;
   address internal signer;
@@ -32,7 +32,7 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
 
     MatchingHelpers._deployMatching(subAccounts, address(cash), auction, 0);
 
-    tokenizedSubacc = new DNLRTTSA(
+    tokenizedSubacc = new LRTCCTSA(
       BaseTSA.BaseTSAInitParams({
         subAccounts: subAccounts,
         auction: auction,
@@ -61,7 +61,13 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
     cash.setWhitelistManager(address(markets["weth"].pmrm), true);
 
     tokenizedSubacc.setParams(
-      BaseTSA.Params({depositCap: 10000e18, minDepositValue: 1e18, withdrawalDelay: 10 minutes})
+      BaseTSA.Params({
+        depositCap: 10000e18,
+        minDepositValue: 1e18,
+        withdrawalDelay: 10 minutes,
+        depositScale: 1e18,
+        withdrawScale: 1e18
+      })
     );
 
     markets["weth"].spotFeed.setHeartbeat(100 weeks);
@@ -83,7 +89,7 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
     tokenizedSubacc.deposit(1e18);
 
     // shares equal to spot price of 1 weth
-    assertEq(tokenizedSubacc.balanceOf(address(this)), 2000e18);
+    assertEq(tokenizedSubacc.balanceOf(address(this)), 1e18);
 
     // Register a session key
     tokenizedSubacc.addSessionKey(signer, block.timestamp + 1 weeks);
@@ -95,32 +101,53 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
     assertEq(markets["weth"].erc20.balanceOf(address(tokenizedSubacc)), 0.2e18);
     assertEq(subAccounts.getBalance(tokenizedSubacc.subAccount(), markets["weth"].base, 0), 0.8e18);
 
-    (int margin, int markToMarket) = srm.getMarginAndMarkToMarket(tokenizedSubacc.subAccount(), true, 0);
-
-    // Trade
-    //    tokenizedSubacc.trade(1000e6, 1000e6, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-
     tokenizedSubacc.deposit(1e18);
-    assertEq(tokenizedSubacc.balanceOf(address(this)), 4000e18);
+    assertEq(tokenizedSubacc.balanceOf(address(this)), 2e18);
 
     // Withdraw with no PnL
 
-    tokenizedSubacc.requestWithdrawal(1000e18);
+    tokenizedSubacc.requestWithdrawal(0.25e18);
 
-    assertEq(tokenizedSubacc.balanceOf(address(this)), 3000e18);
-    assertEq(tokenizedSubacc.totalPendingWithdrawals(), 1000e18);
+    assertEq(tokenizedSubacc.balanceOf(address(this)), 1.75e18);
+    assertEq(tokenizedSubacc.totalPendingWithdrawals(), 0.25e18);
 
     vm.warp(block.timestamp + 10 minutes + 1);
 
     tokenizedSubacc.processWithdrawalRequests(1);
 
-    assertEq(tokenizedSubacc.balanceOf(address(this)), 3000e18);
+    assertEq(tokenizedSubacc.balanceOf(address(this)), 1.75e18);
     assertEq(tokenizedSubacc.totalPendingWithdrawals(), 0);
 
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 8.5e18); // holding 8 previously
+    assertEq(markets["weth"].erc20.balanceOf(address(this)), 8.25e18); // holding 8 previously
 
     // Open a short perp via trade module
     _tradePerp(-1e18, 2000e18);
+
+    (, int mtmPre) = srm.getMarginAndMarkToMarket(tokenizedSubacc.subAccount(), true, 0);
+
+    _setPerpPrice("weth", 2100e18, 1e18);
+
+    (, int mtmPost) = srm.getMarginAndMarkToMarket(tokenizedSubacc.subAccount(), true, 0);
+
+    assertEq(mtmPost, mtmPre - 100e18);
+
+    // There is now PnL
+
+    tokenizedSubacc.requestWithdrawal(0.25e18);
+
+    assertEq(tokenizedSubacc.balanceOf(address(this)), 1.5e18);
+    assertEq(tokenizedSubacc.totalPendingWithdrawals(), 0.25e18);
+
+    vm.warp(block.timestamp + 10 minutes + 1);
+
+
+    tokenizedSubacc.processWithdrawalRequests(1);
+
+    assertEq(tokenizedSubacc.balanceOf(address(this)), 1.5e18);
+    assertEq(tokenizedSubacc.totalPendingWithdrawals(), 0);
+
+    // Pool lost $100 on 3500 value, so 5.7% decrease in value per share. So get back 0.23575 instead of 0.25
+    assertApproxEqRel(markets["weth"].erc20.balanceOf(address(this)), 8.48575e18, 0.001e18);
   }
 
   function _tradePerp(int amount, uint price) internal {
@@ -134,7 +161,7 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
         desiredAmount: amount,
         worstFee: 1e18,
         recipientId: tokenizedSubacc.subAccount(),
-        isBid: true
+        isBid: amount > 0
       })
     );
 
@@ -146,7 +173,7 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
         desiredAmount: amount,
         worstFee: 1e18,
         recipientId: takerSubacc,
-        isBid: false
+        isBid: amount < 0
       })
     );
 
@@ -170,7 +197,13 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
       actions,
       signatures,
       _createMatchedTrade(
-        tokenizedSubacc.subAccount(), takerSubacc, uint(amount > 0 ? amount : -amount), int(price), 0, 0
+        tokenizedSubacc.subAccount(),
+        takerSubacc,
+        uint(amount > 0 ? amount : -amount),
+        int(price),
+        // trade fees
+        0,
+        0
       )
     );
   }

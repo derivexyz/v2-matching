@@ -22,12 +22,21 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     uint depositCap;
     uint minDepositValue;
     uint withdrawalDelay;
+    uint depositScale;
+    uint withdrawScale;
   }
 
   struct WithdrawalRequest {
     address beneficiary;
     uint amountShares;
     uint timestamp;
+  }
+
+  struct DepositRequest {
+    address depositor;
+    uint amountDepositAsset;
+    uint timestamp;
+    uint sharesReceived;
   }
 
   struct BaseTSAInitParams {
@@ -50,6 +59,10 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   uint public subAccount;
 
   Params public params;
+  mapping(address => bool) public depositKeepers;
+
+  mapping(uint => DepositRequest) public queuedDeposit;
+  uint totalPendingDeposits;
 
   mapping(uint => WithdrawalRequest) public queuedWithdrawals;
   uint public nextQueuedWithdrawalId;
@@ -90,6 +103,36 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     depositAsset.approve(module, type(uint).max);
   }
 
+//  //////////////
+//  // Deposits //
+//  //////////////
+//  /**
+//   * Deposits are queued and processed in a future block by a trusted keeper. This is to prevent oracle front-running.
+//   *
+//   * Each individual deposit is allocated an id, which can be used to track the deposit request. They do not need to be
+//   * processed sequentially.
+//   */
+//
+//  function deposit(uint amount) external {
+//    require(amount >= params.minDepositValue, "deposit below minimum");
+//
+//    // Work out value of pool excluding the new funds to work out number of shares
+//    uint shares = _getSharesForDeposit(amount);
+//    // Then transfer in assets once shares are minted
+//    depositAsset.transferFrom(msg.sender, address(this), amount);
+//
+//    // check if deposit cap is exceeded
+//    require(_getAccountValue() <= int(params.depositCap), "deposit cap exceeded");
+//
+//    queuedDeposit[totalPendingDeposits++] = DepositRequest({
+//      depositor: msg.sender,
+//      amountDepositAsset: amount,
+//      timestamp: block.timestamp,
+//      sharesReceived: shares
+//    });
+//  }
+
+
   //////////////////////////
   // Deposit and Withdraw //
   //////////////////////////
@@ -105,10 +148,9 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   }
 
   function _getSharesForDeposit(uint depositAmount) internal view returns (uint) {
-    uint depositAmount18 = ConvertDecimals.to18Decimals(depositAmount, depositAsset.decimals());
+    uint depositAmount18 = ConvertDecimals.to18Decimals(_scaleDeposit(depositAmount), depositAsset.decimals());
     // scale depositAmount by factor and convert to shares
-    uint scaledDeposit18 = _getDepositWithdrawFactor() * depositAmount18 / 1e18;
-    return _getNumShares(scaledDeposit18);
+    return _getNumShares(depositAmount18);
   }
 
   function requestWithdrawal(uint amount) external {
@@ -153,10 +195,9 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   }
 
   function _getSharesToWithdrawAmount(uint amountShares) internal view returns (uint amountDepositAsset) {
-    uint requiredAmount18 = _getSharesValue(amountShares);
-    uint requiredAmount = ConvertDecimals.from18Decimals(requiredAmount18, depositAsset.decimals());
+    uint requiredAmount18 = _getSharesValue(_scaleWithdraw(amountShares));
+    return ConvertDecimals.from18Decimals(requiredAmount18, depositAsset.decimals());
     // scale amount by factor
-    return requiredAmount * 1e18 / _getDepositWithdrawFactor();
   }
 
   /////////////////////////////
@@ -184,8 +225,14 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     return uint(numSharesInt * _getSharePrice() / 1e18);
   }
 
-  function _getDepositWithdrawFactor() internal view virtual returns (uint) {
-    return 1e18;
+
+  // @dev Conversion factor for deposit asset to shares
+  function _scaleDeposit(uint amountAsset) internal view virtual returns (uint) {
+    return amountAsset * params.depositScale / 1e18;
+  }
+
+  function _scaleWithdraw(uint amountShares) internal view virtual returns (uint) {
+    return amountShares * params.withdrawScale / 1e18;
   }
 
   function totalSupply() public view override returns (uint) {
