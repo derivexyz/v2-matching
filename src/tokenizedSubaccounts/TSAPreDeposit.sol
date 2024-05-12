@@ -48,6 +48,18 @@ contract TSAPreDeposit is Ownable2Step {
     emit Withdrawal(msg.sender, amount);
   }
 
+  //////////
+  // View //
+  //////////
+
+  function getDeposits(address[] memory accounts) external view returns (uint[] memory) {
+    uint[] memory result = new uint[](accounts.length);
+    for (uint i = 0; i < accounts.length; i++) {
+      result[i] = deposits[accounts[i]];
+    }
+    return result;
+  }
+
   ////////////
   // Events //
   ////////////

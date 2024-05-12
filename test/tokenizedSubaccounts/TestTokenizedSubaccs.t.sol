@@ -63,6 +63,7 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
     tokenizedSubacc.setParams(
       BaseTSA.Params({
         depositCap: 10000e18,
+        depositExpiry: 10 minutes,
         minDepositValue: 1e18,
         withdrawalDelay: 10 minutes,
         depositScale: 1e18,
@@ -86,7 +87,8 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
   function testCanDepositTradeWithdraw() public {
     markets["weth"].erc20.mint(address(this), 10e18);
     markets["weth"].erc20.approve(address(tokenizedSubacc), 10e18);
-    tokenizedSubacc.deposit(1e18);
+    uint depositId = tokenizedSubacc.initiateDeposit(1e18, address(this));
+    tokenizedSubacc.processDeposit(depositId);
 
     // shares equal to spot price of 1 weth
     assertEq(tokenizedSubacc.balanceOf(address(this)), 1e18);
@@ -101,7 +103,9 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
     assertEq(markets["weth"].erc20.balanceOf(address(tokenizedSubacc)), 0.2e18);
     assertEq(subAccounts.getBalance(tokenizedSubacc.subAccount(), markets["weth"].base, 0), 0.8e18);
 
-    tokenizedSubacc.deposit(1e18);
+    depositId = tokenizedSubacc.initiateDeposit(1e18, address(this));
+    tokenizedSubacc.processDeposit(depositId);
+
     assertEq(tokenizedSubacc.balanceOf(address(this)), 2e18);
 
     // Withdraw with no PnL
