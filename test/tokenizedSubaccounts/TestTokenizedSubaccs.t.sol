@@ -14,9 +14,10 @@ import "../shared/MatchingBase.t.sol";
 import {IntegrationTestBase} from "v2-core/test/integration-tests/shared/IntegrationTestBase.t.sol";
 import {LRTCCTSA} from "../../src/tokenizedSubaccounts/LRTCCTSA.sol";
 import {BaseTSA} from "../../src/tokenizedSubaccounts/BaseTSA.sol";
+import {BasicOnChainSigningTSA} from "../../src/tokenizedSubaccounts/BasicOnChainSigningTSA.sol";
 
 contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
-  LRTCCTSA public tokenizedSubacc;
+  BasicOnChainSigningTSA public tokenizedSubacc;
 
   uint internal signerPk;
   address internal signer;
@@ -32,7 +33,7 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
 
     MatchingHelpers._deployMatching(subAccounts, address(cash), auction, 0);
 
-    tokenizedSubacc = new LRTCCTSA(
+    tokenizedSubacc = new BasicOnChainSigningTSA(
       BaseTSA.BaseTSAInitParams({
         subAccounts: subAccounts,
         auction: auction,
@@ -44,6 +45,8 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
       }),
       markets["weth"].spotFeed
     );
+
+    tokenizedSubacc.setShareKeeper(address(this), true);
 
     signerPk = 0xBEEF;
     signer = vm.addr(signerPk);
@@ -263,6 +266,9 @@ contract TokenizedSubaccountsTest is IntegrationTestBase, MatchingHelpers {
       signer,
       signerPk
     );
+
+    actions[0].signer = address(tokenizedSubacc);
+    signatures[0] = new bytes(0);
 
     _verifyAndMatch(actions, signatures, bytes(""));
   }

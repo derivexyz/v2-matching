@@ -74,7 +74,7 @@ cd ./lib/v2-core
 echo "Core"
 
 # TODO: handle individual ERC20s nicer
-#forge verify-contract --verifier blockscout --verifier-url "$explorer" "0xE4e6F3feeAD9C3714F3c9380F91CB56E04F7297E" "./src/l2/LyraERC20.sol:LyraERC20"
+#forge verify-contract --verifier etherscan --verifier-url "https://sepolia-optimism.etherscan.io/api" "0x0b3639A094854796E3b236DB08646ffd21C0B1B2" "./src/l2/LyraERC20.sol:LyraERC20"
 
 
 for tuple in "${core_contracts[@]}"; do
