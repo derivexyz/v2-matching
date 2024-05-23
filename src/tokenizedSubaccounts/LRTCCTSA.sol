@@ -1,24 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.18;
 
-import {StandardManager} from "v2-core/src/risk-managers/StandardManager.sol";
-import {PMRM, IPMRM} from "v2-core/src/risk-managers/PMRM.sol";
-import {IBaseManager} from "v2-core/src/interfaces/IBaseManager.sol";
+import "./BaseOnChainSigningTSA.sol";
 import {IOptionAsset} from "v2-core/src/interfaces/IOptionAsset.sol";
-import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
-import {ILiquidatableManager} from "v2-core/src/interfaces/ILiquidatableManager.sol";
-import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
-import {IMatching} from "../interfaces/IMatching.sol";
-import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
-import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
-import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
-import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
-import {BaseModule} from "../modules/BaseModule.sol";
-import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
-
-import {BaseTSA} from "./BaseTSA.sol";
 import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
-import {BaseOnChainSigningTSA} from "./BaseOnChainSigningTSA.sol";
 import {IDepositModule} from "../interfaces/IDepositModule.sol";
 import {IWithdrawalModule} from "../interfaces/IWithdrawalModule.sol";
 import {ITradeModule} from "../interfaces/ITradeModule.sol";
@@ -60,7 +45,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   ///////////////////////
   function _verifyAction(IMatching.Action memory action, bytes32 actionHash) internal virtual override {
     // Disable last seen hash when a new one comes in.
-    // We dont want to have to track pending withdrawals etc. in the logic, and work out if they've been executed
+    // We dont want to have to track pending withdrawals etc. in the logic, and work out if when they've been executed
     signedData[lastSeenHash] = false;
     lastSeenHash = actionHash;
 
@@ -79,7 +64,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   // Deposits //
   //////////////
 
-  function _verifyDepositAction(IMatching.Action memory action) internal {
+  function _verifyDepositAction(IMatching.Action memory action) internal view {
     IDepositModule.DepositData memory depositData = abi.decode(action.data, (IDepositModule.DepositData));
     if (depositData.asset != address(wrappedDepositAsset)) {
       revert("LRTCCTSA: Invalid asset");
@@ -90,7 +75,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   // Withdrawals //
   /////////////////
 
-  function _verifyWithdrawAction(IMatching.Action memory action) internal {
+  function _verifyWithdrawAction(IMatching.Action memory action) internal view {
     IWithdrawalModule.WithdrawalData memory withdrawalData = abi.decode(action.data, (IWithdrawalModule.WithdrawalData));
     if (withdrawalData.asset != address(wrappedDepositAsset)) {
       revert("LRTCCTSA: Invalid asset");
@@ -106,7 +91,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   // Trading //
   /////////////
 
-  function _verifyTradeAction(IMatching.Action memory action) internal {
+  function _verifyTradeAction(IMatching.Action memory action) internal view {
     ITradeModule.TradeData memory tradeData = abi.decode(action.data, (ITradeModule.TradeData));
     if (tradeData.asset == address(wrappedDepositAsset)) {
       // Always allow depositing the baseAsset
