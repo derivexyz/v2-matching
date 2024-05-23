@@ -21,7 +21,7 @@ import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
 /// @dev Prices shares in USD, but accepts baseAsset as deposit. Vault intended to try remain delta neutral.
 abstract contract BaseOnChainSigningTSA is BaseTSA {
   // bytes4(keccak256("isValidSignature(bytes32,bytes)")
-  bytes4 constant internal MAGICVALUE = 0x1626ba7e;
+  bytes4 internal constant MAGICVALUE = 0x1626ba7e;
 
   bool public signingEnabled = true;
   mapping(address => bool) public signers;
@@ -63,20 +63,19 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   ////////////////
   // Validation //
   ////////////////
-  function isValidSignature(
-    bytes32 _hash,
-    bytes memory _signature
-  ) external view checkBlocked returns (bytes4 magicValue) {
+  function isValidSignature(bytes32 _hash, bytes memory _signature)
+    external
+    view
+    checkBlocked
+    returns (bytes4 magicValue)
+  {
     if (_isValidSignature(_hash, _signature)) {
       return MAGICVALUE;
     }
     return bytes4(0);
   }
 
-  function _isValidSignature(
-    bytes32 _hash,
-    bytes memory _signature
-  ) internal view virtual returns (bool) {
+  function _isValidSignature(bytes32 _hash, bytes memory _signature) internal view virtual returns (bool) {
     return signingEnabled && signedData[_hash];
   }
 

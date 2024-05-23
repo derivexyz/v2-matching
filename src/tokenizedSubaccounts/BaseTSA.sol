@@ -117,7 +117,7 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   //
   // Deposits can be reverted if they are not processed within a certain time frame.
 
-  function initiateDeposit(uint amount, address recipient) external checkBlocked returns (uint depositId)  {
+  function initiateDeposit(uint amount, address recipient) external checkBlocked returns (uint depositId) {
     require(amount >= params.minDepositValue, "deposit below minimum");
 
     // Then transfer in assets once shares are minted
@@ -129,12 +129,8 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
 
     depositId = nextQueuedDepositId++;
 
-    queuedDeposit[depositId] = DepositRequest({
-      recipient: recipient,
-      amountDepositAsset: amount,
-      timestamp: block.timestamp,
-      sharesReceived: 0
-    });
+    queuedDeposit[depositId] =
+      DepositRequest({recipient: recipient, amountDepositAsset: amount, timestamp: block.timestamp, sharesReceived: 0});
   }
 
   function processDeposit(uint depositId) external onlyShareKeeper checkBlocked {
@@ -160,7 +156,7 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     DepositRequest storage request = queuedDeposit[depositId];
 
     if (request.sharesReceived > 0) {
-      revert ("Deposit already processed");
+      revert("Deposit already processed");
     }
 
     require(block.timestamp > request.timestamp + params.depositExpiry, "Deposit not expired");

@@ -45,7 +45,9 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   IOptionAsset public optionAsset;
   bytes32 public lastSeenHash;
 
-  constructor(BaseTSA.BaseTSAInitParams memory initParams, LRTCCTSAInitParams memory lrtCcParams) BaseOnChainSigningTSA(initParams) {
+  constructor(BaseTSA.BaseTSAInitParams memory initParams, LRTCCTSAInitParams memory lrtCcParams)
+    BaseOnChainSigningTSA(initParams)
+  {
     baseFeed = lrtCcParams.baseFeed;
     depositModule = lrtCcParams.depositModule;
     withdrawModule = lrtCcParams.withdrawModule;

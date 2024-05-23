@@ -17,7 +17,6 @@ import {MockERC20} from "v2-core/test/shared/mocks/MockERC20.sol";
 import {TokenizedSubAccount} from "../../src/tokenizedSubaccounts/TSA.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-
 contract TSAPreDepositTest is Test {
   MockERC20 internal erc20;
   TokenizedSubAccount internal tsa;
