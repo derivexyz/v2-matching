@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "forge-std/console2.sol";
 import {Utils} from "./utils.sol";
 import "../src/periphery/LyraSettlementUtils.sol";
-import {BasicOnChainSigningTSA} from "../src/tokenizedSubaccounts/BasicOnChainSigningTSA.sol";
+import {BaseOnChainSigningTSA} from "../src/tokenizedSubaccounts/BasicOnChainSigningTSA.sol";
 import {BaseTSA} from "../src/tokenizedSubaccounts/BaseTSA.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
@@ -24,7 +24,7 @@ contract DeploySettlementUtils is Utils {
     address deployer = vm.addr(deployerPrivateKey);
     console2.log("deployer: ", deployer);
 
-    BasicOnChainSigningTSA tsa = new BasicOnChainSigningTSA(
+    BaseOnChainSigningTSA tsa = new BasicOnChainSigningTSA(
       BaseTSA.BaseTSAInitParams({
         subAccounts: _getSubAccounts(),
         auction: _getAuctionAddress(),

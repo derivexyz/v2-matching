@@ -15,6 +15,7 @@ import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata
 import {BaseModule} from "../modules/BaseModule.sol";
 import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
+import {CashAsset} from "v2-core/src/assets/CashAsset.sol";
 
 // TODO: handle valuation when there is an insolvency
 abstract contract BaseTSA is ERC20, Ownable2Step {
@@ -43,6 +44,7 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   struct BaseTSAInitParams {
     ISubAccounts subAccounts;
     DutchAuction auction;
+    CashAsset cash;
     IWrappedERC20Asset wrappedDepositAsset;
     ILiquidatableManager manager;
     IMatching matching;
@@ -53,6 +55,7 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   ISubAccounts public subAccounts;
   DutchAuction public auction;
   IWrappedERC20Asset public wrappedDepositAsset;
+  CashAsset public cash;
   IERC20Metadata public depositAsset;
   ILiquidatableManager public manager;
   IMatching public matching;
@@ -77,6 +80,7 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     subAccounts = initParams.subAccounts;
     auction = initParams.auction;
     wrappedDepositAsset = initParams.wrappedDepositAsset;
+    cash = initParams.cash;
     manager = initParams.manager;
     depositAsset = wrappedDepositAsset.wrappedAsset();
     matching = initParams.matching;
@@ -91,14 +95,6 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
 
   function setParams(Params memory _params) external onlyOwner {
     params = _params;
-  }
-
-  function addSessionKey(address sessionKey, uint expiry) external onlyOwner {
-    matching.registerSessionKey(sessionKey, expiry);
-  }
-
-  function removeSessionKey(address sessionKey) external onlyOwner {
-    matching.deregisterSessionKey(sessionKey);
   }
 
   function approveModule(address module) external onlyOwner {
@@ -121,7 +117,7 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   //
   // Deposits can be reverted if they are not processed within a certain time frame.
 
-  function initiateDeposit(uint amount, address recipient) external returns (uint depositId) {
+  function initiateDeposit(uint amount, address recipient) external checkBlocked returns (uint depositId)  {
     require(amount >= params.minDepositValue, "deposit below minimum");
 
     // Then transfer in assets once shares are minted
@@ -141,11 +137,11 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     });
   }
 
-  function processDeposit(uint depositId) external onlyShareKeeper {
+  function processDeposit(uint depositId) external onlyShareKeeper checkBlocked {
     _processDeposit(depositId);
   }
 
-  function processDeposits(uint[] memory depositIds) external onlyShareKeeper {
+  function processDeposits(uint[] memory depositIds) external onlyShareKeeper checkBlocked {
     for (uint i = 0; i < depositIds.length; ++i) {
       _processDeposit(depositIds[i]);
     }
@@ -178,6 +174,12 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     return amountAsset * params.depositScale / 1e18;
   }
 
+  function _getSharesForDeposit(uint depositAmount) internal view returns (uint) {
+    uint depositAmount18 = ConvertDecimals.to18Decimals(_scaleDeposit(depositAmount), depositAsset.decimals());
+    // scale depositAmount by factor and convert to shares
+    return _getNumShares(depositAmount18);
+  }
+
   /////////////////
   // Withdrawals //
   /////////////////
@@ -185,13 +187,7 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   // transferred out of the subaccount that is doing the trading, so there is a delay to allow any actions that are
   // required to take place (closing positions, withdrawing to this address, etc).
 
-  function _getSharesForDeposit(uint depositAmount) internal view returns (uint) {
-    uint depositAmount18 = ConvertDecimals.to18Decimals(_scaleDeposit(depositAmount), depositAsset.decimals());
-    // scale depositAmount by factor and convert to shares
-    return _getNumShares(depositAmount18);
-  }
-
-  function requestWithdrawal(uint amount) external {
+  function requestWithdrawal(uint amount) external checkBlocked {
     require(balanceOf(msg.sender) >= amount, "insufficient balance");
     require(amount > 0, "invalid amount");
 
@@ -203,7 +199,7 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     totalPendingWithdrawals += amount;
   }
 
-  function processWithdrawalRequests(uint limit) external {
+  function processWithdrawalRequests(uint limit) external checkBlocked {
     for (uint i = 0; i < limit; ++i) {
       WithdrawalRequest storage request = queuedWithdrawals[queuedWithdrawalHead];
 
@@ -249,7 +245,7 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   function _getAccountValue() internal view virtual returns (int);
 
   function _getSharePrice() internal view returns (int) {
-    // TODO: avoid the small balance mint/burn share price manipulation
+    // TODO: avoid the small balance mint/burn share price manipulation at start of vault life
     int totalSupplyInt = int(totalSupply());
     return totalSupplyInt == 0 ? int(1e18) : _getAccountValue() * 1e18 / totalSupplyInt;
   }
@@ -276,7 +272,7 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   /////////////////////
 
   function _isBlocked() internal view returns (bool) {
-    return auction.isAuctionLive(subAccount) || auction.getIsWithdrawBlocked();
+    return auction.isAuctionLive(subAccount) || auction.getIsWithdrawBlocked() || cash.temporaryWithdrawFeeEnabled();
   }
 
   modifier onlyShareKeeper() {
@@ -284,9 +280,8 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     _;
   }
 
-  modifier preTransfer() {
+  modifier checkBlocked() {
     require(!_isBlocked(), "action blocked");
-    // TODO: should we settle perps/options? Shouldn't affect MTM
     _;
   }
 }
