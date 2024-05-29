@@ -3,6 +3,8 @@ pragma solidity ^0.8.18;
 
 import "./BaseTSA.sol";
 
+import "forge-std/console2.sol";
+import "openzeppelin/utils/cryptography/ECDSA.sol";
 
 /// @title BaseOnChainSigningTSA
 /// @dev Prices shares in USD, but accepts baseAsset as deposit. Vault intended to try remain delta neutral.
@@ -31,7 +33,8 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   // Signing //
   /////////////
   function signActionData(IMatching.Action memory action) external virtual onlySigner {
-    bytes32 hash = matching.getActionHash(action);
+    bytes32 hash = ECDSA.toTypedDataHash(matching.domainSeparator(), matching.getActionHash(action));
+    require(action.signer == address(this), "BaseOnChainSigningTSA: action.signer must be TSA");
     _verifyAction(action, hash);
     signedData[hash] = true;
   }
@@ -62,7 +65,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     return bytes4(0);
   }
 
-  function _isValidSignature(bytes32 _hash, bytes memory _signature) internal view virtual returns (bool) {
+  function _isValidSignature(bytes32 _hash, bytes memory /* _signature */ ) internal view virtual returns (bool) {
     return signingEnabled && signedData[_hash];
   }
 

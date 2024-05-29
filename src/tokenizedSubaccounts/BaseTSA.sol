@@ -12,15 +12,32 @@ import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 import {CashAsset} from "v2-core/src/assets/CashAsset.sol";
 
-// TODO: handle valuation when there is an insolvency
+/// @title Base Tokenized SubAccount
+/// @notice Base class for tokenized subaccounts
+/// @dev This contract is abstract and must be inherited by a concrete implementation. It works assuming share decimals
+/// are the same as depositAsset decimals.
+/// @author Lyra
 abstract contract BaseTSA is ERC20, Ownable2Step {
-  struct Params {
+  struct BaseTSAInitParams {
+    ISubAccounts subAccounts;
+    DutchAuction auction;
+    CashAsset cash;
+    IWrappedERC20Asset wrappedDepositAsset;
+    ILiquidatableManager manager;
+    IMatching matching;
+    string symbol;
+    string name;
+  }
+
+  struct TSAParams {
     uint depositCap;
     uint depositExpiry;
     uint minDepositValue;
     uint withdrawalDelay;
     uint depositScale;
     uint withdrawScale;
+    uint managementFee;
+    address feeRecipient;
   }
 
   struct WithdrawalRequest {
@@ -36,17 +53,6 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     uint sharesReceived;
   }
 
-  struct BaseTSAInitParams {
-    ISubAccounts subAccounts;
-    DutchAuction auction;
-    CashAsset cash;
-    IWrappedERC20Asset wrappedDepositAsset;
-    ILiquidatableManager manager;
-    IMatching matching;
-    string symbol;
-    string name;
-  }
-
   ISubAccounts public subAccounts;
   DutchAuction public auction;
   IWrappedERC20Asset public wrappedDepositAsset;
@@ -57,19 +63,23 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
 
   uint public subAccount;
 
-  Params public params;
+  TSAParams public tsaParams;
 
   /// @dev Keepers that are are allowed to process deposits and withdrawals
   mapping(address => bool) public shareKeepers;
 
   mapping(uint => DepositRequest) public queuedDeposit;
   uint public nextQueuedDepositId;
+  /// @dev Total amount of pending deposits in depositAsset decimals
   uint public totalPendingDeposits;
 
   mapping(uint => WithdrawalRequest) public queuedWithdrawals;
   uint public nextQueuedWithdrawalId;
   uint public queuedWithdrawalHead;
   uint public totalPendingWithdrawals;
+
+  /// @dev Last time the fee was collected
+  uint public lastFeeCollected;
 
   constructor(BaseTSAInitParams memory initParams) ERC20(initParams.name, initParams.symbol) Ownable2Step() {
     subAccounts = initParams.subAccounts;
@@ -88,8 +98,9 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   // Admin //
   ///////////
 
-  function setParams(Params memory _params) external onlyOwner {
-    params = _params;
+  function setTSAParams(TSAParams memory _params) external onlyOwner {
+    _collectFee();
+    tsaParams = _params;
   }
 
   function approveModule(address module) external onlyOwner {
@@ -113,14 +124,14 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   // Deposits can be reverted if they are not processed within a certain time frame.
 
   function initiateDeposit(uint amount, address recipient) external checkBlocked returns (uint depositId) {
-    require(amount >= params.minDepositValue, "deposit below minimum");
+    require(amount >= tsaParams.minDepositValue, "deposit below minimum");
 
     // Then transfer in assets once shares are minted
     depositAsset.transferFrom(msg.sender, address(this), amount);
     totalPendingDeposits += amount;
 
     // check if deposit cap is exceeded
-    require(_getAccountValue() <= int(params.depositCap), "deposit cap exceeded");
+    require(_getAccountValue() <= tsaParams.depositCap, "deposit cap exceeded");
 
     depositId = nextQueuedDepositId++;
 
@@ -129,10 +140,12 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   }
 
   function processDeposit(uint depositId) external onlyShareKeeper checkBlocked {
+    _collectFee();
     _processDeposit(depositId);
   }
 
   function processDeposits(uint[] memory depositIds) external onlyShareKeeper checkBlocked {
+    _collectFee();
     for (uint i = 0; i < depositIds.length; ++i) {
       _processDeposit(depositIds[i]);
     }
@@ -154,21 +167,22 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
       revert("Deposit already processed");
     }
 
-    require(block.timestamp > request.timestamp + params.depositExpiry, "Deposit not expired");
+    require(block.timestamp > request.timestamp + tsaParams.depositExpiry, "Deposit not expired");
 
     totalPendingDeposits -= request.amountDepositAsset;
     depositAsset.transfer(request.recipient, request.amountDepositAsset);
   }
 
-  // @dev Conversion factor for deposit asset to shares
-  function _scaleDeposit(uint amountAsset) internal view virtual returns (uint) {
-    return amountAsset * params.depositScale / 1e18;
-  }
-
+  /// @dev Share decimals are in depositAsset decimals
   function _getSharesForDeposit(uint depositAmount) internal view returns (uint) {
-    uint depositAmount18 = ConvertDecimals.to18Decimals(_scaleDeposit(depositAmount), depositAsset.decimals());
+    uint depositAmount18 = _scaleDeposit(depositAmount);
     // scale depositAmount by factor and convert to shares
     return _getNumShares(depositAmount18);
+  }
+
+  /// @dev Conversion factor for deposit asset to shares
+  function _scaleDeposit(uint amountAsset) internal view virtual returns (uint) {
+    return amountAsset * tsaParams.depositScale / 1e18;
   }
 
   /////////////////
@@ -178,6 +192,8 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   // transferred out of the subaccount that is doing the trading, so there is a delay to allow any actions that are
   // required to take place (closing positions, withdrawing to this address, etc).
 
+  /// @notice Request a withdrawal of an amount of shares. These will be removed from the account and be processed
+  /// in the future.
   function requestWithdrawal(uint amount) external checkBlocked {
     require(balanceOf(msg.sender) >= amount, "insufficient balance");
     require(amount > 0, "invalid amount");
@@ -190,11 +206,14 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     totalPendingWithdrawals += amount;
   }
 
+  /// @notice Process a number of withdrawal requests, up to a limit.
   function processWithdrawalRequests(uint limit) external checkBlocked {
+    _collectFee();
+
     for (uint i = 0; i < limit; ++i) {
       WithdrawalRequest storage request = queuedWithdrawals[queuedWithdrawalHead];
 
-      if (!shareKeepers[msg.sender] && request.timestamp + params.withdrawalDelay > block.timestamp) {
+      if (!shareKeepers[msg.sender] && request.timestamp + tsaParams.withdrawalDelay > block.timestamp) {
         break;
       }
 
@@ -225,7 +244,37 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   }
 
   function _scaleWithdraw(uint amountShares) internal view virtual returns (uint) {
-    return amountShares * params.withdrawScale / 1e18;
+    return amountShares * tsaParams.withdrawScale / 1e18;
+  }
+
+  //////////
+  // Fees //
+  //////////
+  function collectFee() external {
+    _collectFee();
+  }
+
+  /// @dev Must be called before totalSupply is modified to keep amount charged fair
+  function _collectFee() internal {
+    if (lastFeeCollected == block.timestamp) {
+      return;
+    }
+
+    if (tsaParams.managementFee == 0 || tsaParams.feeRecipient == address(0)) {
+      lastFeeCollected = block.timestamp;
+      return;
+    }
+
+    uint totalShares = this.totalSupply() + totalPendingWithdrawals;
+    if (totalShares == 0) {
+      lastFeeCollected = block.timestamp;
+      return;
+    }
+
+    uint timeSinceLastCollect = block.timestamp - lastFeeCollected;
+
+    uint percentToCollect = timeSinceLastCollect * tsaParams.managementFee / 365 days;
+    _mint(tsaParams.feeRecipient, totalShares * percentToCollect / 1e18);
   }
 
   /////////////////////////////
@@ -233,27 +282,27 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   /////////////////////////////
 
   /// @dev Function to calculate the value of the account. Must account for pending deposits.
-  function _getAccountValue() internal view virtual returns (int);
+  /// This is the total amount of "depositAsset" the whole account is worth, **in depositAsset decimals**.
+  function _getAccountValue() internal view virtual returns (uint);
 
-  function _getSharePrice() internal view returns (int) {
+  // @dev The amount of "depositAsset" one share is worth, **in 18 decimals**.
+  function _getSharePrice() internal view returns (uint) {
     // TODO: avoid the small balance mint/burn share price manipulation at start of vault life
-    int totalSupplyInt = int(totalSupply());
-    return totalSupplyInt == 0 ? int(1e18) : _getAccountValue() * 1e18 / totalSupplyInt;
+    // totalSupply and accountValue are in depositAsset decimals. Result will be in 18 decimals.
+    return totalSupply() == 0 ? 1e18 : _getAccountValue() * 1e18 / totalSupply();
   }
 
+  /// @dev The number of shares that would be minted for an amount of "depositAsset". **In depositAsset decimals**.
   function _getNumShares(uint depositAmount) internal view returns (uint) {
-    int depositAmountInt = int(depositAmount);
-    require(depositAmountInt >= 0, "depositAmount overflow");
-    return uint(depositAmountInt * _getSharePrice() / 1e18);
+    return depositAmount * _getSharePrice() / 1e18;
   }
 
-  /// @dev in 18dp
+  /// @dev The value a given amount of shares in terms of "depositAsset". **In depositAsset decimals**.
   function _getSharesValue(uint numShares) internal view returns (uint) {
-    int numSharesInt = int(numShares);
-    require(numSharesInt >= 0, "numShares overflow");
-    return uint(numSharesInt * _getSharePrice() / 1e18);
+    return numShares * _getSharePrice() / 1e18;
   }
 
+  /// @dev The total supply of the token, including pending withdrawals. **In depositAsset decimals**.
   function totalSupply() public view override returns (uint) {
     return ERC20.totalSupply() + totalPendingWithdrawals;
   }
