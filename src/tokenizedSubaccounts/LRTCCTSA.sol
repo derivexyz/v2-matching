@@ -65,52 +65,77 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     uint feeFactor;
   }
 
-  ISpotFeed public baseFeed;
-  IDepositModule public depositModule;
-  IWithdrawalModule public withdrawalModule;
-  ITradeModule public tradeModule;
-  IOptionAsset public optionAsset;
 
-  LRTCCTSAParams public ccParams;
+  struct LRTCCTSAStorage {
+    ISpotFeed baseFeed;
+    IDepositModule depositModule;
+    IWithdrawalModule withdrawalModule;
+    ITradeModule tradeModule;
+    IOptionAsset optionAsset;
 
-  bytes32 public lastSeenHash;
+    LRTCCTSAParams ccParams;
 
-  constructor(BaseTSA.BaseTSAInitParams memory initParams, LRTCCTSAInitParams memory lrtCcParams)
-    BaseOnChainSigningTSA(initParams)
-  {
-    baseFeed = lrtCcParams.baseFeed;
-    depositModule = lrtCcParams.depositModule;
-    withdrawalModule = lrtCcParams.withdrawalModule;
-    tradeModule = lrtCcParams.tradeModule;
-    optionAsset = lrtCcParams.optionAsset;
+    bytes32 lastSeenHash;
+  }
 
-    depositAsset.approve(address(depositModule), type(uint).max);
+  // keccak256(abi.encode(uint256(keccak256("lyra.storage.LRTCCTSA")) - 1)) & ~bytes32(uint256(0xff))
+  bytes32 private constant LRTCCTSAStorageLocation = 0xd23c9568c865fed3eccfc1638328efd8f43b198d4d62e7fa8b700b08a8282300;
+
+  function _getLRTCCTSAStorage() private pure returns (LRTCCTSAStorage storage $) {
+    assembly {
+      $.slot := LRTCCTSAStorageLocation
+    }
+  }
+
+  constructor() {
+    _disableInitializers();
+  }
+
+  function initialize(address initialOwner, BaseTSA.BaseTSAInitParams memory initParams, LRTCCTSAInitParams memory lrtCcParams) external reinitializer(2) {
+    __BaseTSA_init(initialOwner, initParams);
+
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+
+    $.baseFeed = lrtCcParams.baseFeed;
+
+    $.depositModule = lrtCcParams.depositModule;
+    $.withdrawalModule = lrtCcParams.withdrawalModule;
+    $.tradeModule = lrtCcParams.tradeModule;
+    $.optionAsset = lrtCcParams.optionAsset;
+
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
+
+    tsaAddresses.depositAsset.approve(address($.depositModule), type(uint).max);
   }
 
   ///////////
   // Admin //
   ///////////
   function setLRTCCTSAParams(LRTCCTSAParams memory newParams) external onlyOwner {
-    ccParams = newParams;
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+
+    $.ccParams = newParams;
   }
 
   ///////////////////////
   // Action Validation //
   ///////////////////////
   function _verifyAction(IMatching.Action memory action, bytes32 actionHash) internal virtual override {
-    require(action.expiry >= block.timestamp + ccParams.minSignatureExpiry, "Action expiry too soon");
-    require(action.expiry <= block.timestamp + ccParams.maxSignatureExpiry, "Action expiry too far");
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+
+    require(action.expiry >= block.timestamp + $.ccParams.minSignatureExpiry, "Action expiry too soon");
+    require(action.expiry <= block.timestamp + $.ccParams.maxSignatureExpiry, "Action expiry too far");
 
     // Disable last seen hash when a new one comes in.
     // We dont want to have to track pending withdrawals etc. in the logic, and work out if when they've been executed
-    signedData[lastSeenHash] = false;
-    lastSeenHash = actionHash;
+    _revokeSignature($.lastSeenHash);
+    $.lastSeenHash = actionHash;
 
-    if (address(action.module) == address(depositModule)) {
+    if (address(action.module) == address($.depositModule)) {
       _verifyDepositAction(action);
-    } else if (address(action.module) == address(withdrawalModule)) {
+    } else if (address(action.module) == address($.withdrawalModule)) {
       _verifyWithdrawAction(action);
-    } else if (address(action.module) == address(tradeModule)) {
+    } else if (address(action.module) == address($.tradeModule)) {
       _verifyTradeAction(action);
     } else {
       revert("LRTCCTSA: Invalid module");
@@ -122,8 +147,10 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   //////////////
 
   function _verifyDepositAction(IMatching.Action memory action) internal view {
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
+
     IDepositModule.DepositData memory depositData = abi.decode(action.data, (IDepositModule.DepositData));
-    if (depositData.asset != address(wrappedDepositAsset)) {
+    if (depositData.asset != address(tsaAddresses.wrappedDepositAsset)) {
       revert("LRTCCTSA: Invalid asset");
     }
   }
@@ -133,8 +160,11 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   /////////////////
 
   function _verifyWithdrawAction(IMatching.Action memory action) internal view {
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
+
     IWithdrawalModule.WithdrawalData memory withdrawalData = abi.decode(action.data, (IWithdrawalModule.WithdrawalData));
-    if (withdrawalData.asset != address(wrappedDepositAsset)) {
+    if (withdrawalData.asset != address(tsaAddresses.wrappedDepositAsset)) {
       revert("LRTCCTSA: Invalid asset");
     }
 
@@ -143,7 +173,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
       revert("LRTCCTSA: Cannot withdraw utilised collateral");
     }
 
-    if (cashBalance < ccParams.optionMaxNegCash) {
+    if (cashBalance < $.ccParams.optionMaxNegCash) {
       revert("LRTCCTSA: Cannot withdraw with negative cash");
     }
   }
@@ -153,9 +183,13 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   /////////////
 
   function _verifyTradeAction(IMatching.Action memory action) internal view {
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
+
+
     ITradeModule.TradeData memory tradeData = abi.decode(action.data, (ITradeModule.TradeData));
 
-    if (tradeData.asset == address(wrappedDepositAsset)) {
+    if (tradeData.asset == address(tsaAddresses.wrappedDepositAsset)) {
       if (tradeData.isBid) {
         // Buying more LRTs with excess cash
         _verifyLRTBuy(tradeData);
@@ -164,7 +198,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
         _verifyLRTSell(tradeData);
       }
       return;
-    } else if (tradeData.asset == address(optionAsset)) {
+    } else if (tradeData.asset == address($.optionAsset)) {
       require(!tradeData.isBid, "LRTCCTSA: Can only open short positions");
 
       _verifyOptionSell(tradeData);
@@ -174,7 +208,11 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   }
 
   function _verifyLRTBuy(ITradeModule.TradeData memory tradeData) internal view {
-    int cashBalance = subAccounts.getBalance(subAccount, cash, 0);
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
+
+
+    int cashBalance = tsaAddresses.subAccounts.getBalance(subAccount(), tsaAddresses.cash, 0);
     require(cashBalance > 0, "LRTCCTSA: Can only buy with positive cash");
 
     uint basePrice = _getBasePrice();
@@ -182,30 +220,36 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     // We don't worry too much about the fee in the calculations, as we trust the exchange won't cause issues. We make
     // sure max fee doesn't exceed 0.5% of spot though.
     _verifyFee(tradeData.worstFee, basePrice);
-    require(tradeData.limitPrice.toUint256() <= basePrice.multiplyDecimal(ccParams.worstSpotBuyPrice));
+    require(tradeData.limitPrice.toUint256() <= basePrice.multiplyDecimal($.ccParams.worstSpotBuyPrice));
 
     int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
     require(
-      cost < cashBalance.multiplyDecimal(ccParams.spotTransactionLeniency), "LRTCCTSA: Buying too much collateral"
+      cost < cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency), "LRTCCTSA: Buying too much collateral"
     );
   }
 
   function _verifyLRTSell(ITradeModule.TradeData memory tradeData) internal view {
-    int cashBalance = subAccounts.getBalance(subAccount, cash, 0);
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
+
+
+    int cashBalance = tsaAddresses.subAccounts.getBalance(subAccount(), tsaAddresses.cash, 0);
     require(cashBalance < 0, "LRTCCTSA: Can only buy with positive cash");
 
     uint basePrice = _getBasePrice();
 
     _verifyFee(tradeData.worstFee, basePrice);
-    require(tradeData.limitPrice.toUint256() >= basePrice.multiplyDecimal(ccParams.worstSpotSellPrice));
+    require(tradeData.limitPrice.toUint256() >= basePrice.multiplyDecimal($.ccParams.worstSpotSellPrice));
 
     int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
     require(
-      cost < cashBalance.multiplyDecimal(ccParams.spotTransactionLeniency), "LRTCCTSA: Selling too much collateral"
+      cost < cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency), "LRTCCTSA: Selling too much collateral"
     );
   }
 
   function _verifyOptionSell(ITradeModule.TradeData memory tradeData) internal view {
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+
     // verify:
     // - amount of options wont exceed base balance
     // - delta of option is above threshold
@@ -213,7 +257,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
 
     (uint numShortCalls, uint baseBalance, int cashBalance) = _getAccountStats();
     require(tradeData.desiredAmount.abs() + numShortCalls <= baseBalance, "LRTCCTSA: Selling too many calls");
-    if (cashBalance < ccParams.optionMaxNegCash) {
+    if (cashBalance < $.ccParams.optionMaxNegCash) {
       revert("LRTCCTSA: Cannot sell options with negative cash");
     }
 
@@ -221,7 +265,9 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   }
 
   function _verifyFee(uint worstFee, uint basePrice) internal view {
-    require(worstFee < basePrice.multiplyDecimal(ccParams.feeFactor), "LRTCCTSA: Fee too high");
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+
+    require(worstFee < basePrice.multiplyDecimal($.ccParams.feeFactor), "LRTCCTSA: Fee too high");
   }
 
   /////////////////
@@ -229,6 +275,8 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   /////////////////
 
   function _validateOptionDetails(uint96 subId, uint limitPrice) internal view {
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+
     (uint expiry, uint strike, bool isCall) = OptionEncoding.fromSubId(subId);
     require(isCall, "LRTCCTSA: Only short calls allowed");
 
@@ -236,7 +284,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
       revert("LRTCCTSA: Option expired");
     }
     uint timeToExpiry = expiry - block.timestamp;
-    if (timeToExpiry < ccParams.optionMinTimeToExpiry || timeToExpiry > ccParams.optionMaxTimeToExpiry) {
+    if (timeToExpiry < $.ccParams.optionMinTimeToExpiry || timeToExpiry > $.ccParams.optionMaxTimeToExpiry) {
       revert("LRTCCTSA: Option expiry out of bounds");
     }
 
@@ -245,14 +293,14 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     (uint callPrice,, uint callDelta) = Black76.pricesAndDelta(
       Black76.Black76Inputs({
         timeToExpirySec: timeToExpiry.toUint64(),
-        volatility: (vol.multiplyDecimal(ccParams.optionVolSlippageFactor)).toUint128(),
+        volatility: (vol.multiplyDecimal($.ccParams.optionVolSlippageFactor)).toUint128(),
         fwdPrice: forwardPrice.toUint128(),
         strikePrice: strike.toUint128(),
         discount: 1e18
       })
     );
 
-    if (callDelta < ccParams.optionMaxDelta) {
+    if (callDelta < $.ccParams.optionMaxDelta) {
       revert("LRTCCTSA: Option delta too low");
     }
 
@@ -262,8 +310,11 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   }
 
   function _getFeedValues(uint128 strike, uint64 expiry) internal view returns (uint vol, uint forwardPrice) {
-    StandardManager srm = StandardManager(address(manager));
-    IStandardManager.AssetDetail memory assetDetails = srm.assetDetails(optionAsset);
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+
+    StandardManager srm = StandardManager(address(tsaAddresses.manager));
+    IStandardManager.AssetDetail memory assetDetails = srm.assetDetails($.optionAsset);
     (, IForwardFeed fwdFeed, IVolFeed volFeed) = srm.getMarketFeeds(assetDetails.marketId);
     (vol,) = volFeed.getVol(strike, expiry);
     (forwardPrice,) = fwdFeed.getForwardPrice(expiry);
@@ -274,11 +325,14 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   ///////////////////
 
   function _getAccountValue() internal view override returns (uint) {
-    // TODO: double check perp Pnl, funding, cash interest is accounted for
-    uint depositAssetBalance = depositAsset.balanceOf(address(this)) - totalPendingDeposits;
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
-    (, int mtm) = manager.getMarginAndMarkToMarket(subAccount, true, 0);
-    (uint spotPrice,) = baseFeed.getSpot();
+    // TODO: double check perp Pnl, funding, cash interest is accounted for
+    uint depositAssetBalance = tsaAddresses.depositAsset.balanceOf(address(this)) - totalPendingDeposits();
+
+    (, int mtm) = tsaAddresses.manager.getMarginAndMarkToMarket(subAccount(), true, 0);
+    (uint spotPrice,) = $.baseFeed.getSpot();
 
     int convertedMtM = mtm.divideDecimal(spotPrice.toInt256());
 
@@ -290,17 +344,20 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   }
 
   function _getAccountStats() internal view returns (uint numShortCalls, uint baseBalance, int cashBalance) {
-    ISubAccounts.AssetBalance[] memory balances = subAccounts.getAccountBalances(subAccount);
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
+
+    ISubAccounts.AssetBalance[] memory balances = tsaAddresses.subAccounts.getAccountBalances(subAccount());
     for (uint i = 0; i < balances.length; i++) {
-      if (balances[i].asset == optionAsset) {
+      if (balances[i].asset == $.optionAsset) {
         int balance = balances[i].balance;
         if (balance > 0) {
           revert("LRTCCTSA: Invalid option balance");
         }
         numShortCalls += balances[i].balance.abs();
-      } else if (balances[i].asset == wrappedDepositAsset) {
+      } else if (balances[i].asset == tsaAddresses.wrappedDepositAsset) {
         baseBalance = balances[i].balance.abs();
-      } else if (balances[i].asset == cash) {
+      } else if (balances[i].asset == tsaAddresses.cash) {
         cashBalance = balances[i].balance;
       }
     }
@@ -308,7 +365,9 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   }
 
   function _getBasePrice() internal view returns (uint) {
-    (uint spotPrice,) = baseFeed.getSpot();
+    LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
+
+    (uint spotPrice,) = $.baseFeed.getSpot();
     return spotPrice;
   }
 }

@@ -9,24 +9,16 @@ import {ITradeModule} from "../../src/interfaces/ITradeModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
 import "forge-std/console2.sol";
-import {Test} from "../shared/MatchingBase.t.sol";
-import {IntegrationTestBase} from "v2-core/test/integration-tests/shared/IntegrationTestBase.t.sol";
-import {LRTCCTSA} from "../../src/tokenizedSubaccounts/LRTCCTSA.sol";
-import {BaseTSA} from "../../src/tokenizedSubaccounts/BaseTSA.sol";
-import {MockERC20} from "v2-core/test/shared/mocks/MockERC20.sol";
-import {TokenizedSubAccount} from "../../src/tokenizedSubaccounts/TSA.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./TSATestUtils.sol";
 
-contract TSAPreDepositTest is Test {
+contract TSAPreDepositTest is TSATestUtils {
   MockERC20 internal erc20;
   TokenizedSubAccount internal tsa;
 
-  address internal alice = address(0x123);
-
-  function setUp() public {
+  function setUp() public override {
     erc20 = new MockERC20("token", "token");
-    tsa = new TokenizedSubAccount();
-    tsa.initialize("TSA", "TSA", IERC20(address(erc20)));
+    deployPredeposit(address(erc20));
+    tsa = TokenizedSubAccount(address(proxy));
   }
 
   function testCanDepositWithdrawAndMigrate() public {

@@ -6,18 +6,18 @@ import {ILiquidatableManager} from "v2-core/src/interfaces/ILiquidatableManager.
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
-import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
-import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 import {CashAsset} from "v2-core/src/assets/CashAsset.sol";
+import {ERC20Upgradeable} from "openzeppelin-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 
 /// @title Base Tokenized SubAccount
 /// @notice Base class for tokenized subaccounts
 /// @dev This contract is abstract and must be inherited by a concrete implementation. It works assuming share decimals
 /// are the same as depositAsset decimals.
 /// @author Lyra
-abstract contract BaseTSA is ERC20, Ownable2Step {
+abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   struct BaseTSAInitParams {
     ISubAccounts subAccounts;
     DutchAuction auction;
@@ -27,6 +27,16 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     IMatching matching;
     string symbol;
     string name;
+  }
+
+  struct BaseTSAAddresses {
+    ISubAccounts subAccounts;
+    DutchAuction auction;
+    IWrappedERC20Asset wrappedDepositAsset;
+    CashAsset cash;
+    IERC20Metadata depositAsset;
+    ILiquidatableManager manager;
+    IMatching matching;
   }
 
   struct TSAParams {
@@ -53,45 +63,67 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
     uint sharesReceived;
   }
 
-  ISubAccounts public subAccounts;
-  DutchAuction public auction;
-  IWrappedERC20Asset public wrappedDepositAsset;
-  CashAsset public cash;
-  IERC20Metadata public depositAsset;
-  ILiquidatableManager public manager;
-  IMatching public matching;
+  /// @custom:storage-location erc7201:openzeppelin.storage.Ownable
+  struct BaseTSAStorage {
+    ISubAccounts subAccounts;
+    DutchAuction auction;
+    IWrappedERC20Asset wrappedDepositAsset;
+    CashAsset cash;
+    IERC20Metadata depositAsset;
+    ILiquidatableManager manager;
+    IMatching matching;
 
-  uint public subAccount;
+    uint subAccount;
 
-  TSAParams public tsaParams;
+    TSAParams tsaParams;
 
-  /// @dev Keepers that are are allowed to process deposits and withdrawals
-  mapping(address => bool) public shareKeepers;
+    /// @dev Keepers that are are allowed to process deposits and withdrawals
+    mapping(address => bool) shareKeepers;
 
-  mapping(uint => DepositRequest) public queuedDeposit;
-  uint public nextQueuedDepositId;
-  /// @dev Total amount of pending deposits in depositAsset decimals
-  uint public totalPendingDeposits;
+    mapping(uint => DepositRequest) queuedDeposit;
+    uint nextQueuedDepositId;
+    /// @dev Total amount of pending deposits in depositAsset decimals
+    uint totalPendingDeposits;
 
-  mapping(uint => WithdrawalRequest) public queuedWithdrawals;
-  uint public nextQueuedWithdrawalId;
-  uint public queuedWithdrawalHead;
-  uint public totalPendingWithdrawals;
+    mapping(uint => WithdrawalRequest) queuedWithdrawals;
+    uint nextQueuedWithdrawalId;
+    uint queuedWithdrawalHead;
+    uint totalPendingWithdrawals;
 
-  /// @dev Last time the fee was collected
-  uint public lastFeeCollected;
+    /// @dev Last time the fee was collected
+    uint lastFeeCollected;
+  }
 
-  constructor(BaseTSAInitParams memory initParams) ERC20(initParams.name, initParams.symbol) Ownable2Step() {
-    subAccounts = initParams.subAccounts;
-    auction = initParams.auction;
-    wrappedDepositAsset = initParams.wrappedDepositAsset;
-    cash = initParams.cash;
-    manager = initParams.manager;
-    depositAsset = wrappedDepositAsset.wrappedAsset();
-    matching = initParams.matching;
+  // keccak256(abi.encode(uint256(keccak256("lyra.storage.BaseTSA")) - 1)) & ~bytes32(uint256(0xff))
+  bytes32 private constant BaseTSAStorageLocation = 0x5dfed237c807655691d61cacf0fafd8d8cac98f5cca2d37d7fc033aa25733b00;
 
-    subAccount = subAccounts.createAccountWithApproval(address(this), address(matching), initParams.manager);
-    matching.depositSubAccount(subAccount);
+  function _getBaseTSAStorage() private pure returns (BaseTSAStorage storage $) {
+    assembly {
+      $.slot := BaseTSAStorageLocation
+    }
+  }
+
+  constructor() {
+    _disableInitializers();
+  }
+
+  function __BaseTSA_init(address initialOwner, BaseTSAInitParams memory initParams) internal onlyInitializing {
+    // Use "unchained" to make sure an existing owner isn't replaced when upgraded
+    __Ownable_init_unchained(initialOwner);
+    __ERC20_init(initParams.name, initParams.symbol);
+
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    $.subAccounts = initParams.subAccounts;
+    $.auction = initParams.auction;
+    $.wrappedDepositAsset = initParams.wrappedDepositAsset;
+    $.cash = initParams.cash;
+    $.manager = initParams.manager;
+    $.depositAsset = $.wrappedDepositAsset.wrappedAsset();
+    $.matching = initParams.matching;
+
+    $.subAccount = $.subAccounts.createAccountWithApproval(address(this), address($.matching), $.manager);
+    $.matching.depositSubAccount($.subAccount);
   }
 
   ///////////
@@ -100,17 +132,21 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
 
   function setTSAParams(TSAParams memory _params) external onlyOwner {
     _collectFee();
-    tsaParams = _params;
+
+    _getBaseTSAStorage().tsaParams = _params;
   }
 
   function approveModule(address module) external onlyOwner {
-    require(matching.allowedModules(module), "module not approved");
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
 
-    depositAsset.approve(module, type(uint).max);
+    require($.matching.allowedModules(module), "module not approved");
+
+    $.depositAsset.approve(module, type(uint).max);
   }
 
   function setShareKeeper(address keeper, bool isKeeper) external onlyOwner {
-    shareKeepers[keeper] = isKeeper;
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+    $.shareKeepers[keeper] = isKeeper;
   }
 
   //////////////
@@ -124,18 +160,20 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   // Deposits can be reverted if they are not processed within a certain time frame.
 
   function initiateDeposit(uint amount, address recipient) external checkBlocked returns (uint depositId) {
-    require(amount >= tsaParams.minDepositValue, "deposit below minimum");
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    require(amount >= $.tsaParams.minDepositValue, "deposit below minimum");
 
     // Then transfer in assets once shares are minted
-    depositAsset.transferFrom(msg.sender, address(this), amount);
-    totalPendingDeposits += amount;
+    $.depositAsset.transferFrom(msg.sender, address(this), amount);
+    $.totalPendingDeposits += amount;
 
     // check if deposit cap is exceeded
-    require(_getAccountValue() <= tsaParams.depositCap, "deposit cap exceeded");
+    require(_getAccountValue() <= $.tsaParams.depositCap, "deposit cap exceeded");
 
-    depositId = nextQueuedDepositId++;
+    depositId = $.nextQueuedDepositId++;
 
-    queuedDeposit[depositId] =
+    $.queuedDeposit[depositId] =
       DepositRequest({recipient: recipient, amountDepositAsset: amount, timestamp: block.timestamp, sharesReceived: 0});
   }
 
@@ -152,25 +190,29 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   }
 
   function _processDeposit(uint depositId) internal {
-    DepositRequest storage request = queuedDeposit[depositId];
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    DepositRequest storage request = $.queuedDeposit[depositId];
 
     uint shares = _getSharesForDeposit(request.amountDepositAsset);
     _mint(request.recipient, shares);
-    totalPendingDeposits -= request.amountDepositAsset;
+    $.totalPendingDeposits -= request.amountDepositAsset;
     request.sharesReceived = shares;
   }
 
   function revertPendingDeposit(uint depositId) external {
-    DepositRequest storage request = queuedDeposit[depositId];
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    DepositRequest storage request = $.queuedDeposit[depositId];
 
     if (request.sharesReceived > 0) {
       revert("Deposit already processed");
     }
 
-    require(block.timestamp > request.timestamp + tsaParams.depositExpiry, "Deposit not expired");
+    require(block.timestamp > request.timestamp + $.tsaParams.depositExpiry, "Deposit not expired");
 
-    totalPendingDeposits -= request.amountDepositAsset;
-    depositAsset.transfer(request.recipient, request.amountDepositAsset);
+    $.totalPendingDeposits -= request.amountDepositAsset;
+    $.depositAsset.transfer(request.recipient, request.amountDepositAsset);
   }
 
   /// @dev Share decimals are in depositAsset decimals
@@ -182,7 +224,9 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
 
   /// @dev Conversion factor for deposit asset to shares
   function _scaleDeposit(uint amountAsset) internal view virtual returns (uint) {
-    return amountAsset * tsaParams.depositScale / 1e18;
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    return amountAsset * $.tsaParams.depositScale / 1e18;
   }
 
   /////////////////
@@ -195,56 +239,64 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
   /// @notice Request a withdrawal of an amount of shares. These will be removed from the account and be processed
   /// in the future.
   function requestWithdrawal(uint amount) external checkBlocked {
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
     require(balanceOf(msg.sender) >= amount, "insufficient balance");
     require(amount > 0, "invalid amount");
 
     _burn(msg.sender, amount);
 
-    queuedWithdrawals[nextQueuedWithdrawalId++] =
+    $.queuedWithdrawals[$.nextQueuedWithdrawalId++] =
       WithdrawalRequest({beneficiary: msg.sender, amountShares: amount, timestamp: block.timestamp});
 
-    totalPendingWithdrawals += amount;
+    $.totalPendingWithdrawals += amount;
   }
 
   /// @notice Process a number of withdrawal requests, up to a limit.
   function processWithdrawalRequests(uint limit) external checkBlocked {
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
     _collectFee();
 
     for (uint i = 0; i < limit; ++i) {
-      WithdrawalRequest storage request = queuedWithdrawals[queuedWithdrawalHead];
+      WithdrawalRequest storage request = $.queuedWithdrawals[$.queuedWithdrawalHead];
 
-      if (!shareKeepers[msg.sender] && request.timestamp + tsaParams.withdrawalDelay > block.timestamp) {
+      if (!$.shareKeepers[msg.sender] && request.timestamp + $.tsaParams.withdrawalDelay > block.timestamp) {
         break;
       }
 
-      uint totalBalance = depositAsset.balanceOf(address(this));
+      uint totalBalance = $.depositAsset.balanceOf(address(this));
       uint requiredAmount = _getSharesToWithdrawAmount(request.amountShares);
 
       if (totalBalance < requiredAmount) {
         // withdraw a portion
         uint withdrawAmount = totalBalance;
-        depositAsset.transfer(request.beneficiary, withdrawAmount);
+        $.depositAsset.transfer(request.beneficiary, withdrawAmount);
         uint difference = requiredAmount - withdrawAmount;
         uint finalShareAmount = request.amountShares * difference / requiredAmount;
-        totalPendingWithdrawals -= (request.amountShares - finalShareAmount);
+        $.totalPendingWithdrawals -= (request.amountShares - finalShareAmount);
         request.amountShares = finalShareAmount;
         break;
       } else {
-        depositAsset.transfer(request.beneficiary, requiredAmount);
-        totalPendingWithdrawals -= request.amountShares;
+        $.depositAsset.transfer(request.beneficiary, requiredAmount);
+        $.totalPendingWithdrawals -= request.amountShares;
         request.amountShares = 0;
       }
-      queuedWithdrawalHead++;
+      $.queuedWithdrawalHead++;
     }
   }
 
   function _getSharesToWithdrawAmount(uint amountShares) internal view returns (uint amountDepositAsset) {
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
     uint requiredAmount18 = _getSharesValue(_scaleWithdraw(amountShares));
-    return ConvertDecimals.from18Decimals(requiredAmount18, depositAsset.decimals());
+    return ConvertDecimals.from18Decimals(requiredAmount18, $.depositAsset.decimals());
   }
 
   function _scaleWithdraw(uint amountShares) internal view virtual returns (uint) {
-    return amountShares * tsaParams.withdrawScale / 1e18;
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    return amountShares * $.tsaParams.withdrawScale / 1e18;
   }
 
   //////////
@@ -256,25 +308,27 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
 
   /// @dev Must be called before totalSupply is modified to keep amount charged fair
   function _collectFee() internal {
-    if (lastFeeCollected == block.timestamp) {
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    if ($.lastFeeCollected == block.timestamp) {
       return;
     }
 
-    if (tsaParams.managementFee == 0 || tsaParams.feeRecipient == address(0)) {
-      lastFeeCollected = block.timestamp;
+    if ($.tsaParams.managementFee == 0 || $.tsaParams.feeRecipient == address(0)) {
+      $.lastFeeCollected = block.timestamp;
       return;
     }
 
-    uint totalShares = this.totalSupply() + totalPendingWithdrawals;
+    uint totalShares = this.totalSupply() + $.totalPendingWithdrawals;
     if (totalShares == 0) {
-      lastFeeCollected = block.timestamp;
+      $.lastFeeCollected = block.timestamp;
       return;
     }
 
-    uint timeSinceLastCollect = block.timestamp - lastFeeCollected;
+    uint timeSinceLastCollect = block.timestamp - $.lastFeeCollected;
 
-    uint percentToCollect = timeSinceLastCollect * tsaParams.managementFee / 365 days;
-    _mint(tsaParams.feeRecipient, totalShares * percentToCollect / 1e18);
+    uint percentToCollect = timeSinceLastCollect * $.tsaParams.managementFee / 365 days;
+    _mint($.tsaParams.feeRecipient, totalShares * percentToCollect / 1e18);
   }
 
   /////////////////////////////
@@ -304,19 +358,66 @@ abstract contract BaseTSA is ERC20, Ownable2Step {
 
   /// @dev The total supply of the token, including pending withdrawals. **In depositAsset decimals**.
   function totalSupply() public view override returns (uint) {
-    return ERC20.totalSupply() + totalPendingWithdrawals;
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    return super.totalSupply() + $.totalPendingWithdrawals;
   }
 
-  /////////////////////
-  // Trade Execution //
-  /////////////////////
+  ///////////
+  // Views //
+  ///////////
+
+  function getBaseTSAAddresses() public view returns (BaseTSAAddresses memory) {
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+    return BaseTSAAddresses({
+      subAccounts: $.subAccounts,
+      auction: $.auction,
+      cash: $.cash,
+      wrappedDepositAsset: $.wrappedDepositAsset,
+      depositAsset: $.depositAsset,
+      manager: $.manager,
+      matching: $.matching
+    });
+  }
+
+  function getTSAParams() public view returns (TSAParams memory) {
+    return _getBaseTSAStorage().tsaParams;
+  }
+
+  function queuedDeposit(uint depositId) public view returns (DepositRequest memory) {
+    return _getBaseTSAStorage().queuedDeposit[depositId];
+  }
+
+  function queuedWithdrawal(uint withdrawalId) public view returns (WithdrawalRequest memory) {
+    return _getBaseTSAStorage().queuedWithdrawals[withdrawalId];
+  }
+
+  function totalPendingDeposits() public view returns (uint) {
+    return _getBaseTSAStorage().totalPendingDeposits;
+  }
+
+  function totalPendingWithdrawals() public view returns (uint) {
+    return _getBaseTSAStorage().totalPendingWithdrawals;
+  }
+
+  function subAccount() public view returns (uint) {
+    return _getBaseTSAStorage().subAccount;
+  }
+
+  ///////////////
+  // Modifiers //
+  ///////////////
 
   function _isBlocked() internal view returns (bool) {
-    return auction.isAuctionLive(subAccount) || auction.getIsWithdrawBlocked() || cash.temporaryWithdrawFeeEnabled();
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    return $.auction.isAuctionLive($.subAccount) || $.auction.getIsWithdrawBlocked() || $.cash.temporaryWithdrawFeeEnabled();
   }
 
   modifier onlyShareKeeper() {
-    require(shareKeepers[msg.sender], "only share handler");
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    require($.shareKeepers[msg.sender], "only share handler");
     _;
   }
 
