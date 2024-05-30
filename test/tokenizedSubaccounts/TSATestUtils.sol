@@ -18,9 +18,18 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
 
   function setUp() public virtual {
     _setupIntegrationTestComplete();
-    MatchingHelpers._deployMatching(subAccounts, address(cash), auction, 0);
+    _setupMatching();
+    _setupTaker();
+    _setupMarketFeeds();
+    _setupTradeModule();
+  }
 
-    // setup taker with subaccount loaded with cash
+  function _setupMatching() internal {
+    MatchingHelpers._deployMatching(subAccounts, address(cash), auction, 0);
+    cash.setWhitelistManager(address(markets["weth"].pmrm), true);
+  }
+
+  function _setupTaker() internal {
     takerPk = 0xDEAD;
     taker = vm.addr(takerPk);
     takerSubacc = subAccounts.createAccount(address(this), markets["weth"].pmrm);
@@ -29,21 +38,22 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     cash.deposit(takerSubacc, 1_000_000e6);
     subAccounts.setApprovalForAll(address(matching), true);
     matching.depositSubAccountFor(takerSubacc, taker);
+  }
 
-    cash.setWhitelistManager(address(markets["weth"].pmrm), true);
-
+  function _setupMarketFeeds() internal {
     markets["weth"].spotFeed.setHeartbeat(100 weeks);
     markets["weth"].forwardFeed.setHeartbeat(100 weeks);
     markets["weth"].volFeed.setHeartbeat(100 weeks);
     markets["weth"].perpFeed.setHeartbeat(100 weeks);
     markets["weth"].ibpFeed.setHeartbeat(100 weeks);
     markets["weth"].iapFeed.setHeartbeat(100 weeks);
+  }
 
+  function _setupTradeModule() internal {
     tradeModule.setFeeRecipient(bobAcc);
     srm.setBorrowingEnabled(true);
     srm.setBaseAssetMarginFactor(1, 0.8e18, 0.8e18);
     tradeModule.setPerpAsset(markets["weth"].perp, true);
-
   }
 
   function deployPredeposit(address erc20) internal {
@@ -63,7 +73,6 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
 
   function upgradeToLRTCCTSA() internal {
     LRTCCTSA tsaImplementation = new LRTCCTSA();
-    // address initialOwner, BaseTSA.BaseTSAInitParams memory initParams, LRTCCTSAInitParams memory lrtCcParams
     proxyAdmin.upgradeAndCall(
       ITransparentUpgradeableProxy(address(proxy)),
       address(tsaImplementation),
