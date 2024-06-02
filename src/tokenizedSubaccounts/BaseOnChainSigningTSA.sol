@@ -19,7 +19,8 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   }
 
   // keccak256(abi.encode(uint256(keccak256("lyra.storage.BaseOnChainSigningTSA")) - 1)) & ~bytes32(uint256(0xff))
-  bytes32 private constant BaseSigningTSAStorageLocation = 0x9f245ffe322048fbfccbbec5cbd54060b7369b5a75ba744e76b5291974322100;
+  bytes32 private constant BaseSigningTSAStorageLocation =
+    0x9f245ffe322048fbfccbbec5cbd54060b7369b5a75ba744e76b5291974322100;
 
   function _getBaseSigningTSAStorage() private pure returns (BaseSigningTSAStorage storage $) {
     assembly {
@@ -34,12 +35,16 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
 
     $.signers[signer] = isSigner;
+
+    emit SignerUpdated(signer, isSigner);
   }
 
   function setSignaturesEnabled(bool enabled) external onlyOwner {
     BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
 
     $.signaturesDisabled = enabled;
+
+    emit SignaturesEnabledUpdated(enabled);
   }
 
   /////////////
@@ -47,41 +52,40 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   /////////////
   function signActionData(IMatching.Action memory action) external virtual onlySigner {
     BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
-    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
-    bytes32 hash = ECDSA.toTypedDataHash(
-      tsaAddresses.matching.domainSeparator(),
-      tsaAddresses.matching.getActionHash(action)
-    );
+    bytes32 hash = getActionTypedDataHash(action);
 
     require(action.signer == address(this), "BaseOnChainSigningTSA: action.signer must be TSA");
 
     _verifyAction(action, hash);
     $.signedData[hash] = true;
+
+    emit ActionSigned(msg.sender, hash, action);
   }
 
   function revokeActionSignature(IMatching.Action memory action) external virtual onlySigner {
-    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
-
-    bytes32 hash = ECDSA.toTypedDataHash(
-      tsaAddresses.matching.domainSeparator(),
-      tsaAddresses.matching.getActionHash(action)
-    );
-
-    _revokeSignature(hash);
+    _revokeSignature(getActionTypedDataHash(action));
   }
 
-  function revokeSignature(bytes32 hash) external virtual onlySigner {
-    _revokeSignature(hash);
+  function revokeSignature(bytes32 typedDataHash) external virtual onlySigner {
+    _revokeSignature(typedDataHash);
   }
 
   function _revokeSignature(bytes32 hash) internal virtual {
     BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
 
     $.signedData[hash] = false;
+
+    emit SignatureRevoked(msg.sender, hash);
   }
 
   function _verifyAction(IMatching.Action memory action, bytes32 actionHash) internal virtual;
+
+  function getActionTypedDataHash(IMatching.Action memory action) public view returns (bytes32) {
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
+
+    return ECDSA.toTypedDataHash(tsaAddresses.matching.domainSeparator(), tsaAddresses.matching.getActionHash(action));
+  }
 
   ////////////////
   // Validation //
@@ -113,4 +117,14 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     require($.signers[msg.sender], "BaseOnChainSigningTSA: Not a signer");
     _;
   }
+
+  ////////////
+  // Events //
+  ////////////
+
+  event SignerUpdated(address indexed signer, bool isSigner);
+  event SignaturesEnabledUpdated(bool enabled);
+
+  event ActionSigned(address indexed signer, bytes32 indexed hash, IMatching.Action action);
+  event SignatureRevoked(address indexed signer, bytes32 indexed hash);
 }

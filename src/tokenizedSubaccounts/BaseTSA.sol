@@ -11,6 +11,7 @@ import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 import {CashAsset} from "v2-core/src/assets/CashAsset.sol";
 import {ERC20Upgradeable} from "openzeppelin-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
+import "forge-std/console2.sol";
 
 /// @title Base Tokenized SubAccount
 /// @notice Base class for tokenized subaccounts
@@ -54,6 +55,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     address beneficiary;
     uint amountShares;
     uint timestamp;
+    uint assetsReceived;
   }
 
   struct DepositRequest {
@@ -72,24 +74,18 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     IERC20Metadata depositAsset;
     ILiquidatableManager manager;
     IMatching matching;
-
     uint subAccount;
-
     TSAParams tsaParams;
-
     /// @dev Keepers that are are allowed to process deposits and withdrawals
     mapping(address => bool) shareKeepers;
-
     mapping(uint => DepositRequest) queuedDeposit;
     uint nextQueuedDepositId;
     /// @dev Total amount of pending deposits in depositAsset decimals
     uint totalPendingDeposits;
-
     mapping(uint => WithdrawalRequest) queuedWithdrawals;
     uint nextQueuedWithdrawalId;
     uint queuedWithdrawalHead;
     uint totalPendingWithdrawals;
-
     /// @dev Last time the fee was collected
     uint lastFeeCollected;
   }
@@ -134,6 +130,8 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     _collectFee();
 
     _getBaseTSAStorage().tsaParams = _params;
+
+    emit TSAParamsUpdated(_params);
   }
 
   function approveModule(address module) external onlyOwner {
@@ -142,11 +140,15 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     require($.matching.allowedModules(module), "module not approved");
 
     $.depositAsset.approve(module, type(uint).max);
+
+    emit ModuleApproved(module);
   }
 
   function setShareKeeper(address keeper, bool isKeeper) external onlyOwner {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
     $.shareKeepers[keeper] = isKeeper;
+
+    emit ShareKeeperUpdated(keeper, isKeeper);
   }
 
   //////////////
@@ -175,6 +177,10 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
     $.queuedDeposit[depositId] =
       DepositRequest({recipient: recipient, amountDepositAsset: amount, timestamp: block.timestamp, sharesReceived: 0});
+
+    emit DepositInitiated(depositId, recipient, amount);
+
+    return depositId;
   }
 
   function processDeposit(uint depositId) external onlyShareKeeper checkBlocked {
@@ -194,10 +200,16 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
     DepositRequest storage request = $.queuedDeposit[depositId];
 
+    require(request.sharesReceived == 0, "Deposit already processed");
+
     uint shares = _getSharesForDeposit(request.amountDepositAsset);
-    _mint(request.recipient, shares);
-    $.totalPendingDeposits -= request.amountDepositAsset;
+
     request.sharesReceived = shares;
+    $.totalPendingDeposits -= request.amountDepositAsset;
+
+    _mint(request.recipient, shares);
+
+    emit DepositProcessed(depositId, request.recipient, true, shares);
   }
 
   function revertPendingDeposit(uint depositId) external {
@@ -213,16 +225,17 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
     $.totalPendingDeposits -= request.amountDepositAsset;
     $.depositAsset.transfer(request.recipient, request.amountDepositAsset);
+
+    emit DepositProcessed(depositId, request.recipient, false, 0);
   }
 
   /// @dev Share decimals are in depositAsset decimals
   function _getSharesForDeposit(uint depositAmount) internal view returns (uint) {
-    uint depositAmount18 = _scaleDeposit(depositAmount);
     // scale depositAmount by factor and convert to shares
-    return _getNumShares(depositAmount18);
+    return _getNumShares(_scaleDeposit(depositAmount));
   }
 
-  /// @dev Conversion factor for deposit asset to shares
+  /// @dev Conversion factor for deposit asset to shares. Returns in amountAsset decimals
   function _scaleDeposit(uint amountAsset) internal view virtual returns (uint) {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
@@ -238,7 +251,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
   /// @notice Request a withdrawal of an amount of shares. These will be removed from the account and be processed
   /// in the future.
-  function requestWithdrawal(uint amount) external checkBlocked {
+  function requestWithdrawal(uint amount) external checkBlocked returns (uint withdrawalId) {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
     require(balanceOf(msg.sender) >= amount, "insufficient balance");
@@ -246,10 +259,14 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
     _burn(msg.sender, amount);
 
-    $.queuedWithdrawals[$.nextQueuedWithdrawalId++] =
-      WithdrawalRequest({beneficiary: msg.sender, amountShares: amount, timestamp: block.timestamp});
+    withdrawalId = $.nextQueuedWithdrawalId++;
+
+    $.queuedWithdrawals[withdrawalId] =
+      WithdrawalRequest({beneficiary: msg.sender, amountShares: amount, timestamp: block.timestamp, assetsReceived: 0});
 
     $.totalPendingWithdrawals += amount;
+
+    emit WithdrawalRequested(withdrawalId, msg.sender, amount);
   }
 
   /// @notice Process a number of withdrawal requests, up to a limit.
@@ -274,23 +291,32 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
         $.depositAsset.transfer(request.beneficiary, withdrawAmount);
         uint difference = requiredAmount - withdrawAmount;
         uint finalShareAmount = request.amountShares * difference / requiredAmount;
-        $.totalPendingWithdrawals -= (request.amountShares - finalShareAmount);
+        uint sharesRedeemed = request.amountShares - finalShareAmount;
+
+        $.totalPendingWithdrawals -= sharesRedeemed;
         request.amountShares = finalShareAmount;
+        request.assetsReceived += withdrawAmount;
+
+        emit WithdrawalProcessed($.queuedWithdrawalHead, request.beneficiary, false, sharesRedeemed, withdrawAmount);
+
         break;
       } else {
         $.depositAsset.transfer(request.beneficiary, requiredAmount);
-        $.totalPendingWithdrawals -= request.amountShares;
+
+        uint sharesRedeemed = request.amountShares;
+
+        $.totalPendingWithdrawals -= sharesRedeemed;
         request.amountShares = 0;
+        request.assetsReceived += requiredAmount;
+
+        emit WithdrawalProcessed($.queuedWithdrawalHead, request.beneficiary, true, sharesRedeemed, requiredAmount);
       }
       $.queuedWithdrawalHead++;
     }
   }
 
   function _getSharesToWithdrawAmount(uint amountShares) internal view returns (uint amountDepositAsset) {
-    BaseTSAStorage storage $ = _getBaseTSAStorage();
-
-    uint requiredAmount18 = _getSharesValue(_scaleWithdraw(amountShares));
-    return ConvertDecimals.from18Decimals(requiredAmount18, $.depositAsset.decimals());
+    return _getSharesValue(_scaleWithdraw(amountShares));
   }
 
   function _scaleWithdraw(uint amountShares) internal view virtual returns (uint) {
@@ -348,7 +374,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
   /// @dev The number of shares that would be minted for an amount of "depositAsset". **In depositAsset decimals**.
   function _getNumShares(uint depositAmount) internal view returns (uint) {
-    return depositAmount * _getSharePrice() / 1e18;
+    return depositAmount * 1e18 / _getSharePrice();
   }
 
   /// @dev The value a given amount of shares in terms of "depositAsset". **In depositAsset decimals**.
@@ -411,7 +437,8 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   function _isBlocked() internal view returns (bool) {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
-    return $.auction.isAuctionLive($.subAccount) || $.auction.getIsWithdrawBlocked() || $.cash.temporaryWithdrawFeeEnabled();
+    return
+      $.auction.isAuctionLive($.subAccount) || $.auction.getIsWithdrawBlocked() || $.cash.temporaryWithdrawFeeEnabled();
   }
 
   modifier onlyShareKeeper() {
@@ -425,4 +452,20 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     require(!_isBlocked(), "action blocked");
     _;
   }
+
+  ////////////
+  // Events //
+  ////////////
+
+  event TSAParamsUpdated(TSAParams params);
+  event ModuleApproved(address module);
+  event ShareKeeperUpdated(address keeper, bool isKeeper);
+
+  event DepositInitiated(uint depositId, address recipient, uint amount);
+  event DepositProcessed(uint depositId, address recipient, bool success, uint shares);
+
+  event WithdrawalRequested(uint withdrawalId, address beneficiary, uint amount);
+  event WithdrawalProcessed(
+    uint withdrawalId, address beneficiary, bool complete, uint sharesProcessed, uint amountReceived
+  );
 }
