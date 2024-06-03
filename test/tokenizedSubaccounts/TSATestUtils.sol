@@ -52,6 +52,14 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     usdc.mint(address(this), 1_000_000e6);
     usdc.approve(address(cash), 1_000_000e6);
     cash.deposit(takerSubacc, 1_000_000e6);
+
+    markets["weth"].base.setTotalPositionCap(markets["weth"].pmrm, 1_000_000e18);
+    markets["weth"].base.setTotalPositionCap(srm, 1_000_000e18);
+
+    markets["weth"].erc20.mint(address(this), 100_000e18);
+    markets["weth"].erc20.approve(address(markets["weth"].base), 100_000e18);
+    markets["weth"].base.deposit(takerSubacc, 100_000e18);
+
     subAccounts.setApprovalForAll(address(matching), true);
     matching.depositSubAccountFor(takerSubacc, taker);
   }
@@ -63,6 +71,7 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     markets["weth"].perpFeed.setHeartbeat(100 weeks);
     markets["weth"].ibpFeed.setHeartbeat(100 weeks);
     markets["weth"].iapFeed.setHeartbeat(100 weeks);
+    markets["weth"].rateFeed.setHeartbeat(100 weeks);
   }
 
   function _setupTradeModule() internal {
@@ -86,6 +95,21 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
 contract LRTCCTSATestUtils is TSATestUtils {
   LRTCCTSA public tsa;
   LRTCCTSA public tsaImplementation;
+  uint public tsaSubacc;
+
+  LRTCCTSA.LRTCCTSAParams public defaultLrtccTSAParams = LRTCCTSA.LRTCCTSAParams({
+    minSignatureExpiry: 5 minutes,
+    maxSignatureExpiry: 30 minutes,
+    worstSpotBuyPrice: 1.01e18,
+    worstSpotSellPrice: 0.99e18,
+    spotTransactionLeniency: 1.01e18,
+    optionVolSlippageFactor: 0.9e18,
+    optionMaxDelta: 0.15e18,
+    optionMinTimeToExpiry: 1 days,
+    optionMaxTimeToExpiry: 30 days,
+    optionMaxNegCash: -100e18,
+    feeFactor: 0.01e18
+  });
 
   function upgradeToLRTCCTSA(string memory market) internal {
     IWrappedERC20Asset wrappedDepositAsset;
@@ -132,6 +156,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
     );
 
     tsa = LRTCCTSA(address(proxy));
+    tsaSubacc = tsa.subAccount();
   }
 
   function setupLRTCCTSA() internal {
@@ -150,21 +175,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
       })
     );
 
-    tsa.setLRTCCTSAParams(
-      LRTCCTSA.LRTCCTSAParams({
-        minSignatureExpiry: 5 minutes,
-        maxSignatureExpiry: 30 minutes,
-        worstSpotBuyPrice: 1.01e18,
-        worstSpotSellPrice: 0.99e18,
-        spotTransactionLeniency: 1.01e18,
-        optionVolSlippageFactor: 0.9e18,
-        optionMaxDelta: 0.15e18,
-        optionMinTimeToExpiry: 1 days,
-        optionMaxTimeToExpiry: 30 days,
-        optionMaxNegCash: -100e18,
-        feeFactor: 0.01e18
-      })
-    );
+    tsa.setLRTCCTSAParams(defaultLrtccTSAParams);
 
     tsa.setShareKeeper(address(this), true);
 
@@ -185,7 +196,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
         limitPrice: int(price),
         desiredAmount: amount,
         worstFee: 1e18,
-        recipientId: tsa.subAccount(),
+        recipientId: tsaSubacc,
         isBid: amount > 0
       })
     );
@@ -206,7 +217,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
     bytes[] memory signatures = new bytes[](2);
 
     actions[0] = IActionVerifier.Action({
-      subaccountId: tsa.subAccount(),
+      subaccountId: tsaSubacc,
       nonce: ++signerNonce,
       module: tradeModule,
       data: tradeData,
@@ -226,7 +237,67 @@ contract LRTCCTSATestUtils is TSATestUtils {
       actions,
       signatures,
       _createMatchedTrade(
-        tsa.subAccount(),
+        tsaSubacc,
+        takerSubacc,
+        uint(amount > 0 ? amount : -amount),
+        int(price),
+        // trade fees
+        0,
+        0
+      )
+    );
+  }
+
+  function _tradeSpot(int amount, uint price) internal {
+    bytes memory tradeData = abi.encode(
+      ITradeModule.TradeData({
+        asset: address(markets["weth"].base),
+        subId: 0,
+        limitPrice: int(price),
+        desiredAmount: amount,
+        worstFee: 1e18,
+        recipientId: tsaSubacc,
+        isBid: amount > 0
+      })
+    );
+
+    bytes memory tradeMaker = abi.encode(
+      ITradeModule.TradeData({
+        asset: address(markets["weth"].base),
+        subId: 0,
+        limitPrice: int(price),
+        desiredAmount: amount,
+        worstFee: 1e18,
+        recipientId: takerSubacc,
+        isBid: amount < 0
+      })
+    );
+
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
+    bytes[] memory signatures = new bytes[](2);
+
+    actions[0] = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++signerNonce,
+      module: tradeModule,
+      data: tradeData,
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+
+    (actions[1], signatures[1]) = _createActionAndSign(
+      takerSubacc, ++takerNonce, address(tradeModule), tradeMaker, block.timestamp + 1 days, taker, taker, takerPk
+    );
+
+    vm.prank(signer);
+    tsa.signActionData(actions[0]);
+
+    _verifyAndMatch(
+      actions,
+      signatures,
+      _createMatchedTrade(
+        tsaSubacc,
         takerSubacc,
         uint(amount > 0 ? amount : -amount),
         int(price),
@@ -266,7 +337,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
     bytes memory depositData = _encodeDepositData(amount, address(markets["weth"].base), address(0));
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
-      subaccountId: tsa.subAccount(),
+      subaccountId: tsaSubacc,
       nonce: ++signerNonce,
       module: depositModule,
       data: depositData,
@@ -290,7 +361,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
     bytes memory withdrawalData = _encodeWithdrawData(amount, address(markets["weth"].base));
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
-      subaccountId: tsa.subAccount(),
+      subaccountId: tsaSubacc,
       nonce: ++signerNonce,
       module: withdrawalModule,
       data: withdrawalData,

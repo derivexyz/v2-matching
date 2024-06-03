@@ -118,6 +118,17 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   function setLRTCCTSAParams(LRTCCTSAParams memory newParams) external onlyOwner {
     LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
 
+    require(
+      newParams.minSignatureExpiry >= 1 minutes && newParams.minSignatureExpiry <= newParams.maxSignatureExpiry
+        && (newParams.worstSpotBuyPrice >= 1e18 && newParams.worstSpotBuyPrice <= 1.2e18)
+        && (newParams.worstSpotSellPrice <= 1e18 && newParams.worstSpotSellPrice >= 0.8e18)
+        && (newParams.spotTransactionLeniency >= 1e18 && newParams.spotTransactionLeniency <= 1.2e18)
+        && newParams.optionVolSlippageFactor <= 1e18 && newParams.optionMaxDelta < 0.5e18
+        && newParams.optionMaxTimeToExpiry > newParams.optionMinTimeToExpiry && newParams.optionMaxNegCash <= 0
+        && newParams.feeFactor <= 0.05e18,
+      "LRTCCTSA: Invalid params"
+    );
+
     $.ccParams = newParams;
 
     emit LRTCCTSAParamsSet(newParams);
@@ -233,7 +244,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     int cashBalance = tsaAddresses.subAccounts.getBalance(subAccount(), tsaAddresses.cash, 0);
-    require(cashBalance < 0, "LRTCCTSA: Can only buy with positive cash");
+    require(cashBalance < 0, "LRTCCTSA: Can only sell with negative cash");
 
     uint basePrice = _getBasePrice();
 
@@ -241,8 +252,11 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     require(tradeData.limitPrice.toUint256() >= basePrice.multiplyDecimal($.ccParams.worstSpotSellPrice));
 
     int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
+    console2.log("cost", cost);
+    console2.log("limit", cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency));
+    // as cost is negative, we check we receive more than the cash balance
     require(
-      cost < cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency), "LRTCCTSA: Selling too much collateral"
+      cost >= cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency), "LRTCCTSA: Selling too much collateral"
     );
   }
 
