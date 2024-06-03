@@ -22,23 +22,26 @@ SubAccount Withdrawals
 - ✅reverts when there is negative cash.
 
 Trading
-- reverts for invalid assets.
-- ✅Spot Buys
-  - successfully buys collateral.
-  - reverts when buying too much collateral.
-  - allows some leniency when buying spot.
-- ✅Spot Sells
-  - successfully sells collateral.
-  - reverts when selling too much collateral.
-  - allows for some leniency when selling spot.
+- ✅reverts for invalid assets.
+- Spot Buys
+  - ✅successfully buys collateral.
+  - ✅reverts when buying too much collateral.
+  - ✅allows some leniency when buying spot.
+  - ✅Cannot trade when limit price too high
+- Spot Sells
+  - ✅successfully sells collateral.
+  - ✅reverts when selling too much collateral.
+  - ✅allows for some leniency when selling spot.
+  - ✅Cannot trade when limit price too low
 - Option Trading
-  - reverts for invalid assets.
-  - correctly validates option details.
-  - reverts when selling too many calls.
-  - reverts for expired options.
-  - reverts for options with expiry out of bounds.
-  - reverts for options with delta too low.
-  - reverts for options with price too low.
+  - ✅can trade options successfully.
+  - ✅reverts when selling too many calls.
+  - ✅reverts when opening long.
+  - ✅reverts when selling put.
+  - ✅reverts for expired options.
+  - ✅reverts for options with expiry out of bounds.
+  - ✅reverts for options with delta too low.
+  - ✅reverts for options with price too low.
 */
 
 contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
@@ -346,22 +349,21 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     assertEq(cash, 400e18);
 
     // Cant buy more than cash you have
-    bytes memory tradeData = abi.encode(
-      ITradeModule.TradeData({
-        asset: address(markets["weth"].base),
-        subId: 0,
-        limitPrice: int(2000e18),
-        desiredAmount: 0.5e18,
-        worstFee: 1e18,
-        recipientId: tsaSubacc,
-        isBid: true
-      })
-    );
+    ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
+      asset: address(markets["weth"].base),
+      subId: 0,
+      limitPrice: int(2000e18),
+      desiredAmount: 0.5e18,
+      worstFee: 1e18,
+      recipientId: tsaSubacc,
+      isBid: true
+    });
+
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: tsaSubacc,
       nonce: ++signerNonce,
       module: tradeModule,
-      data: tradeData,
+      data: abi.encode(tradeData),
       expiry: block.timestamp + 8 minutes,
       owner: address(tsa),
       signer: address(tsa)
@@ -369,6 +371,15 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
 
     vm.prank(signer);
     vm.expectRevert("LRTCCTSA: Buying too much collateral");
+    tsa.signActionData(action);
+
+    // fails for limit price too high
+    tradeData.desiredAmount = 0.201e18;
+    tradeData.limitPrice = int(2500e18);
+
+    action.data = abi.encode(tradeData);
+    vm.prank(signer);
+    vm.expectRevert("LRTCCTSA: Spot limit price too high");
     tsa.signActionData(action);
 
     // Can buy more than you have if it is within buffer limit
@@ -418,22 +429,20 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     assertEq(cash, -750e18);
 
     // Cant sell more than you have
-    bytes memory tradeData = abi.encode(
-      ITradeModule.TradeData({
-        asset: address(markets["weth"].base),
-        subId: 0,
-        limitPrice: int(2500e18),
-        desiredAmount: -0.5e18,
-        worstFee: 1e18,
-        recipientId: tsaSubacc,
-        isBid: false
-      })
-    );
+    ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
+      asset: address(markets["weth"].base),
+      subId: 0,
+      limitPrice: int(2500e18),
+      desiredAmount: 0.5e18,
+      worstFee: 1e18,
+      recipientId: tsaSubacc,
+      isBid: false
+    });
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: tsaSubacc,
       nonce: ++signerNonce,
       module: tradeModule,
-      data: tradeData,
+      data: abi.encode(tradeData),
       expiry: block.timestamp + 8 minutes,
       owner: address(tsa),
       signer: address(tsa)
@@ -441,6 +450,15 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
 
     vm.prank(signer);
     vm.expectRevert("LRTCCTSA: Selling too much collateral");
+    tsa.signActionData(action);
+
+    // fails for limit price too high
+    tradeData.desiredAmount = 0.301e18;
+    tradeData.limitPrice = int(1500e18);
+    action.data = abi.encode(tradeData);
+
+    vm.prank(signer);
+    vm.expectRevert("LRTCCTSA: Spot limit price too low");
     tsa.signActionData(action);
 
     // Can sell more than you have if it is within buffer limit
@@ -465,7 +483,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
         asset: address(10),
         subId: 0,
         limitPrice: int(2500e18),
-        desiredAmount: -0.5e18,
+        desiredAmount: 0.5e18,
         worstFee: 1e18,
         recipientId: tsaSubacc,
         isBid: false
@@ -489,4 +507,101 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
   ////////////////////
   // Option Trading //
   ////////////////////
+
+  function testCanTradeOptions() public {
+    _depositToTSA(10e18);
+    _executeDeposit(10e18);
+
+    // Receive positive cash from selling options
+    uint64 expiry = uint64(block.timestamp + 7 days);
+    _tradeOption(-8e18, 100e18, expiry, 2200e18);
+
+    (uint sc, uint base, int cash) = tsa.getSubAccountStats();
+    assertEq(base, 10e18);
+    assertEq(sc, 8e18);
+    assertEq(cash, 800e18);
+
+    ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
+      asset: address(markets["weth"].option),
+      subId: OptionEncoding.toSubId(expiry, 2200e18, true),
+      limitPrice: int(100e18),
+      desiredAmount: 2e18,
+      worstFee: 1e18,
+      recipientId: tsaSubacc,
+      isBid: false
+    });
+
+    IActionVerifier.Action memory action = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++signerNonce,
+      module: tradeModule,
+      data: abi.encode(tradeData),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+
+    vm.startPrank(signer);
+
+    // Cannot sell more calls than base collateral
+    tradeData.desiredAmount = 2.1e18;
+    action.data = abi.encode(tradeData);
+    vm.expectRevert("LRTCCTSA: Selling too many calls");
+    tsa.signActionData(action);
+
+    tradeData.desiredAmount = 2.0e18;
+
+    // Can only open short positions
+    tradeData.isBid = true;
+    action.data = abi.encode(tradeData);
+    vm.expectRevert("LRTCCTSA: Can only open short positions");
+    tsa.signActionData(action);
+
+    tradeData.isBid = false;
+
+    // Cannot sell puts
+    tradeData.subId = OptionEncoding.toSubId(expiry, 2200e18, false);
+    action.data = abi.encode(tradeData);
+    vm.expectRevert("LRTCCTSA: Only short calls allowed");
+    tsa.signActionData(action);
+
+    tradeData.subId = OptionEncoding.toSubId(expiry, 2200e18, true);
+    action.data = abi.encode(tradeData);
+
+    // Cannot trade options with expiry out of bounds
+    tradeData.subId =
+      OptionEncoding.toSubId(block.timestamp + defaultLrtccTSAParams.optionMinTimeToExpiry - 1, 2200e18, true);
+    action.data = abi.encode(tradeData);
+    vm.expectRevert("LRTCCTSA: Option expiry out of bounds");
+    tsa.signActionData(action);
+
+    tradeData.subId =
+      OptionEncoding.toSubId(block.timestamp + defaultLrtccTSAParams.optionMaxTimeToExpiry + 1, 2200e18, true);
+    action.data = abi.encode(tradeData);
+    vm.expectRevert("LRTCCTSA: Option expiry out of bounds");
+    tsa.signActionData(action);
+
+    tradeData.subId = OptionEncoding.toSubId(expiry, 2200e18, true);
+
+    // Cannot trade options with delta too high
+    tradeData.subId = OptionEncoding.toSubId(expiry, 2000e18, true);
+    action.data = abi.encode(tradeData);
+    vm.expectRevert("LRTCCTSA: Option delta too high");
+    tsa.signActionData(action);
+
+    tradeData.subId = OptionEncoding.toSubId(expiry, 2200e18, true);
+
+    // Cannot trade options with price too low
+    tradeData.limitPrice = 5e18;
+    action.data = abi.encode(tradeData);
+    vm.expectRevert("LRTCCTSA: Option price too low");
+    tsa.signActionData(action);
+
+    // Succeeds
+    tradeData.limitPrice = 100e18;
+    action.data = abi.encode(tradeData);
+    tsa.signActionData(action);
+
+    vm.stopPrank();
+  }
 }

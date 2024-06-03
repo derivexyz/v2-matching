@@ -18,6 +18,7 @@ import {ITradeModule} from "../../src/interfaces/ITradeModule.sol";
 import {IActionVerifier} from "../../src/interfaces/IActionVerifier.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IMatchingModule} from "../../src/interfaces/IMatchingModule.sol";
+import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 
 contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   uint internal signerPk;
@@ -93,6 +94,8 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
 }
 
 contract LRTCCTSATestUtils is TSATestUtils {
+  using SignedMath for int;
+
   LRTCCTSA public tsa;
   LRTCCTSA public tsaImplementation;
   uint public tsaSubacc;
@@ -103,8 +106,8 @@ contract LRTCCTSATestUtils is TSATestUtils {
     worstSpotBuyPrice: 1.01e18,
     worstSpotSellPrice: 0.99e18,
     spotTransactionLeniency: 1.01e18,
-    optionVolSlippageFactor: 0.9e18,
-    optionMaxDelta: 0.15e18,
+    optionVolSlippageFactor: 0.5e18,
+    optionMaxDelta: 0.4e18,
     optionMinTimeToExpiry: 1 days,
     optionMaxTimeToExpiry: 30 days,
     optionMaxNegCash: -100e18,
@@ -185,16 +188,54 @@ contract LRTCCTSATestUtils is TSATestUtils {
     tsa.setSigner(signer, true);
   }
 
+  function _setFixedSVIDataForExpiry(string memory key, uint64 expiry) internal {
+    vm.warp(block.timestamp + 1);
+
+    LyraForwardFeed forwardFeed = markets[key].forwardFeed;
+    (uint fwdPrice,) = forwardFeed.getForwardPrice(uint64(expiry));
+
+    LyraVolFeed volFeed = markets[key].volFeed;
+
+    IBaseLyraFeed.FeedData memory feedData = _getFixedVolData(expiry, fwdPrice);
+
+    // sign data
+    bytes memory data = _signFeedData(volFeed, keeperPk, feedData);
+
+    volFeed.acceptData(data);
+  }
+
+  function _getFixedVolData(uint64 expiry, uint fwdPrice) internal view returns (IBaseLyraFeed.FeedData memory) {
+    uint64 SVI_refTau = uint64(Black76.annualise(uint64(expiry - block.timestamp)));
+    // vol will be sqrt(1.8)
+    int SVI_a = int((1.8e18) * uint(SVI_refTau) / 1e18);
+    uint SVI_b = 0;
+    int SVI_rho = 0;
+    int SVI_m = 0;
+    uint SVI_sigma = 0;
+    uint SVI_fwd = fwdPrice;
+    uint64 confidence = 1e18;
+
+    // example data: a = 1, b = 1.5, sig = 0.05, rho = -0.1, m = -0.05
+    bytes memory volData = abi.encode(expiry, SVI_a, SVI_b, SVI_rho, SVI_m, SVI_sigma, SVI_fwd, SVI_refTau, confidence);
+    return IBaseLyraFeed.FeedData({
+      data: volData,
+      timestamp: uint64(block.timestamp),
+      deadline: block.timestamp + 5,
+      signers: new address[](1),
+      signatures: new bytes[](1)
+    });
+  }
+
   function _tradeOption(int amount, uint price, uint expiry, uint strike) internal {
     _setForwardPrice("weth", uint64(expiry), 2000e18, 1e18);
-    _setDefaultSVIForExpiry("weth", uint64(expiry));
+    _setFixedSVIDataForExpiry("weth", uint64(expiry));
 
     bytes memory tradeData = abi.encode(
       ITradeModule.TradeData({
         asset: address(markets["weth"].option),
         subId: OptionEncoding.toSubId(expiry, strike, true),
         limitPrice: int(price),
-        desiredAmount: amount,
+        desiredAmount: int(amount.abs()),
         worstFee: 1e18,
         recipientId: tsaSubacc,
         isBid: amount > 0
@@ -206,7 +247,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
         asset: address(markets["weth"].option),
         subId: OptionEncoding.toSubId(expiry, strike, true),
         limitPrice: int(price),
-        desiredAmount: amount,
+        desiredAmount: int(amount.abs()),
         worstFee: 1e18,
         recipientId: takerSubacc,
         isBid: amount < 0
@@ -239,7 +280,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
       _createMatchedTrade(
         tsaSubacc,
         takerSubacc,
-        uint(amount > 0 ? amount : -amount),
+        amount.abs(),
         int(price),
         // trade fees
         0,
@@ -254,7 +295,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
         asset: address(markets["weth"].base),
         subId: 0,
         limitPrice: int(price),
-        desiredAmount: amount,
+        desiredAmount: int(amount.abs()),
         worstFee: 1e18,
         recipientId: tsaSubacc,
         isBid: amount > 0
@@ -266,7 +307,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
         asset: address(markets["weth"].base),
         subId: 0,
         limitPrice: int(price),
-        desiredAmount: amount,
+        desiredAmount: int(amount.abs()),
         worstFee: 1e18,
         recipientId: takerSubacc,
         isBid: amount < 0
@@ -299,7 +340,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
       _createMatchedTrade(
         tsaSubacc,
         takerSubacc,
-        uint(amount > 0 ? amount : -amount),
+        amount.abs(),
         int(price),
         // trade fees
         0,

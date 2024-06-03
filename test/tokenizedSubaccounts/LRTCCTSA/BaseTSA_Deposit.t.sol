@@ -2,12 +2,11 @@ pragma solidity ^0.8.18;
 
 import "../TSATestUtils.sol";
 /*
-TODO: Tests for TSA depositing, withdrawing and fees (BaseTSA)
 Deposits:
-- ✅ deposits can be processed (dont have to be sequential)
+- ✅ multiple deposits can be processed (dont have to be sequential)
 - ✅ depositors get different amounts of shares based on changes to NAV
 - deposits are blocked when there is a liquidation
-- deposits cannot be processed if already processed
+- deposits cannot be processed if they are already processed
 - deposits can be reverted if not processed in time
 - cannot be reverted if processed
 - deposits cannot be queued if cap is exceeded

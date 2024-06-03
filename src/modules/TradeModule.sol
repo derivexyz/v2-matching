@@ -192,7 +192,7 @@ contract TradeModule is ITradeModule, BaseModule {
       if (finalPrice < order.data.limitPrice) revert TM_PriceTooLow();
     }
     filled[order.owner][order.nonce] += fill.amountFilled;
-    if (filled[order.owner][order.nonce] > uint(order.data.desiredAmount)) revert TM_FillLimitCrossed();
+    if (filled[order.owner][order.nonce] > order.data.desiredAmount.toUint256()) revert TM_FillLimitCrossed();
   }
 
   /**

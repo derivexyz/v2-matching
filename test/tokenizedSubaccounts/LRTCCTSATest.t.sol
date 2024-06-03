@@ -75,6 +75,6 @@ contract LRTCCTSATest is LRTCCTSATestUtils {
     assertEq(tsa.balanceOf(address(this)), 1.5e18);
     assertEq(tsa.totalPendingWithdrawals(), 0);
 
-    assertApproxEqRel(markets["weth"].erc20.balanceOf(address(this)), 8.43981e18, 0.001e18);
+    assertApproxEqRel(markets["weth"].erc20.balanceOf(address(this)), 8.5016e18, 0.001e18);
   }
 }

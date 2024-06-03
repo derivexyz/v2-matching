@@ -201,6 +201,8 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
 
     ITradeModule.TradeData memory tradeData = abi.decode(action.data, (ITradeModule.TradeData));
 
+    require(tradeData.desiredAmount > 0, "LRTCCTSA: Invalid amount");
+
     if (tradeData.asset == address(tsaAddresses.wrappedDepositAsset)) {
       if (tradeData.isBid) {
         // Buying more LRTs with excess cash
@@ -231,12 +233,14 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     // We don't worry too much about the fee in the calculations, as we trust the exchange won't cause issues. We make
     // sure max fee doesn't exceed 0.5% of spot though.
     _verifyFee(tradeData.worstFee, basePrice);
-    require(tradeData.limitPrice.toUint256() <= basePrice.multiplyDecimal($.ccParams.worstSpotBuyPrice));
+    require(
+      tradeData.limitPrice.toUint256() <= basePrice.multiplyDecimal($.ccParams.worstSpotBuyPrice),
+      "LRTCCTSA: Spot limit price too high"
+    );
 
     int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
-    require(
-      cost < cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency), "LRTCCTSA: Buying too much collateral"
-    );
+    int bufferedBalance = cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency);
+    require(cost <= bufferedBalance, "LRTCCTSA: Buying too much collateral");
   }
 
   function _verifyLRTSell(ITradeModule.TradeData memory tradeData) internal view {
@@ -249,15 +253,17 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     uint basePrice = _getBasePrice();
 
     _verifyFee(tradeData.worstFee, basePrice);
-    require(tradeData.limitPrice.toUint256() >= basePrice.multiplyDecimal($.ccParams.worstSpotSellPrice));
-
-    int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
-    console2.log("cost", cost);
-    console2.log("limit", cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency));
-    // as cost is negative, we check we receive more than the cash balance
     require(
-      cost >= cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency), "LRTCCTSA: Selling too much collateral"
+      tradeData.limitPrice.toUint256() >= basePrice.multiplyDecimal($.ccParams.worstSpotSellPrice),
+      "LRTCCTSA: Spot limit price too low"
     );
+
+    // cost is positive, balance is negative
+    int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
+    int bufferedBalance = cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency);
+
+    // We make sure we're not selling more $ value of collateral than we have in debt
+    require(cost.abs() <= bufferedBalance.abs(), "LRTCCTSA: Selling too much collateral");
   }
 
   function _verifyOptionSell(ITradeModule.TradeData memory tradeData) internal view {
@@ -269,10 +275,9 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     // - limit price is within acceptable bounds
 
     (uint numShortCalls, uint baseBalance, int cashBalance) = _getSubAccountStats();
+
     require(tradeData.desiredAmount.abs() + numShortCalls <= baseBalance, "LRTCCTSA: Selling too many calls");
-    if (cashBalance < $.ccParams.optionMaxNegCash) {
-      revert("LRTCCTSA: Cannot sell options with negative cash");
-    }
+    require(cashBalance >= $.ccParams.optionMaxNegCash, "LRTCCTSA: Cannot sell options with negative cash");
 
     _validateOptionDetails(tradeData.subId.toUint96(), tradeData.limitPrice.toUint256());
   }
@@ -313,13 +318,8 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
       })
     );
 
-    if (callDelta < $.ccParams.optionMaxDelta) {
-      revert("LRTCCTSA: Option delta too low");
-    }
-
-    if (callPrice < limitPrice) {
-      revert("LRTCCTSA: Option price too low");
-    }
+    require(callDelta < $.ccParams.optionMaxDelta, "LRTCCTSA: Option delta too high");
+    require(limitPrice > callPrice, "LRTCCTSA: Option price too low");
   }
 
   function _getFeedValues(uint128 strike, uint64 expiry) internal view returns (uint vol, uint forwardPrice) {
