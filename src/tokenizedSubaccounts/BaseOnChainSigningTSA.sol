@@ -39,12 +39,12 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     emit SignerUpdated(signer, isSigner);
   }
 
-  function setSignaturesEnabled(bool enabled) external onlyOwner {
+  function setSignaturesDisabled(bool disabled) external onlyOwner {
     BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
 
-    $.signaturesDisabled = enabled;
+    $.signaturesDisabled = disabled;
 
-    emit SignaturesEnabledUpdated(enabled);
+    emit SignaturesDisabledUpdated(disabled);
   }
 
   /////////////
@@ -108,6 +108,31 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     return !$.signaturesDisabled && $.signedData[_hash];
   }
 
+  ///////////
+  // Views //
+  ///////////
+  function isSigner(address signer) external view returns (bool) {
+    BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
+
+    return $.signers[signer];
+  }
+
+  function signaturesDisabled() external view returns (bool) {
+    BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
+
+    return $.signaturesDisabled;
+  }
+
+  function signedData(bytes32 hash) public view returns (bool) {
+    BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
+
+    return $.signedData[hash];
+  }
+
+  function isActionSigned(IMatching.Action memory action) external view returns (bool) {
+    return signedData(getActionTypedDataHash(action));
+  }
+
   ///////////////
   // Modifiers //
   ///////////////
@@ -123,7 +148,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   ////////////
 
   event SignerUpdated(address indexed signer, bool isSigner);
-  event SignaturesEnabledUpdated(bool enabled);
+  event SignaturesDisabledUpdated(bool enabled);
 
   event ActionSigned(address indexed signer, bytes32 indexed hash, IMatching.Action action);
   event SignatureRevoked(address indexed signer, bytes32 indexed hash);

@@ -337,24 +337,36 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
     if ($.lastFeeCollected == block.timestamp) {
+      console2.log("Fee already collected");
       return;
     }
 
     if ($.tsaParams.managementFee == 0 || $.tsaParams.feeRecipient == address(0)) {
+      console2.log("params 0");
       $.lastFeeCollected = block.timestamp;
       return;
     }
 
-    uint totalShares = this.totalSupply() + $.totalPendingWithdrawals;
+    uint totalShares = this.totalSupply();
     if (totalShares == 0) {
+      console2.log("total shares 0");
       $.lastFeeCollected = block.timestamp;
       return;
     }
 
     uint timeSinceLastCollect = block.timestamp - $.lastFeeCollected;
-
     uint percentToCollect = timeSinceLastCollect * $.tsaParams.managementFee / 365 days;
-    _mint($.tsaParams.feeRecipient, totalShares * percentToCollect / 1e18);
+    uint amountCollected = totalShares * percentToCollect / 1e18;
+
+    console2.log("timeSinceLastCollect", timeSinceLastCollect);
+    console2.log("percentToCollect", percentToCollect);
+    console2.log("amountCollected", amountCollected);
+
+    _mint($.tsaParams.feeRecipient, amountCollected);
+
+    $.lastFeeCollected = block.timestamp;
+
+    emit FeeCollected($.tsaParams.feeRecipient, amountCollected, block.timestamp, totalShares);
   }
 
   /////////////////////////////
@@ -430,6 +442,18 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     return _getBaseTSAStorage().subAccount;
   }
 
+  function shareKeeper(address keeper) public view returns (bool) {
+    return _getBaseTSAStorage().shareKeepers[keeper];
+  }
+
+  function isBlocked() public view returns (bool) {
+    return _isBlocked();
+  }
+
+  function lastFeeCollected() public view returns (uint) {
+    return _getBaseTSAStorage().lastFeeCollected;
+  }
+
   ///////////////
   // Modifiers //
   ///////////////
@@ -468,4 +492,6 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   event WithdrawalProcessed(
     uint withdrawalId, address beneficiary, bool complete, uint sharesProcessed, uint amountReceived
   );
+
+  event FeeCollected(address recipient, uint amount, uint timestamp, uint totalSupply);
 }

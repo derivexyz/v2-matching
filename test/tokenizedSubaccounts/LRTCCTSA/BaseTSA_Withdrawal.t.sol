@@ -25,4 +25,38 @@ contract LRTCCTSA_BaseTSA_WithdrawalTests is LRTCCTSATestUtils {
     setupLRTCCTSA();
     tsa = LRTCCTSA(address(proxy));
   }
+
+  function testWithdrawals() public {
+    _depositToTSA(1000e18);
+
+    // withdrawals are processed sequentially
+
+    tsa.requestWithdrawal(100e18);
+    tsa.requestWithdrawal(200e18);
+    tsa.requestWithdrawal(300e18);
+
+    // totalSupply includes pending withdrawals
+    assertEq(tsa.totalPendingWithdrawals(), 600e18);
+    assertEq(tsa.totalSupply(), 1000e18);
+    assertEq(tsa.balanceOf(address(this)), 400e18);
+    assertEq(markets["weth"].erc20.balanceOf(address(this)), 0);
+
+    tsa.processWithdrawalRequests(1);
+    assertEq(tsa.totalPendingWithdrawals(), 500e18);
+    assertEq(tsa.totalSupply(), 900e18);
+    assertEq(tsa.balanceOf(address(this)), 400e18);
+    assertEq(markets["weth"].erc20.balanceOf(address(this)), 100e18);
+
+    tsa.processWithdrawalRequests(1);
+    assertEq(tsa.totalPendingWithdrawals(), 300e18);
+    assertEq(tsa.totalSupply(), 700e18);
+    assertEq(tsa.balanceOf(address(this)), 400e18);
+    assertEq(markets["weth"].erc20.balanceOf(address(this)), 300e18);
+
+    tsa.processWithdrawalRequests(1);
+    assertEq(tsa.totalPendingWithdrawals(), 0);
+    assertEq(tsa.totalSupply(), 400e18);
+    assertEq(tsa.balanceOf(address(this)), 400e18);
+    assertEq(markets["weth"].erc20.balanceOf(address(this)), 600e18);
+  }
 }
