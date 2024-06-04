@@ -22,8 +22,6 @@ import {
   StandardManager, IStandardManager, IVolFeed, IForwardFeed
 } from "v2-core/src/risk-managers/StandardManager.sol";
 
-import "forge-std/console2.sol";
-
 /// @title LRTCCTSA
 /// @notice TSA that accepts LRTs as deposited collateral, and sells covered calls.
 /// @dev Prices shares in USD, but accepts baseAsset as deposit. Vault intended to try remain delta neutral.
@@ -68,6 +66,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     uint feeFactor;
   }
 
+  /// @custom:storage-location erc7201:lyra.storage.LRTCCTSA
   struct LRTCCTSAStorage {
     ISpotFeed baseFeed;
     IDepositModule depositModule;
@@ -337,12 +336,15 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   // Account Value //
   ///////////////////
 
-  function _getAccountValue() internal view override returns (uint) {
+  function _getAccountValue(bool includePending) internal view override returns (uint) {
     LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     // TODO: double check perp Pnl, funding, cash interest is accounted for
-    uint depositAssetBalance = tsaAddresses.depositAsset.balanceOf(address(this)) - totalPendingDeposits();
+    uint depositAssetBalance = tsaAddresses.depositAsset.balanceOf(address(this));
+    if (!includePending) {
+      depositAssetBalance -= totalPendingDeposits();
+    }
 
     (, int mtm) = tsaAddresses.manager.getMarginAndMarkToMarket(subAccount(), true, 0);
     (uint spotPrice,) = $.baseFeed.getSpot();
@@ -388,8 +390,8 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   // Views //
   ///////////
 
-  function getAccountValue() public view returns (uint) {
-    return _getAccountValue();
+  function getAccountValue(bool includePending) public view returns (uint) {
+    return _getAccountValue(includePending);
   }
 
   function getSubAccountStats() public view returns (uint numShortCalls, uint baseBalance, int cashBalance) {

@@ -3,18 +3,16 @@ pragma solidity ^0.8.18;
 import "../TSATestUtils.sol";
 /*
 Deposits:
-- ✅ multiple deposits can be processed (dont have to be sequential)
-- ✅ depositors get different amounts of shares based on changes to NAV
-- deposits are blocked when there is a liquidation
-- deposits cannot be processed if they are already processed
-- deposits can be reverted if not processed in time
-- cannot be reverted if processed
-- deposits cannot be queued if cap is exceeded
-- deposits CAN be processed if cap is exceeded
+- ✅multiple deposits can be processed (dont have to be sequential)
+- ✅depositors get different amounts of shares based on changes to NAV
+- ✅deposits are blocked when there is a liquidation
+- ✅deposits cannot be processed if they are already processed
+- ✅deposits below the minimum are rejected
+- ✅deposits cannot be queued if cap is exceeded
+- ✅deposits CAN be processed if cap is exceeded
 - any deposit will collect fees correctly (before totalSupply is changed)
 - deposits will be scaled by the depositScale
 - different decimals are handled correctly
-- deposits below the minimum are rejected
 */
 
 contract LRTCCTSA_BaseTSA_DepositTests is LRTCCTSATestUtils {
@@ -154,5 +152,91 @@ contract LRTCCTSA_BaseTSA_DepositTests is LRTCCTSATestUtils {
 
     // Get 0.25 more shares, as each share is now 4 weth worth (3.25 total)
     assertEq(tsa.balanceOf(address(this)), depositAmount * 3.25e2 / 1e2, "Share balance");
+  }
+
+  function testDepositsAreBlockedWhenThereIsALiquidation() public {
+    // Mint some tokens and approve the TSA contract to spend them
+    uint depositAmount = 1e18;
+    markets["weth"].erc20.mint(address(this), depositAmount);
+    markets["weth"].erc20.approve(address(tsa), depositAmount);
+
+    // Initiate a deposit
+    uint depositId = tsa.initiateDeposit(depositAmount, address(this));
+
+    // Check state is as expected
+    assertEq(tsa.balanceOf(address(this)), 0);
+    assertEq(tsa.totalPendingDeposits(), depositAmount);
+    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount);
+
+    // Create an insolvent auction
+    uint liquidationId = _createInsolventAuction();
+
+    // Try to process the deposit
+    vm.expectRevert("BaseTSA: Blocked");
+    tsa.processDeposit(depositId);
+
+    // Check state is as expected
+    assertEq(tsa.balanceOf(address(this)), 0);
+    assertEq(tsa.totalPendingDeposits(), depositAmount);
+    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount);
+  }
+
+  function testDepositsCannotBeProcessedIfTheyAreAlreadyProcessed() public {
+    // Mint some tokens and approve the TSA contract to spend them
+    uint depositAmount = 1e18;
+    markets["weth"].erc20.mint(address(this), depositAmount);
+    markets["weth"].erc20.approve(address(tsa), depositAmount);
+
+    // Initiate a deposit
+    uint depositId = tsa.initiateDeposit(depositAmount, address(this));
+
+    // Check state is as expected
+    assertEq(tsa.balanceOf(address(this)), 0);
+    assertEq(tsa.totalPendingDeposits(), depositAmount);
+    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount);
+
+    // Process the deposit
+    tsa.processDeposit(depositId);
+
+    // Check state is as expected
+    assertEq(tsa.balanceOf(address(this)), depositAmount);
+    assertEq(tsa.totalPendingDeposits(), 0);
+    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount);
+
+    // Try to process the deposit again
+    vm.expectRevert("BaseTSA: Deposit already processed");
+    tsa.processDeposit(depositId);
+  }
+
+  function testDepositsQueueFailureReasons() public {
+    // Mint some tokens and approve the TSA contract to spend them
+    uint depositAmount = 1e18;
+    markets["weth"].erc20.mint(address(this), depositAmount);
+    markets["weth"].erc20.approve(address(tsa), depositAmount);
+
+    BaseTSA.TSAParams memory params = tsa.getTSAParams();
+
+    params.minDepositValue = 1.01e18;
+    tsa.setTSAParams(params);
+
+    vm.expectRevert("BaseTSA: Deposit below minimum");
+    tsa.initiateDeposit(1e18, address(this));
+
+    params.minDepositValue = 0;
+    params.depositCap = 0.99e18;
+    tsa.setTSAParams(params);
+
+    vm.expectRevert("BaseTSA: Deposit cap exceeded");
+    tsa.initiateDeposit(1e18, address(this));
+
+    params.depositCap = 1e18;
+    tsa.setTSAParams(params);
+    uint depositId = tsa.initiateDeposit(1e18, address(this));
+
+    // Can process even if cap is lower
+
+    params.depositCap = 0;
+    tsa.setTSAParams(params);
+    tsa.processDeposit(depositId);
   }
 }

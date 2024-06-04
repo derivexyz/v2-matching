@@ -59,7 +59,7 @@ contract LRTCCTSA_UpgradeTest is LRTCCTSATestUtils {
     preTsa.withdrawTo(address(this), 1_000e6);
 
     // Withdraw a portion
-    assertEq(ccTSA.getAccountValue(), 999_000e6);
+    assertEq(ccTSA.getAccountValue(false), 999_000e6);
 
     ccTSA.requestWithdrawal(500e6);
     ccTSA.processWithdrawalRequests(1);

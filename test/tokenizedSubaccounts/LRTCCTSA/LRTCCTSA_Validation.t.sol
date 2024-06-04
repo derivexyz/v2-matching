@@ -2,6 +2,8 @@ pragma solidity ^0.8.18;
 
 import "../TSATestUtils.sol";
 /*
+TODO: liquidation of subaccount
+
 Admin
 - ✅Only the owner can set the LRTCCTSAParams.
 - ✅The LRTCCTSAParams are correctly set and retrieved.

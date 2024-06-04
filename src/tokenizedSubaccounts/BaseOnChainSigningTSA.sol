@@ -3,7 +3,6 @@ pragma solidity ^0.8.18;
 
 import "./BaseTSA.sol";
 
-import "forge-std/console2.sol";
 import "openzeppelin/utils/cryptography/ECDSA.sol";
 
 /// @title BaseOnChainSigningTSA
@@ -12,6 +11,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   // bytes4(keccak256("isValidSignature(bytes32,bytes)")
   bytes4 internal constant MAGICVALUE = 0x1626ba7e;
 
+  /// @custom:storage-location erc7201:lyra.storage.BaseOnChainSigningTSA
   struct BaseSigningTSAStorage {
     bool signaturesDisabled;
     mapping(address => bool) signers;

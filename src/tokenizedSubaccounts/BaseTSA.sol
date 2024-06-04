@@ -11,7 +11,6 @@ import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 import {CashAsset} from "v2-core/src/assets/CashAsset.sol";
 import {ERC20Upgradeable} from "openzeppelin-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
-import "forge-std/console2.sol";
 
 /// @title Base Tokenized SubAccount
 /// @notice Base class for tokenized subaccounts
@@ -41,11 +40,14 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   }
 
   struct TSAParams {
+    /// @dev total amount of "depositAsset" the whole account can be worth, **in depositAsset decimals**.
     uint depositCap;
-    uint depositExpiry;
+    /// @dev minimum deposit amount of "depositAsset", in depositAsset decimals
     uint minDepositValue;
     uint withdrawalDelay;
+    /// @dev multipliers for deposit amounts, to allow for conversions like 1:3000, as well as charging a fee
     uint depositScale;
+    /// @dev multipliers for withdrawal amounts, to allow for conversions like 3000:1, as well as charging a fee
     uint withdrawScale;
     uint managementFee;
     address feeRecipient;
@@ -65,7 +67,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     uint sharesReceived;
   }
 
-  /// @custom:storage-location erc7201:openzeppelin.storage.Ownable
+  /// @custom:storage-location erc7201:lyra.storage.BaseTSA
   struct BaseTSAStorage {
     ISubAccounts subAccounts;
     DutchAuction auction;
@@ -80,11 +82,12 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     mapping(address => bool) shareKeepers;
     mapping(uint => DepositRequest) queuedDeposit;
     uint nextQueuedDepositId;
-    /// @dev Total amount of pending deposits in depositAsset decimals
-    uint totalPendingDeposits;
+    uint queuedDepositHead;
     mapping(uint => WithdrawalRequest) queuedWithdrawals;
     uint nextQueuedWithdrawalId;
     uint queuedWithdrawalHead;
+    /// @dev Total amount of pending deposits in depositAsset decimals
+    uint totalPendingDeposits;
     uint totalPendingWithdrawals;
     /// @dev Last time the fee was collected
     uint lastFeeCollected;
@@ -129,17 +132,23 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   function setTSAParams(TSAParams memory _params) external onlyOwner {
     _collectFee();
 
+    uint scaleRatio = _params.depositScale * 1e18 / _params.withdrawScale;
+
+    require(
+      _params.managementFee <= 0.02e18 && scaleRatio <= 1.12e18 && scaleRatio >= 0.9e18, "BaseTSA: Invalid params"
+    );
+
     _getBaseTSAStorage().tsaParams = _params;
 
     emit TSAParamsUpdated(_params);
   }
 
-  function approveModule(address module) external onlyOwner {
+  function approveModule(address module, uint amount) external onlyOwner {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
-    require($.matching.allowedModules(module), "module not approved");
+    require($.matching.allowedModules(module), "BaseTSA: Module not part of matching");
 
-    $.depositAsset.approve(module, type(uint).max);
+    $.depositAsset.approve(module, amount);
 
     emit ModuleApproved(module);
   }
@@ -158,20 +167,18 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   //
   // Each individual deposit is allocated an id, which can be used to track the deposit request. They do not need to be
   // processed sequentially.
-  //
-  // Deposits can be reverted if they are not processed within a certain time frame.
 
   function initiateDeposit(uint amount, address recipient) external checkBlocked returns (uint depositId) {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
-    require(amount >= $.tsaParams.minDepositValue, "deposit below minimum");
+    require(amount >= $.tsaParams.minDepositValue, "BaseTSA: Deposit below minimum");
 
     // Then transfer in assets once shares are minted
     $.depositAsset.transferFrom(msg.sender, address(this), amount);
     $.totalPendingDeposits += amount;
 
     // check if deposit cap is exceeded
-    require(_getAccountValue() <= $.tsaParams.depositCap, "deposit cap exceeded");
+    require(_getAccountValue(true) <= $.tsaParams.depositCap, "BaseTSA: Deposit cap exceeded");
 
     depositId = $.nextQueuedDepositId++;
 
@@ -200,7 +207,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
     DepositRequest storage request = $.queuedDeposit[depositId];
 
-    require(request.sharesReceived == 0, "Deposit already processed");
+    require(request.sharesReceived == 0, "BaseTSA: Deposit already processed");
 
     uint shares = _getSharesForDeposit(request.amountDepositAsset);
 
@@ -210,23 +217,6 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     _mint(request.recipient, shares);
 
     emit DepositProcessed(depositId, request.recipient, true, shares);
-  }
-
-  function revertPendingDeposit(uint depositId) external {
-    BaseTSAStorage storage $ = _getBaseTSAStorage();
-
-    DepositRequest storage request = $.queuedDeposit[depositId];
-
-    if (request.sharesReceived > 0) {
-      revert("Deposit already processed");
-    }
-
-    require(block.timestamp > request.timestamp + $.tsaParams.depositExpiry, "Deposit not expired");
-
-    $.totalPendingDeposits -= request.amountDepositAsset;
-    $.depositAsset.transfer(request.recipient, request.amountDepositAsset);
-
-    emit DepositProcessed(depositId, request.recipient, false, 0);
   }
 
   /// @dev Share decimals are in depositAsset decimals
@@ -254,8 +244,8 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   function requestWithdrawal(uint amount) external checkBlocked returns (uint withdrawalId) {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
-    require(balanceOf(msg.sender) >= amount, "insufficient balance");
-    require(amount > 0, "invalid amount");
+    require(balanceOf(msg.sender) >= amount, "BaseTSA: Insufficient balance");
+    require(amount > 0, "BaseTSA: Invalid amount");
 
     _burn(msg.sender, amount);
 
@@ -337,19 +327,16 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
     if ($.lastFeeCollected == block.timestamp) {
-      console2.log("Fee already collected");
       return;
     }
 
     if ($.tsaParams.managementFee == 0 || $.tsaParams.feeRecipient == address(0)) {
-      console2.log("params 0");
       $.lastFeeCollected = block.timestamp;
       return;
     }
 
     uint totalShares = this.totalSupply();
     if (totalShares == 0) {
-      console2.log("total shares 0");
       $.lastFeeCollected = block.timestamp;
       return;
     }
@@ -357,10 +344,6 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     uint timeSinceLastCollect = block.timestamp - $.lastFeeCollected;
     uint percentToCollect = timeSinceLastCollect * $.tsaParams.managementFee / 365 days;
     uint amountCollected = totalShares * percentToCollect / 1e18;
-
-    console2.log("timeSinceLastCollect", timeSinceLastCollect);
-    console2.log("percentToCollect", percentToCollect);
-    console2.log("amountCollected", amountCollected);
 
     _mint($.tsaParams.feeRecipient, amountCollected);
 
@@ -375,13 +358,12 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
   /// @dev Function to calculate the value of the account. Must account for pending deposits.
   /// This is the total amount of "depositAsset" the whole account is worth, **in depositAsset decimals**.
-  function _getAccountValue() internal view virtual returns (uint);
+  function _getAccountValue(bool includePending) internal view virtual returns (uint);
 
   // @dev The amount of "depositAsset" one share is worth, **in 18 decimals**.
   function _getSharePrice() internal view returns (uint) {
-    // TODO: avoid the small balance mint/burn share price manipulation at start of vault life
     // totalSupply and accountValue are in depositAsset decimals. Result will be in 18 decimals.
-    return totalSupply() == 0 ? 1e18 : _getAccountValue() * 1e18 / totalSupply();
+    return totalSupply() == 0 ? 1e18 : _getAccountValue(false) * 1e18 / totalSupply();
   }
 
   /// @dev The number of shares that would be minted for an amount of "depositAsset". **In depositAsset decimals**.
@@ -468,12 +450,12 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   modifier onlyShareKeeper() {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
-    require($.shareKeepers[msg.sender], "only share handler");
+    require($.shareKeepers[msg.sender], "BaseTSA: Only share handler");
     _;
   }
 
   modifier checkBlocked() {
-    require(!_isBlocked(), "action blocked");
+    require(!_isBlocked(), "BaseTSA: Blocked");
     _;
   }
 

@@ -78,7 +78,8 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   function _setupTradeModule() internal {
     tradeModule.setFeeRecipient(bobAcc);
     srm.setBorrowingEnabled(true);
-    srm.setBaseAssetMarginFactor(1, 0.8e18, 0.8e18);
+    srm.setBaseAssetMarginFactor(markets["weth"].id, 0.8e18, 0.8e18);
+    srm.setBaseAssetMarginFactor(markets["wbtc"].id, 0.8e18, 0.8e18);
     tradeModule.setPerpAsset(markets["weth"].perp, true);
   }
 
@@ -163,12 +164,9 @@ contract LRTCCTSATestUtils is TSATestUtils {
   }
 
   function setupLRTCCTSA() internal {
-    console2.log(tsa.owner());
-    console2.log(address(this));
     tsa.setTSAParams(
       BaseTSA.TSAParams({
         depositCap: 10000e18,
-        depositExpiry: 1 weeks,
         minDepositValue: 1e18,
         withdrawalDelay: 1 weeks,
         depositScale: 1e18,
@@ -435,5 +433,36 @@ contract LRTCCTSATestUtils is TSATestUtils {
     markets["weth"].erc20.approve(address(tsa), amount);
     uint depositId = tsa.initiateDeposit(amount, address(this));
     tsa.processDeposit(depositId);
+  }
+
+  function _createInsolventAuction() internal returns (uint auctionId) {
+    auction.setSMAccount(securityModule.accountId());
+
+    uint newSubacc = subAccounts.createAccount(address(this), srm);
+    markets["wbtc"].erc20.mint(address(this), 1e18);
+    markets["wbtc"].erc20.approve(address(markets["wbtc"].base), 1e18);
+    markets["wbtc"].base.deposit(newSubacc, 1e18);
+
+    cash.withdraw(newSubacc, 10_000e6, address(1234));
+
+    vm.warp(block.timestamp + 1);
+    _setSpotPrice("wbtc", 0, 1e18);
+
+    auction.startAuction(newSubacc, 0);
+
+    return newSubacc;
+  }
+
+  function _clearAuction(uint auctionId) internal {
+    uint newSubacc = subAccounts.createAccount(address(this), srm);
+    usdc.mint(address(this), 1e18);
+    usdc.approve(address(cash), 1e18);
+    cash.deposit(newSubacc, 1e18);
+
+    auction.bid(auctionId, newSubacc, 1e18, 0, 0);
+
+    // mint a crazy amount of cash to clear insolvency...
+    usdc.mint(address(cash), 1e18);
+    cash.disableWithdrawFee();
   }
 }
