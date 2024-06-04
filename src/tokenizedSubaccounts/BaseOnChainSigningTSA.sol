@@ -55,8 +55,9 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
 
     bytes32 hash = getActionTypedDataHash(action);
 
-    require(action.signer == address(this), "BaseOnChainSigningTSA: action.signer must be TSA");
-
+    if (action.signer != address(this)) {
+      revert BOCST_InvalidAction();
+    }
     _verifyAction(action, hash);
     $.signedData[hash] = true;
 
@@ -139,17 +140,21 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   modifier onlySigner() {
     BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
 
-    require($.signers[msg.sender], "BaseOnChainSigningTSA: Not a signer");
+    if (!$.signers[msg.sender]) {
+      revert BOCST_OnlySigner();
+    }
     _;
   }
 
-  ////////////
-  // Events //
-  ////////////
-
+  ///////////////////
+  // Events/Errors //
+  ///////////////////
   event SignerUpdated(address indexed signer, bool isSigner);
   event SignaturesDisabledUpdated(bool enabled);
 
   event ActionSigned(address indexed signer, bytes32 indexed hash, IMatching.Action action);
   event SignatureRevoked(address indexed signer, bytes32 indexed hash);
+
+  error BOCST_InvalidAction();
+  error BOCST_OnlySigner();
 }

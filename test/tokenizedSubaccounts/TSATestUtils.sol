@@ -8,7 +8,7 @@ import {
   ITransparentUpgradeableProxy
 } from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ProxyAdmin} from "openzeppelin/proxy/transparent/ProxyAdmin.sol";
-import {LRTCCTSA, BaseTSA} from "../../src/tokenizedSubaccounts/LRTCCTSA.sol";
+import {LRTCCTSA, BaseTSA, BaseOnChainSigningTSA} from "../../src/tokenizedSubaccounts/LRTCCTSA.sol";
 
 import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
 

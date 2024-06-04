@@ -71,7 +71,7 @@ contract LRTCCTSA_BaseTSA_WithdrawalTests is LRTCCTSATestUtils {
     uint auctionId = _createInsolventAuction();
     assertTrue(auction.getIsWithdrawBlocked());
 
-    vm.expectRevert("BaseTSA: Blocked");
+    vm.expectRevert(BaseTSA.BTSA_Blocked.selector);
     tsa.processWithdrawalRequests(1);
 
     // clear auction

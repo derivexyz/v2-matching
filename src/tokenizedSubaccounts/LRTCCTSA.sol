@@ -117,16 +117,17 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   function setLRTCCTSAParams(LRTCCTSAParams memory newParams) external onlyOwner {
     LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
 
-    require(
-      newParams.minSignatureExpiry >= 1 minutes && newParams.minSignatureExpiry <= newParams.maxSignatureExpiry
-        && (newParams.worstSpotBuyPrice >= 1e18 && newParams.worstSpotBuyPrice <= 1.2e18)
-        && (newParams.worstSpotSellPrice <= 1e18 && newParams.worstSpotSellPrice >= 0.8e18)
-        && (newParams.spotTransactionLeniency >= 1e18 && newParams.spotTransactionLeniency <= 1.2e18)
-        && newParams.optionVolSlippageFactor <= 1e18 && newParams.optionMaxDelta < 0.5e18
-        && newParams.optionMaxTimeToExpiry > newParams.optionMinTimeToExpiry && newParams.optionMaxNegCash <= 0
-        && newParams.feeFactor <= 0.05e18,
-      "LRTCCTSA: Invalid params"
-    );
+    if (
+      newParams.minSignatureExpiry < 1 minutes || newParams.minSignatureExpiry > newParams.maxSignatureExpiry
+        || (newParams.worstSpotBuyPrice < 1e18 || newParams.worstSpotBuyPrice > 1.2e18)
+        || (newParams.worstSpotSellPrice > 1e18 || newParams.worstSpotSellPrice < 0.8e18)
+        || (newParams.spotTransactionLeniency < 1e18 || newParams.spotTransactionLeniency > 1.2e18)
+        || newParams.optionVolSlippageFactor > 1e18 || newParams.optionMaxDelta >= 0.5e18
+        || newParams.optionMaxTimeToExpiry <= newParams.optionMinTimeToExpiry || newParams.optionMaxNegCash > 0
+        || newParams.feeFactor > 0.05e18
+    ) {
+      revert LCCT_InvalidParams();
+    }
 
     $.ccParams = newParams;
 
@@ -139,8 +140,12 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
   function _verifyAction(IMatching.Action memory action, bytes32 actionHash) internal virtual override {
     LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
 
-    require(action.expiry >= block.timestamp + $.ccParams.minSignatureExpiry, "Action expiry too soon");
-    require(action.expiry <= block.timestamp + $.ccParams.maxSignatureExpiry, "Action expiry too far");
+    if (
+      action.expiry < block.timestamp + $.ccParams.minSignatureExpiry
+        || action.expiry > block.timestamp + $.ccParams.maxSignatureExpiry
+    ) {
+      revert LCCT_InvalidActionExpiry();
+    }
 
     // Disable last seen hash when a new one comes in.
     // We dont want to have to track pending withdrawals etc. in the logic, and work out if when they've been executed
@@ -154,7 +159,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     } else if (address(action.module) == address($.tradeModule)) {
       _verifyTradeAction(action);
     } else {
-      revert("LRTCCTSA: Invalid module");
+      revert LCCT_InvalidModule();
     }
   }
 
@@ -167,7 +172,9 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
 
     IDepositModule.DepositData memory depositData = abi.decode(action.data, (IDepositModule.DepositData));
 
-    require(depositData.asset == address(tsaAddresses.wrappedDepositAsset), "LRTCCTSA: Invalid asset");
+    if (depositData.asset != address(tsaAddresses.wrappedDepositAsset)) {
+      revert LCCT_InvalidAsset();
+    }
   }
 
   /////////////////
@@ -180,14 +187,21 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
 
     IWithdrawalModule.WithdrawalData memory withdrawalData = abi.decode(action.data, (IWithdrawalModule.WithdrawalData));
 
-    require(withdrawalData.asset == address(tsaAddresses.wrappedDepositAsset), "LRTCCTSA: Invalid asset");
+    if (withdrawalData.asset != address(tsaAddresses.wrappedDepositAsset)) {
+      revert LCCT_InvalidAsset();
+    }
 
     (uint numShortCalls, uint baseBalance, int cashBalance) = _getSubAccountStats();
 
     uint amount18 = ConvertDecimals.to18Decimals(withdrawalData.assetAmount, tsaAddresses.depositAsset.decimals());
 
-    require(numShortCalls + amount18 <= baseBalance, "LRTCCTSA: Cannot withdraw utilised collateral");
-    require(cashBalance >= $.ccParams.optionMaxNegCash, "LRTCCTSA: Cannot withdraw with negative cash");
+    if (baseBalance < amount18 + numShortCalls) {
+      revert LCCT_WithdrawingUtilisedCollateral();
+    }
+
+    if (cashBalance < $.ccParams.optionMaxNegCash) {
+      revert LCCT_WithdrawalNegativeCash();
+    }
   }
 
   /////////////
@@ -200,7 +214,9 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
 
     ITradeModule.TradeData memory tradeData = abi.decode(action.data, (ITradeModule.TradeData));
 
-    require(tradeData.desiredAmount > 0, "LRTCCTSA: Invalid amount");
+    if (tradeData.desiredAmount <= 0) {
+      revert LCCT_InvalidDesiredAmount();
+    }
 
     if (tradeData.asset == address(tsaAddresses.wrappedDepositAsset)) {
       if (tradeData.isBid) {
@@ -212,11 +228,12 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
       }
       return;
     } else if (tradeData.asset == address($.optionAsset)) {
-      require(!tradeData.isBid, "LRTCCTSA: Can only open short positions");
-
+      if (tradeData.isBid) {
+        revert LCCT_CanOnlyOpenShortOptions();
+      }
       _verifyOptionSell(tradeData);
     } else {
-      revert("LRTCCTSA: Invalid asset");
+      revert LCCT_InvalidAsset();
     }
   }
 
@@ -225,21 +242,24 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     int cashBalance = tsaAddresses.subAccounts.getBalance(subAccount(), tsaAddresses.cash, 0);
-    require(cashBalance > 0, "LRTCCTSA: Can only buy with positive cash");
-
+    if (cashBalance <= 0) {
+      revert LCCT_MustHavePositiveCash();
+    }
     uint basePrice = _getBasePrice();
 
     // We don't worry too much about the fee in the calculations, as we trust the exchange won't cause issues. We make
     // sure max fee doesn't exceed 0.5% of spot though.
     _verifyFee(tradeData.worstFee, basePrice);
-    require(
-      tradeData.limitPrice.toUint256() <= basePrice.multiplyDecimal($.ccParams.worstSpotBuyPrice),
-      "LRTCCTSA: Spot limit price too high"
-    );
+
+    if (tradeData.limitPrice.toUint256() > basePrice.multiplyDecimal($.ccParams.worstSpotBuyPrice)) {
+      revert LCCT_SpotLimitPriceTooHigh();
+    }
 
     int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
     int bufferedBalance = cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency);
-    require(cost <= bufferedBalance, "LRTCCTSA: Buying too much collateral");
+    if (cost > bufferedBalance) {
+      revert LCCT_BuyingTooMuchCollateral();
+    }
   }
 
   function _verifyLRTSell(ITradeModule.TradeData memory tradeData) internal view {
@@ -247,22 +267,26 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     int cashBalance = tsaAddresses.subAccounts.getBalance(subAccount(), tsaAddresses.cash, 0);
-    require(cashBalance < 0, "LRTCCTSA: Can only sell with negative cash");
+    if (cashBalance >= 0) {
+      revert LCCT_MustHaveNegativeCash();
+    }
 
     uint basePrice = _getBasePrice();
 
     _verifyFee(tradeData.worstFee, basePrice);
-    require(
-      tradeData.limitPrice.toUint256() >= basePrice.multiplyDecimal($.ccParams.worstSpotSellPrice),
-      "LRTCCTSA: Spot limit price too low"
-    );
+
+    if (tradeData.limitPrice.toUint256() < basePrice.multiplyDecimal($.ccParams.worstSpotSellPrice)) {
+      revert LCCT_SpotLimitPriceTooLow();
+    }
 
     // cost is positive, balance is negative
     int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
     int bufferedBalance = cashBalance.multiplyDecimal($.ccParams.spotTransactionLeniency);
 
     // We make sure we're not selling more $ value of collateral than we have in debt
-    require(cost.abs() <= bufferedBalance.abs(), "LRTCCTSA: Selling too much collateral");
+    if (cost.abs() > bufferedBalance.abs()) {
+      revert LCCT_SellingTooMuchCollateral();
+    }
   }
 
   function _verifyOptionSell(ITradeModule.TradeData memory tradeData) internal view {
@@ -275,8 +299,17 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
 
     (uint numShortCalls, uint baseBalance, int cashBalance) = _getSubAccountStats();
 
-    require(tradeData.desiredAmount.abs() + numShortCalls <= baseBalance, "LRTCCTSA: Selling too many calls");
-    require(cashBalance >= $.ccParams.optionMaxNegCash, "LRTCCTSA: Cannot sell options with negative cash");
+    if (tradeData.desiredAmount.abs() + numShortCalls > baseBalance) {
+      revert LCCT_SellingTooManyCalls();
+    }
+
+    if (tradeData.desiredAmount.abs() + numShortCalls > baseBalance) {
+      revert LCCT_SellingTooManyCalls();
+    }
+
+    if (cashBalance < $.ccParams.optionMaxNegCash) {
+      revert LCCT_CannotSellOptionsWithNegativeCash();
+    }
 
     _validateOptionDetails(tradeData.subId.toUint96(), tradeData.limitPrice.toUint256());
   }
@@ -285,6 +318,9 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
 
     require(worstFee < basePrice.multiplyDecimal($.ccParams.feeFactor), "LRTCCTSA: Fee too high");
+    if (worstFee > basePrice.multiplyDecimal($.ccParams.feeFactor)) {
+      revert LCCT_FeeTooHigh();
+    }
   }
 
   /////////////////
@@ -295,14 +331,15 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
 
     (uint expiry, uint strike, bool isCall) = OptionEncoding.fromSubId(subId);
-    require(isCall, "LRTCCTSA: Only short calls allowed");
-
+    if (!isCall) {
+      revert LCCT_OnlyShortCallsAllowed();
+    }
     if (block.timestamp >= expiry) {
-      revert("LRTCCTSA: Option expired");
+      revert LCCT_OptionExpired();
     }
     uint timeToExpiry = expiry - block.timestamp;
     if (timeToExpiry < $.ccParams.optionMinTimeToExpiry || timeToExpiry > $.ccParams.optionMaxTimeToExpiry) {
-      revert("LRTCCTSA: Option expiry out of bounds");
+      revert LCCT_OptionExpiryOutOfBounds();
     }
 
     (uint vol, uint forwardPrice) = _getFeedValues(strike.toUint128(), expiry.toUint64());
@@ -317,8 +354,13 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
       })
     );
 
-    require(callDelta < $.ccParams.optionMaxDelta, "LRTCCTSA: Option delta too high");
-    require(limitPrice > callPrice, "LRTCCTSA: Option price too low");
+    if (callDelta > $.ccParams.optionMaxDelta) {
+      revert LCCT_OptionDeltaTooHigh();
+    }
+
+    if (limitPrice <= callPrice) {
+      revert LCCT_OptionPriceTooLow();
+    }
   }
 
   function _getFeedValues(uint128 strike, uint64 expiry) internal view returns (uint vol, uint forwardPrice) {
@@ -352,7 +394,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     int convertedMtM = mtm.divideDecimal(spotPrice.toInt256());
 
     if (convertedMtM < 0 && depositAssetBalance < convertedMtM.abs()) {
-      revert("LRTCCTSA: Position insolvent");
+      revert LCCT_PositionInsolvent();
     }
 
     return (convertedMtM + depositAssetBalance.toInt256()).abs();
@@ -367,7 +409,7 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
       if (balances[i].asset == $.optionAsset) {
         int balance = balances[i].balance;
         if (balance > 0) {
-          revert("LRTCCTSA: Invalid option balance");
+          revert LCCT_InvalidOptionBalance();
         }
         numShortCalls += balances[i].balance.abs();
       } else if (balances[i].asset == tsaAddresses.wrappedDepositAsset) {
@@ -421,8 +463,33 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     return ($.baseFeed, $.depositModule, $.withdrawalModule, $.tradeModule, $.optionAsset);
   }
 
-  ////////////
-  // Events //
-  ////////////
+  ///////////////////
+  // Events/Errors //
+  ///////////////////
   event LRTCCTSAParamsSet(LRTCCTSAParams params);
+
+  error LCCT_InvalidParams();
+  error LCCT_InvalidActionExpiry();
+  error LCCT_InvalidModule();
+  error LCCT_InvalidAsset();
+  error LCCT_WithdrawingUtilisedCollateral();
+  error LCCT_WithdrawalNegativeCash();
+  error LCCT_SellingTooManyCalls();
+  error LCCT_CannotSellOptionsWithNegativeCash();
+  error LCCT_FeeTooHigh();
+  error LCCT_OnlyShortCallsAllowed();
+  error LCCT_OptionExpired();
+  error LCCT_OptionExpiryOutOfBounds();
+  error LCCT_OptionDeltaTooHigh();
+  error LCCT_OptionPriceTooLow();
+  error LCCT_PositionInsolvent();
+  error LCCT_InvalidOptionBalance();
+  error LCCT_InvalidDesiredAmount();
+  error LCCT_CanOnlyOpenShortOptions();
+  error LCCT_MustHavePositiveCash();
+  error LCCT_BuyingTooMuchCollateral();
+  error LCCT_SpotLimitPriceTooHigh();
+  error LCCT_MustHaveNegativeCash();
+  error LCCT_SellingTooMuchCollateral();
+  error LCCT_SpotLimitPriceTooLow();
 }

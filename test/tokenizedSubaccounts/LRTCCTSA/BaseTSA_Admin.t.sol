@@ -22,19 +22,19 @@ contract LRTCCTSA_BaseTSA_Admin is LRTCCTSATestUtils {
 
     params.managementFee = 0.02e18 + 1;
 
-    vm.expectRevert("BaseTSA: Invalid params");
+    vm.expectRevert(BaseTSA.BTSA_InvalidParams.selector);
     tsa.setTSAParams(params);
 
     params.managementFee = 0.02e18;
     params.depositScale = 10e18;
     params.withdrawScale = 8e18;
 
-    vm.expectRevert("BaseTSA: Invalid params");
+    vm.expectRevert(BaseTSA.BTSA_InvalidParams.selector);
     tsa.setTSAParams(params);
 
     params.withdrawScale = 12e18;
 
-    vm.expectRevert("BaseTSA: Invalid params");
+    vm.expectRevert(BaseTSA.BTSA_InvalidParams.selector);
     tsa.setTSAParams(params);
 
     params.depositScale = 1;
@@ -47,7 +47,7 @@ contract LRTCCTSA_BaseTSA_Admin is LRTCCTSATestUtils {
     params.depositScale = 0;
     params.withdrawScale = 1;
 
-    vm.expectRevert("BaseTSA: Invalid params");
+    vm.expectRevert(BaseTSA.BTSA_InvalidParams.selector);
     tsa.setTSAParams(params);
   }
 

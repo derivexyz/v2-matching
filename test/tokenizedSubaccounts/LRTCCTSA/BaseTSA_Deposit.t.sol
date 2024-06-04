@@ -172,7 +172,7 @@ contract LRTCCTSA_BaseTSA_DepositTests is LRTCCTSATestUtils {
     uint liquidationId = _createInsolventAuction();
 
     // Try to process the deposit
-    vm.expectRevert("BaseTSA: Blocked");
+    vm.expectRevert(BaseTSA.BTSA_Blocked.selector);
     tsa.processDeposit(depositId);
 
     // Check state is as expected
@@ -204,7 +204,7 @@ contract LRTCCTSA_BaseTSA_DepositTests is LRTCCTSATestUtils {
     assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount);
 
     // Try to process the deposit again
-    vm.expectRevert("BaseTSA: Deposit already processed");
+    vm.expectRevert(BaseTSA.BTSA_DepositAlreadyProcessed.selector);
     tsa.processDeposit(depositId);
   }
 
@@ -219,14 +219,14 @@ contract LRTCCTSA_BaseTSA_DepositTests is LRTCCTSATestUtils {
     params.minDepositValue = 1.01e18;
     tsa.setTSAParams(params);
 
-    vm.expectRevert("BaseTSA: Deposit below minimum");
+    vm.expectRevert(BaseTSA.BTSA_DepositBelowMinimum.selector);
     tsa.initiateDeposit(1e18, address(this));
 
     params.minDepositValue = 0;
     params.depositCap = 0.99e18;
     tsa.setTSAParams(params);
 
-    vm.expectRevert("BaseTSA: Deposit cap exceeded");
+    vm.expectRevert(BaseTSA.BTSA_DepositCapExceeded.selector);
     tsa.initiateDeposit(1e18, address(this));
 
     params.depositCap = 1e18;

@@ -134,9 +134,9 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
     uint scaleRatio = _params.depositScale * 1e18 / _params.withdrawScale;
 
-    require(
-      _params.managementFee <= 0.02e18 && scaleRatio <= 1.12e18 && scaleRatio >= 0.9e18, "BaseTSA: Invalid params"
-    );
+    if (_params.managementFee > 0.02e18 || scaleRatio > 1.12e18 || scaleRatio < 0.9e18) {
+      revert BTSA_InvalidParams();
+    }
 
     _getBaseTSAStorage().tsaParams = _params;
 
@@ -146,7 +146,9 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   function approveModule(address module, uint amount) external onlyOwner {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
-    require($.matching.allowedModules(module), "BaseTSA: Module not part of matching");
+    if (!$.matching.allowedModules(module)) {
+      revert BTSA_ModuleNotPartOfMatching();
+    }
 
     $.depositAsset.approve(module, amount);
 
@@ -171,14 +173,17 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   function initiateDeposit(uint amount, address recipient) external checkBlocked returns (uint depositId) {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
-    require(amount >= $.tsaParams.minDepositValue, "BaseTSA: Deposit below minimum");
-
+    if (amount < $.tsaParams.minDepositValue) {
+      revert BTSA_DepositBelowMinimum();
+    }
     // Then transfer in assets once shares are minted
     $.depositAsset.transferFrom(msg.sender, address(this), amount);
     $.totalPendingDeposits += amount;
 
     // check if deposit cap is exceeded
-    require(_getAccountValue(true) <= $.tsaParams.depositCap, "BaseTSA: Deposit cap exceeded");
+    if (_getAccountValue(true) > $.tsaParams.depositCap) {
+      revert BTSA_DepositCapExceeded();
+    }
 
     depositId = $.nextQueuedDepositId++;
 
@@ -207,8 +212,9 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
     DepositRequest storage request = $.queuedDeposit[depositId];
 
-    require(request.sharesReceived == 0, "BaseTSA: Deposit already processed");
-
+    if (request.sharesReceived > 0) {
+      revert BTSA_DepositAlreadyProcessed();
+    }
     uint shares = _getSharesForDeposit(request.amountDepositAsset);
 
     request.sharesReceived = shares;
@@ -244,8 +250,12 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   function requestWithdrawal(uint amount) external checkBlocked returns (uint withdrawalId) {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
-    require(balanceOf(msg.sender) >= amount, "BaseTSA: Insufficient balance");
-    require(amount > 0, "BaseTSA: Invalid amount");
+    if (balanceOf(msg.sender) < amount) {
+      revert BTSA_InsufficientBalance();
+    }
+    if (amount == 0) {
+      revert BTSA_InvalidWithdrawalAmount();
+    }
 
     _burn(msg.sender, amount);
 
@@ -450,12 +460,16 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   modifier onlyShareKeeper() {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
-    require($.shareKeepers[msg.sender], "BaseTSA: Only share handler");
+    if (!$.shareKeepers[msg.sender]) {
+      revert BTSA_OnlyShareKeeper();
+    }
     _;
   }
 
   modifier checkBlocked() {
-    require(!_isBlocked(), "BaseTSA: Blocked");
+    if (_isBlocked()) {
+      revert BTSA_Blocked();
+    }
     _;
   }
 
@@ -476,4 +490,14 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   );
 
   event FeeCollected(address recipient, uint amount, uint timestamp, uint totalSupply);
+
+  error BTSA_InvalidParams();
+  error BTSA_DepositBelowMinimum();
+  error BTSA_DepositCapExceeded();
+  error BTSA_DepositAlreadyProcessed();
+  error BTSA_InsufficientBalance();
+  error BTSA_InvalidWithdrawalAmount();
+  error BTSA_ModuleNotPartOfMatching();
+  error BTSA_OnlyShareKeeper();
+  error BTSA_Blocked();
 }

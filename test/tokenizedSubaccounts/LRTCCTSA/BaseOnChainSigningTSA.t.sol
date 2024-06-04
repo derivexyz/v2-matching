@@ -70,17 +70,17 @@ contract LRTCCTSA_BaseOnChainSigningTSATests is LRTCCTSATestUtils {
 
   function testOnlySignerCanSign() public {
     IActionVerifier.Action memory action = _createDepositAction(1e18);
-    vm.expectRevert("BaseOnChainSigningTSA: Not a signer");
+    vm.expectRevert(BaseOnChainSigningTSA.BOCST_OnlySigner.selector);
     tsa.signActionData(action);
   }
 
   function testOnlySignerCanRevoke() public {
     IActionVerifier.Action memory action = _createDepositAction(1e18);
-    vm.expectRevert("BaseOnChainSigningTSA: Not a signer");
+    vm.expectRevert(BaseOnChainSigningTSA.BOCST_OnlySigner.selector);
     tsa.revokeActionSignature(action);
 
     bytes32 hash = tsa.getActionTypedDataHash(action);
-    vm.expectRevert("BaseOnChainSigningTSA: Not a signer");
+    vm.expectRevert(BaseOnChainSigningTSA.BOCST_OnlySigner.selector);
     tsa.revokeSignature(hash);
   }
 }
