@@ -14,7 +14,6 @@ Withdrawals:
 - ✅can have multiple processed in one transaction, will stop once withdrawal delay is not met
 - ✅withdrawals will be scaled by the withdrawScale
 - withdrawals will collect fees correctly (before totalSupply is changed)
-- different decimals are handled correctly
 */
 
 contract LRTCCTSA_BaseTSA_WithdrawalTests is LRTCCTSATestUtils {

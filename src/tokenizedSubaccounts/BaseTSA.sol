@@ -228,7 +228,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   /// @dev Share decimals are in depositAsset decimals
   function _getSharesForDeposit(uint depositAmount) internal view returns (uint) {
     // scale depositAmount by factor and convert to shares
-    return _getNumShares(_scaleDeposit(depositAmount));
+    return getNumShares(_scaleDeposit(depositAmount));
   }
 
   /// @dev Conversion factor for deposit asset to shares. Returns in amountAsset decimals
@@ -249,7 +249,6 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   /// in the future.
   function requestWithdrawal(uint amount) external checkBlocked returns (uint withdrawalId) {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
-
     if (balanceOf(msg.sender) < amount) {
       revert BTSA_InsufficientBalance();
     }
@@ -316,7 +315,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   }
 
   function _getSharesToWithdrawAmount(uint amountShares) internal view returns (uint amountDepositAsset) {
-    return _getSharesValue(_scaleWithdraw(amountShares));
+    return getSharesValue(_scaleWithdraw(amountShares));
   }
 
   function _scaleWithdraw(uint amountShares) internal view virtual returns (uint) {
@@ -377,12 +376,12 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   }
 
   /// @dev The number of shares that would be minted for an amount of "depositAsset". **In depositAsset decimals**.
-  function _getNumShares(uint depositAmount) internal view returns (uint) {
+  function getNumShares(uint depositAmount) public view returns (uint) {
     return depositAmount * 1e18 / _getSharePrice();
   }
 
   /// @dev The value a given amount of shares in terms of "depositAsset". **In depositAsset decimals**.
-  function _getSharesValue(uint numShares) internal view returns (uint) {
+  function getSharesValue(uint numShares) public view returns (uint) {
     return numShares * _getSharePrice() / 1e18;
   }
 

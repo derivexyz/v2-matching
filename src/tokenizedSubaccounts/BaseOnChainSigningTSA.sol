@@ -31,12 +31,12 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   ///////////
   // Admin //
   ///////////
-  function setSigner(address signer, bool isSigner) external onlyOwner {
+  function setSigner(address signer, bool _isSigner) external onlyOwner {
     BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
 
-    $.signers[signer] = isSigner;
+    $.signers[signer] = _isSigner;
 
-    emit SignerUpdated(signer, isSigner);
+    emit SignerUpdated(signer, _isSigner);
   }
 
   function setSignaturesDisabled(bool disabled) external onlyOwner {

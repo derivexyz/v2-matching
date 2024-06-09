@@ -24,8 +24,7 @@ import {
 
 /// @title LRTCCTSA
 /// @notice TSA that accepts LRTs as deposited collateral, and sells covered calls.
-/// @dev Prices shares in USD, but accepts baseAsset as deposit. Vault intended to try remain delta neutral.
-/// Note, this only accepts 18dp assets, as deposits/withdrawals need to account for baseAsset decimals.
+/// @dev Prices shares in baseAsset, but accepts baseAsset as deposit. Note, this only accepts 18dp assets.
 contract LRTCCTSA is BaseOnChainSigningTSA {
   using IntLib for int;
   using SafeCast for int;
@@ -382,7 +381,6 @@ contract LRTCCTSA is BaseOnChainSigningTSA {
     LRTCCTSAStorage storage $ = _getLRTCCTSAStorage();
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
-    // TODO: double check perp Pnl, funding, cash interest is accounted for
     uint depositAssetBalance = tsaAddresses.depositAsset.balanceOf(address(this));
     if (!includePending) {
       depositAssetBalance -= totalPendingDeposits();

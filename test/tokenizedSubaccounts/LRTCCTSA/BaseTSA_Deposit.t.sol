@@ -10,9 +10,8 @@ Deposits:
 - ✅deposits below the minimum are rejected
 - ✅deposits cannot be queued if cap is exceeded
 - ✅deposits CAN be processed if cap is exceeded
+- ✅deposits will be scaled by the depositScale
 - any deposit will collect fees correctly (before totalSupply is changed)
-- deposits will be scaled by the depositScale
-- different decimals are handled correctly
 */
 
 contract LRTCCTSA_BaseTSA_DepositTests is LRTCCTSATestUtils {
@@ -147,8 +146,10 @@ contract LRTCCTSA_BaseTSA_DepositTests is LRTCCTSATestUtils {
 
     tsa.processDeposit(depositIds[4]);
 
-    BaseTSA.DepositRequest memory depReq = tsa.queuedDeposit(depositIds[4]);
-    assertEq(depReq.sharesReceived, depositAmount / 4, "Shares received");
+    {
+      BaseTSA.DepositRequest memory depReq = tsa.queuedDeposit(depositIds[4]);
+      assertEq(depReq.sharesReceived, depositAmount / 4, "Shares received");
+    }
 
     // Get 0.25 more shares, as each share is now 4 weth worth (3.25 total)
     assertEq(tsa.balanceOf(address(this)), depositAmount * 3.25e2 / 1e2, "Share balance");

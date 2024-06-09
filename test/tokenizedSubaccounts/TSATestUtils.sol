@@ -19,6 +19,7 @@ import {IActionVerifier} from "../../src/interfaces/IActionVerifier.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IMatchingModule} from "../../src/interfaces/IMatchingModule.sol";
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
+import {MockTSA} from "./utils/MockTSA.sol";
 
 contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   uint internal signerPk;
@@ -32,6 +33,8 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
 
   TransparentUpgradeableProxy proxy;
   ProxyAdmin proxyAdmin;
+
+  MockTSA public mockTsa;
 
   function setUp() public virtual {
     _setupIntegrationTestComplete();
@@ -92,6 +95,49 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
       abi.encodeWithSelector(tsaImplementation.initialize.selector, "TSA", "TSA", erc20)
     );
   }
+
+  function upgradeToMockTSA(address wrappedDepositAsset) internal {
+    MockTSA mockTsaImp = new MockTSA();
+    proxyAdmin.upgradeAndCall(
+      ITransparentUpgradeableProxy(address(proxy)),
+      address(mockTsaImp),
+      abi.encodeWithSelector(
+        mockTsa.initialize.selector,
+        address(this),
+        BaseTSA.BaseTSAInitParams({
+          subAccounts: subAccounts,
+          auction: auction,
+          cash: cash,
+          wrappedDepositAsset: IWrappedERC20Asset(wrappedDepositAsset),
+          manager: srm,
+          matching: matching,
+          symbol: "Tokenised SubAccount",
+          name: "TSA"
+        })
+      )
+    );
+
+    mockTsa = MockTSA(address(proxy));
+
+    mockTsa.setTSAParams(
+      BaseTSA.TSAParams({
+        depositCap: type(uint).max,
+        minDepositValue: 0,
+        withdrawalDelay: 1 weeks,
+        depositScale: 1e18,
+        withdrawScale: 1e18,
+        managementFee: 0,
+        feeRecipient: address(0)
+      })
+    );
+
+    mockTsa.setShareKeeper(address(this), true);
+
+    signerPk = 0xBEEF;
+    signer = vm.addr(signerPk);
+
+    mockTsa.setSigner(signer, true);
+  }
 }
 
 contract LRTCCTSATestUtils is TSATestUtils {
@@ -146,8 +192,8 @@ contract LRTCCTSATestUtils is TSATestUtils {
           wrappedDepositAsset: wrappedDepositAsset,
           manager: srm,
           matching: matching,
-          symbol: "Tokenised DN WETH",
-          name: "Tokie DN WETH"
+          symbol: "Tokenised SubAccount",
+          name: "TSA"
         }),
         LRTCCTSA.LRTCCTSAInitParams({
           baseFeed: baseFeed,

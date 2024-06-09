@@ -5,7 +5,7 @@ import "../TSATestUtils.sol";
 Admin
 - ✅set TSA params within bounds
 - ✅approve Module
-- set and revoke share keeper
+- ✅set and revoke share keeper
 */
 
 contract LRTCCTSA_BaseTSA_Admin is LRTCCTSATestUtils {

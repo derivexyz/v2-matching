@@ -7,7 +7,6 @@ Fees:
 - ✅no fee is collected if the fee is 0
 - ✅fees are collected correctly
 - ✅fees are collected correctly with pending withdrawals
-- fees are collected correctly when decimals are different
 */
 
 contract LRTCCTSA_BaseTSA_FeesTests is LRTCCTSATestUtils {
