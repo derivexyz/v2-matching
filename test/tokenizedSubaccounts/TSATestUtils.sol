@@ -8,7 +8,7 @@ import {
   ITransparentUpgradeableProxy
 } from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ProxyAdmin} from "openzeppelin/proxy/transparent/ProxyAdmin.sol";
-import {LRTCCTSA, BaseTSA, BaseOnChainSigningTSA} from "../../src/tokenizedSubaccounts/LRTCCTSA.sol";
+import {CoveredCallTSA, BaseTSA, BaseOnChainSigningTSA} from "../../src/tokenizedSubaccounts/CCTSA.sol";
 
 import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
 
@@ -140,14 +140,14 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   }
 }
 
-contract LRTCCTSATestUtils is TSATestUtils {
+contract CCTSATestUtils is TSATestUtils {
   using SignedMath for int;
 
-  LRTCCTSA public tsa;
-  LRTCCTSA public tsaImplementation;
+  CoveredCallTSA public tsa;
+  CoveredCallTSA public tsaImplementation;
   uint public tsaSubacc;
 
-  LRTCCTSA.LRTCCTSAParams public defaultLrtccTSAParams = LRTCCTSA.LRTCCTSAParams({
+  CoveredCallTSA.CCTSAParams public defaultCCTSAParams = CoveredCallTSA.CCTSAParams({
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
     worstSpotBuyPrice: 1.01e18,
@@ -161,7 +161,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
     feeFactor: 0.01e18
   });
 
-  function upgradeToLRTCCTSA(string memory market) internal {
+  function upgradeToCCTSA(string memory market) internal {
     IWrappedERC20Asset wrappedDepositAsset;
     ISpotFeed baseFeed;
     IOptionAsset optionAsset;
@@ -177,7 +177,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
       optionAsset = markets[market].option;
     }
 
-    tsaImplementation = new LRTCCTSA();
+    tsaImplementation = new CoveredCallTSA();
 
     proxyAdmin.upgradeAndCall(
       ITransparentUpgradeableProxy(address(proxy)),
@@ -195,7 +195,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
           symbol: "Tokenised SubAccount",
           name: "TSA"
         }),
-        LRTCCTSA.LRTCCTSAInitParams({
+        CoveredCallTSA.CCTSAInitParams({
           baseFeed: baseFeed,
           depositModule: depositModule,
           withdrawalModule: withdrawalModule,
@@ -205,11 +205,11 @@ contract LRTCCTSATestUtils is TSATestUtils {
       )
     );
 
-    tsa = LRTCCTSA(address(proxy));
+    tsa = CoveredCallTSA(address(proxy));
     tsaSubacc = tsa.subAccount();
   }
 
-  function setupLRTCCTSA() internal {
+  function setupCCTSA() internal {
     tsa.setTSAParams(
       BaseTSA.TSAParams({
         depositCap: 10000e18,
@@ -222,7 +222,7 @@ contract LRTCCTSATestUtils is TSATestUtils {
       })
     );
 
-    tsa.setLRTCCTSAParams(defaultLrtccTSAParams);
+    tsa.setCCTSAParams(defaultCCTSAParams);
 
     tsa.setShareKeeper(address(this), true);
 

@@ -9,13 +9,12 @@ Fees:
 - ✅fees are collected correctly with pending withdrawals
 */
 
-contract LRTCCTSA_BaseTSA_FeesTests is LRTCCTSATestUtils {
+contract CCTSA_BaseTSA_FeesTests is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToLRTCCTSA("weth");
-    setupLRTCCTSA();
-    tsa = LRTCCTSA(address(proxy));
+    upgradeToCCTSA("weth");
+    setupCCTSA();
   }
 
   function testFeeCollection() public {
@@ -30,7 +29,7 @@ contract LRTCCTSA_BaseTSA_FeesTests is LRTCCTSATestUtils {
     assertEq(tsa.lastFeeCollected(), block.timestamp);
 
     // - check no fee is collected when feeRecipient is the zero address
-    LRTCCTSA.TSAParams memory params = tsa.getTSAParams();
+    CoveredCallTSA.TSAParams memory params = tsa.getTSAParams();
 
     params.feeRecipient = address(0);
     params.managementFee = 1e16; // 1%

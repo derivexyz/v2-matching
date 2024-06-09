@@ -4,12 +4,13 @@ pragma solidity ^0.8.18;
 import "forge-std/console2.sol";
 import "./TSATestUtils.sol";
 
-contract LRTCCTSATest is LRTCCTSATestUtils {
+/// @notice Very rough integration test for CCTSA
+contract CCTSATest is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(markets["weth"].erc20));
-    upgradeToLRTCCTSA("weth");
-    setupLRTCCTSA();
+    upgradeToCCTSA("weth");
+    setupCCTSA();
   }
 
   function testCanDepositTradeWithdraw() public {

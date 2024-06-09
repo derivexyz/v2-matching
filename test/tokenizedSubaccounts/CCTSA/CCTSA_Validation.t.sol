@@ -5,8 +5,8 @@ import "../TSATestUtils.sol";
 TODO: liquidation of subaccount
 
 Admin
-- ✅Only the owner can set the LRTCCTSAParams.
-- ✅The LRTCCTSAParams are correctly set and retrieved.
+- ✅Only the owner can set the CCTSAParams.
+- ✅The CCTSAParams are correctly set and retrieved.
 - ✅limits on params
 
 Action Validation
@@ -46,13 +46,12 @@ Trading
   - ✅reverts for options with price too low.
 */
 
-contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
+contract CCTSA_ValidationTests is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToLRTCCTSA("weth");
-    setupLRTCCTSA();
-    tsa = LRTCCTSA(address(proxy));
+    upgradeToCCTSA("weth");
+    setupCCTSA();
   }
 
   ///////////
@@ -60,88 +59,88 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
   ///////////
 
   function testAdmin() public {
-    LRTCCTSA.LRTCCTSAParams memory params = defaultLrtccTSAParams;
+    CoveredCallTSA.CCTSAParams memory params = defaultCCTSAParams;
     params.feeFactor = 0.05e18;
 
-    // Only the owner can set the LRTCCTSAParams.
+    // Only the owner can set the CCTSAParams.
     vm.prank(address(10));
     vm.expectRevert();
-    tsa.setLRTCCTSAParams(params);
+    tsa.setCCTSAParams(params);
 
-    // The LRTCCTSAParams are correctly set and retrieved.
-    tsa.setLRTCCTSAParams(params);
-    LRTCCTSA.LRTCCTSAParams memory fetchedParams = tsa.getLRTCCTSAParams();
+    // The CCTSAParams are correctly set and retrieved.
+    tsa.setCCTSAParams(params);
+    CoveredCallTSA.CCTSAParams memory fetchedParams = tsa.getCCTSAParams();
 
     assertEq(fetchedParams.feeFactor, 0.05e18);
   }
 
   function testParamLimits() public {
     // test each boundary one by one
-    LRTCCTSA.LRTCCTSAParams memory params = defaultLrtccTSAParams;
+    CoveredCallTSA.CCTSAParams memory params = defaultCCTSAParams;
 
     params.minSignatureExpiry = 1 minutes - 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
-    params.minSignatureExpiry = defaultLrtccTSAParams.minSignatureExpiry;
-    params.maxSignatureExpiry = defaultLrtccTSAParams.minSignatureExpiry - 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    params.minSignatureExpiry = defaultCCTSAParams.minSignatureExpiry;
+    params.maxSignatureExpiry = defaultCCTSAParams.minSignatureExpiry - 1;
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
-    params.maxSignatureExpiry = defaultLrtccTSAParams.maxSignatureExpiry;
+    params.maxSignatureExpiry = defaultCCTSAParams.maxSignatureExpiry;
     params.worstSpotBuyPrice = 1e18 - 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
     params.worstSpotBuyPrice = 1.2e18 + 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
-    params.worstSpotBuyPrice = defaultLrtccTSAParams.worstSpotBuyPrice;
+    params.worstSpotBuyPrice = defaultCCTSAParams.worstSpotBuyPrice;
     params.worstSpotSellPrice = 1e18 + 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
     params.worstSpotSellPrice = 0.8e18 - 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
-    params.worstSpotSellPrice = defaultLrtccTSAParams.worstSpotSellPrice;
+    params.worstSpotSellPrice = defaultCCTSAParams.worstSpotSellPrice;
     params.spotTransactionLeniency = 1e18 - 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
     params.spotTransactionLeniency = 1.2e18 + 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
-    params.spotTransactionLeniency = defaultLrtccTSAParams.spotTransactionLeniency;
+    params.spotTransactionLeniency = defaultCCTSAParams.spotTransactionLeniency;
     params.optionVolSlippageFactor = 1e18 + 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
-    params.optionVolSlippageFactor = defaultLrtccTSAParams.optionVolSlippageFactor;
+    params.optionVolSlippageFactor = defaultCCTSAParams.optionVolSlippageFactor;
     params.optionMaxDelta = 0.5e18;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
-    params.optionMaxDelta = defaultLrtccTSAParams.optionMaxDelta;
-    params.optionMaxTimeToExpiry = defaultLrtccTSAParams.optionMinTimeToExpiry - 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    params.optionMaxDelta = defaultCCTSAParams.optionMaxDelta;
+    params.optionMaxTimeToExpiry = defaultCCTSAParams.optionMinTimeToExpiry - 1;
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
-    params.optionMaxTimeToExpiry = defaultLrtccTSAParams.optionMaxTimeToExpiry;
+    params.optionMaxTimeToExpiry = defaultCCTSAParams.optionMaxTimeToExpiry;
     params.optionMaxNegCash = 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
-    params.optionMaxNegCash = defaultLrtccTSAParams.optionMaxNegCash;
+    params.optionMaxNegCash = defaultCCTSAParams.optionMaxNegCash;
     params.feeFactor = 0.05e18 + 1;
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidParams.selector);
-    tsa.setLRTCCTSAParams(params);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
+    tsa.setCCTSAParams(params);
 
-    params.feeFactor = defaultLrtccTSAParams.feeFactor;
-    tsa.setLRTCCTSAParams(params);
+    params.feeFactor = defaultCCTSAParams.feeFactor;
+    tsa.setCCTSAParams(params);
   }
 
   /////////////////
@@ -179,7 +178,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     IActionVerifier.Action memory action = _createDepositAction(1e18);
     action.module = IMatchingModule(address(10));
 
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidModule.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidModule.selector);
     tsa.signActionData(action);
 
     action.module = depositModule;
@@ -200,7 +199,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
 
     // reverts for invalid assets.
     action.data = _encodeDepositData(1e18, address(11111), address(0));
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidAsset.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidAsset.selector);
     tsa.signActionData(action);
 
     vm.stopPrank();
@@ -215,12 +214,12 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
 
     // correctly verifies withdrawal actions.
     IActionVerifier.Action memory action = _createWithdrawalAction(1e18);
-    vm.expectRevert(LRTCCTSA.LCCT_WithdrawingUtilisedCollateral.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_WithdrawingUtilisedCollateral.selector);
     tsa.signActionData(action);
 
     // reverts for invalid assets.
     action.data = _encodeWithdrawData(1e18, address(11111));
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidAsset.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidAsset.selector);
     tsa.signActionData(action);
 
     vm.stopPrank();
@@ -286,7 +285,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
 
     IActionVerifier.Action memory action = _createWithdrawalAction(0.3e18);
     vm.prank(signer);
-    vm.expectRevert(LRTCCTSA.LCCT_WithdrawingUtilisedCollateral.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_WithdrawingUtilisedCollateral.selector);
     tsa.signActionData(action);
 
     // 0.2 can be withdrawn
@@ -305,7 +304,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
 
     action = _createWithdrawalAction(0.3e18);
     vm.prank(signer);
-    vm.expectRevert(LRTCCTSA.LCCT_WithdrawalNegativeCash.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_WithdrawalNegativeCash.selector);
     tsa.signActionData(action);
   }
 
@@ -357,7 +356,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     });
 
     vm.prank(signer);
-    vm.expectRevert(LRTCCTSA.LCCT_BuyingTooMuchCollateral.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_BuyingTooMuchCollateral.selector);
     tsa.signActionData(action);
 
     // fails for limit price too high
@@ -366,7 +365,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
 
     action.data = abi.encode(tradeData);
     vm.prank(signer);
-    vm.expectRevert(LRTCCTSA.LCCT_SpotLimitPriceTooHigh.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_SpotLimitPriceTooHigh.selector);
     tsa.signActionData(action);
 
     // Can buy more than you have if it is within buffer limit
@@ -380,7 +379,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     assertEq(cash, -2e18);
 
     vm.prank(signer);
-    vm.expectRevert(LRTCCTSA.LCCT_MustHavePositiveCash.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_MustHavePositiveCash.selector);
     tsa.signActionData(action);
   }
 
@@ -436,7 +435,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     });
 
     vm.prank(signer);
-    vm.expectRevert(LRTCCTSA.LCCT_SellingTooMuchCollateral.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_SellingTooMuchCollateral.selector);
     tsa.signActionData(action);
 
     // fails for limit price too high
@@ -445,7 +444,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     action.data = abi.encode(tradeData);
 
     vm.prank(signer);
-    vm.expectRevert(LRTCCTSA.LCCT_SpotLimitPriceTooLow.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_SpotLimitPriceTooLow.selector);
     tsa.signActionData(action);
 
     // Can sell more than you have if it is within buffer limit
@@ -459,7 +458,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
 
     // Fails explicitly when there is a positive cash balance
     vm.prank(signer);
-    vm.expectRevert(LRTCCTSA.LCCT_MustHaveNegativeCash.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_MustHaveNegativeCash.selector);
     tsa.signActionData(action);
   }
 
@@ -487,7 +486,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     });
 
     vm.prank(signer);
-    vm.expectRevert(LRTCCTSA.LCCT_InvalidAsset.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidAsset.selector);
     tsa.signActionData(action);
   }
 
@@ -533,7 +532,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     // Cannot sell more calls than base collateral
     tradeData.desiredAmount = 2.1e18;
     action.data = abi.encode(tradeData);
-    vm.expectRevert(LRTCCTSA.LCCT_SellingTooManyCalls.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_SellingTooManyCalls.selector);
     tsa.signActionData(action);
 
     tradeData.desiredAmount = 2.0e18;
@@ -541,7 +540,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     // Can only open short positions
     tradeData.isBid = true;
     action.data = abi.encode(tradeData);
-    vm.expectRevert(LRTCCTSA.LCCT_CanOnlyOpenShortOptions.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_CanOnlyOpenShortOptions.selector);
     tsa.signActionData(action);
 
     tradeData.isBid = false;
@@ -549,7 +548,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     // Cannot sell puts
     tradeData.subId = OptionEncoding.toSubId(expiry, 2200e18, false);
     action.data = abi.encode(tradeData);
-    vm.expectRevert(LRTCCTSA.LCCT_OnlyShortCallsAllowed.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_OnlyShortCallsAllowed.selector);
     tsa.signActionData(action);
 
     tradeData.subId = OptionEncoding.toSubId(expiry, 2200e18, true);
@@ -557,15 +556,15 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
 
     // Cannot trade options with expiry out of bounds
     tradeData.subId =
-      OptionEncoding.toSubId(block.timestamp + defaultLrtccTSAParams.optionMinTimeToExpiry - 1, 2200e18, true);
+      OptionEncoding.toSubId(block.timestamp + defaultCCTSAParams.optionMinTimeToExpiry - 1, 2200e18, true);
     action.data = abi.encode(tradeData);
-    vm.expectRevert(LRTCCTSA.LCCT_OptionExpiryOutOfBounds.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_OptionExpiryOutOfBounds.selector);
     tsa.signActionData(action);
 
     tradeData.subId =
-      OptionEncoding.toSubId(block.timestamp + defaultLrtccTSAParams.optionMaxTimeToExpiry + 1, 2200e18, true);
+      OptionEncoding.toSubId(block.timestamp + defaultCCTSAParams.optionMaxTimeToExpiry + 1, 2200e18, true);
     action.data = abi.encode(tradeData);
-    vm.expectRevert(LRTCCTSA.LCCT_OptionExpiryOutOfBounds.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_OptionExpiryOutOfBounds.selector);
     tsa.signActionData(action);
 
     tradeData.subId = OptionEncoding.toSubId(expiry, 2200e18, true);
@@ -573,7 +572,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     // Cannot trade options with delta too high
     tradeData.subId = OptionEncoding.toSubId(expiry, 2000e18, true);
     action.data = abi.encode(tradeData);
-    vm.expectRevert(LRTCCTSA.LCCT_OptionDeltaTooHigh.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_OptionDeltaTooHigh.selector);
     tsa.signActionData(action);
 
     tradeData.subId = OptionEncoding.toSubId(expiry, 2200e18, true);
@@ -581,7 +580,7 @@ contract LRTCCTSA_ValidationTests is LRTCCTSATestUtils {
     // Cannot trade options with price too low
     tradeData.limitPrice = 5e18;
     action.data = abi.encode(tradeData);
-    vm.expectRevert(LRTCCTSA.LCCT_OptionPriceTooLow.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_OptionPriceTooLow.selector);
     tsa.signActionData(action);
 
     // Succeeds

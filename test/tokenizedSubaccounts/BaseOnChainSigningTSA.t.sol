@@ -1,6 +1,6 @@
 pragma solidity ^0.8.18;
 
-import "../TSATestUtils.sol";
+import "./TSATestUtils.sol";
 /*
 Tests for TSA signing
 - ✅only signers can sign
@@ -12,13 +12,12 @@ Tests for TSA signing
 - ✅signatures can be verified
 */
 
-contract LRTCCTSA_BaseOnChainSigningTSATests is LRTCCTSATestUtils {
+contract CCTSA_BaseOnChainSigningTSATests is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToLRTCCTSA("weth");
-    setupLRTCCTSA();
-    tsa = LRTCCTSA(address(proxy));
+    upgradeToCCTSA("weth");
+    setupCCTSA();
   }
 
   function testCanSetSigner() public {

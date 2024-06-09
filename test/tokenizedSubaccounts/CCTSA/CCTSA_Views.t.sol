@@ -20,13 +20,12 @@ Base Price
 - correctly retrieves the base price.
 */
 
-contract LRTCCTSA_ViewsTests is LRTCCTSATestUtils {
+contract CCTSA_ViewsTests is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToLRTCCTSA("weth");
-    setupLRTCCTSA();
-    tsa = LRTCCTSA(address(proxy));
+    upgradeToCCTSA("weth");
+    setupCCTSA();
   }
 
   function testAccountValue() public {

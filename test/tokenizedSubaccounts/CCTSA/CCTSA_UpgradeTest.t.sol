@@ -11,7 +11,7 @@ Tests for upgrading from the predeposit contract
 - upgrading can update name
 - upgrading cannot update owner
 */
-contract LRTCCTSA_UpgradeTest is LRTCCTSATestUtils {
+contract CCTSA_UpgradeTest is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
   }
@@ -40,9 +40,9 @@ contract LRTCCTSA_UpgradeTest is LRTCCTSATestUtils {
     assertEq(usdc.balanceOf(address(this)), 1_000e6);
 
     // Upgrade
-    upgradeToLRTCCTSA("usdc");
-    LRTCCTSA ccTSA = LRTCCTSA(address(proxy));
-    setupLRTCCTSA();
+    upgradeToCCTSA("usdc");
+    CoveredCallTSA ccTSA = CoveredCallTSA(address(proxy));
+    setupCCTSA();
     ccTSA.setShareKeeper(address(this), true);
 
     // Check balances

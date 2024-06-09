@@ -8,13 +8,12 @@ Admin
 - ✅set and revoke share keeper
 */
 
-contract LRTCCTSA_BaseTSA_Admin is LRTCCTSATestUtils {
+contract CCTSA_BaseTSA_Admin is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToLRTCCTSA("weth");
-    setupLRTCCTSA();
-    tsa = LRTCCTSA(address(proxy));
+    upgradeToCCTSA("weth");
+    setupCCTSA();
   }
 
   function testCanSetTSAParams() public {

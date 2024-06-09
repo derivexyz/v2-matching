@@ -16,13 +16,12 @@ Withdrawals:
 - withdrawals will collect fees correctly (before totalSupply is changed)
 */
 
-contract LRTCCTSA_BaseTSA_WithdrawalTests is LRTCCTSATestUtils {
+contract CCTSA_BaseTSA_WithdrawalTests is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToLRTCCTSA("weth");
-    setupLRTCCTSA();
-    tsa = LRTCCTSA(address(proxy));
+    upgradeToCCTSA("weth");
+    setupCCTSA();
   }
 
   function testWithdrawals() public {
