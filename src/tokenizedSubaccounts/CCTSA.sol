@@ -24,8 +24,9 @@ import {
 
 /// @title CoveredCallTSA
 /// @notice TSA that accepts any deposited collateral, and sells covered calls on it. Assumes options sold are
-/// directionally similar to the collateral.
-/// @dev Prices shares in baseAsset, but accepts baseAsset as deposit.
+/// directionally similar to the collateral (i.e. LRT selling ETH covered calls).
+/// @dev Only one "hash" can be valid at a time, so the state of the contract can be checked easily, without needing to
+/// worry about multiple different transactions all executing simultaneously.
 contract CoveredCallTSA is BaseOnChainSigningTSA {
   using IntLib for int;
   using SafeCast for int;
@@ -66,7 +67,7 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
     uint feeFactor;
   }
 
-  /// @custom:storage-location erc7201:lyra.storage.CCTSA
+  /// @custom:storage-location erc7201:lyra.storage.CoveredCallTSA
   struct CCTSAStorage {
     ISpotFeed baseFeed;
     IDepositModule depositModule;
@@ -74,11 +75,12 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
     ITradeModule tradeModule;
     IOptionAsset optionAsset;
     CCTSAParams ccParams;
+    /// @dev Only one hash is considered valid at a time, and it is revoked when a new one comes in.
     bytes32 lastSeenHash;
   }
 
-  // keccak256(abi.encode(uint256(keccak256("lyra.storage.CCTSA")) - 1)) & ~bytes32(uint256(0xff))
-  bytes32 private constant CCTSAStorageLocation = 0xd7a4b5f91f294158b599cd927d4adb56e6904a5d1cb31515129ced1403dc3700;
+  // keccak256(abi.encode(uint256(keccak256("lyra.storage.CoveredCallTSA")) - 1)) & ~bytes32(uint256(0xff))
+  bytes32 private constant CCTSAStorageLocation = 0x1a4655c7c13a97bb1cd1d7862ecec4d101efff348d9aee723006797984c8e700;
 
   function _getCCTSAStorage() private pure returns (CCTSAStorage storage $) {
     assembly {
@@ -115,8 +117,6 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   // Admin //
   ///////////
   function setCCTSAParams(CCTSAParams memory newParams) external onlyOwner {
-    CCTSAStorage storage $ = _getCCTSAStorage();
-
     if (
       newParams.minSignatureExpiry < 1 minutes || newParams.minSignatureExpiry > newParams.maxSignatureExpiry
         || (newParams.worstSpotBuyPrice < 1e18 || newParams.worstSpotBuyPrice > 1.2e18)
@@ -129,7 +129,7 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
       revert CCT_InvalidParams();
     }
 
-    $.ccParams = newParams;
+    _getCCTSAStorage().ccParams = newParams;
 
     emit CCTSAParamsSet(newParams);
   }
@@ -168,11 +168,9 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   //////////////
 
   function _verifyDepositAction(IMatching.Action memory action) internal view {
-    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
-
     IDepositModule.DepositData memory depositData = abi.decode(action.data, (IDepositModule.DepositData));
 
-    if (depositData.asset != address(tsaAddresses.wrappedDepositAsset)) {
+    if (depositData.asset != address(getBaseTSAAddresses().wrappedDepositAsset)) {
       revert CCT_InvalidAsset();
     }
   }
@@ -182,7 +180,6 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   /////////////////
 
   function _verifyWithdrawAction(IMatching.Action memory action) internal view {
-    CCTSAStorage storage $ = _getCCTSAStorage();
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     IWithdrawalModule.WithdrawalData memory withdrawalData = abi.decode(action.data, (IWithdrawalModule.WithdrawalData));
@@ -199,7 +196,7 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
       revert CCT_WithdrawingUtilisedCollateral();
     }
 
-    if (cashBalance < $.ccParams.optionMaxNegCash) {
+    if (cashBalance < _getCCTSAStorage().ccParams.optionMaxNegCash) {
       revert CCT_WithdrawalNegativeCash();
     }
   }
@@ -209,16 +206,13 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   /////////////
 
   function _verifyTradeAction(IMatching.Action memory action) internal view {
-    CCTSAStorage storage $ = _getCCTSAStorage();
-    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
-
     ITradeModule.TradeData memory tradeData = abi.decode(action.data, (ITradeModule.TradeData));
 
     if (tradeData.desiredAmount <= 0) {
       revert CCT_InvalidDesiredAmount();
     }
 
-    if (tradeData.asset == address(tsaAddresses.wrappedDepositAsset)) {
+    if (tradeData.asset == address(getBaseTSAAddresses().wrappedDepositAsset)) {
       if (tradeData.isBid) {
         // Buying more s with excess cash
         _verifyCollateralBuy(tradeData);
@@ -227,7 +221,7 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
         _verifyCollateralSell(tradeData);
       }
       return;
-    } else if (tradeData.asset == address($.optionAsset)) {
+    } else if (tradeData.asset == address(_getCCTSAStorage().optionAsset)) {
       if (tradeData.isBid) {
         revert CCT_CanOnlyOpenShortOptions();
       }
@@ -296,15 +290,13 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
    * - limit price is within acceptable bounds
    */
   function _verifyOptionSell(ITradeModule.TradeData memory tradeData) internal view {
-    CCTSAStorage storage $ = _getCCTSAStorage();
-
     (uint numShortCalls, uint baseBalance, int cashBalance) = _getSubAccountStats();
 
     if (tradeData.desiredAmount.abs() + numShortCalls > baseBalance) {
       revert CCT_SellingTooManyCalls();
     }
 
-    if (cashBalance < $.ccParams.optionMaxNegCash) {
+    if (cashBalance < _getCCTSAStorage().ccParams.optionMaxNegCash) {
       revert CCT_CannotSellOptionsWithNegativeCash();
     }
 
@@ -361,10 +353,9 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   }
 
   function _getFeedValues(uint128 strike, uint64 expiry) internal view returns (uint vol, uint forwardPrice) {
-    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
     CCTSAStorage storage $ = _getCCTSAStorage();
 
-    StandardManager srm = StandardManager(address(tsaAddresses.manager));
+    StandardManager srm = StandardManager(address(getBaseTSAAddresses().manager));
     IStandardManager.AssetDetail memory assetDetails = srm.assetDetails($.optionAsset);
     (, IForwardFeed fwdFeed, IVolFeed volFeed) = srm.getMarketFeeds(assetDetails.marketId);
     (vol,) = volFeed.getVol(strike, expiry);
@@ -376,7 +367,6 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   ///////////////////
 
   function _getAccountValue(bool includePending) internal view override returns (uint) {
-    CCTSAStorage storage $ = _getCCTSAStorage();
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     uint depositAssetBalance = tsaAddresses.depositAsset.balanceOf(address(this));
@@ -385,7 +375,7 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
     }
 
     (, int mtm) = tsaAddresses.manager.getMarginAndMarkToMarket(subAccount(), true, 0);
-    (uint spotPrice,) = $.baseFeed.getSpot();
+    uint spotPrice = _getBasePrice();
 
     // convert to depositAsset value but in 18dp
     int convertedMtM = mtm.divideDecimal(spotPrice.toInt256());
@@ -407,13 +397,14 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
     return (convertedMtM + depositAssetBalance.toInt256()).abs();
   }
 
+  /// @notice Get the number of short calls, base balance and cash balance of the subaccount. Ignores any assets held
+  /// on this contract itself (pending deposits and erc20 held but not deposited to subaccount)
   function _getSubAccountStats() internal view returns (uint numShortCalls, uint baseBalance, int cashBalance) {
-    CCTSAStorage storage $ = _getCCTSAStorage();
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     ISubAccounts.AssetBalance[] memory balances = tsaAddresses.subAccounts.getAccountBalances(subAccount());
     for (uint i = 0; i < balances.length; i++) {
-      if (balances[i].asset == $.optionAsset) {
+      if (balances[i].asset == _getCCTSAStorage().optionAsset) {
         int balance = balances[i].balance;
         if (balance > 0) {
           revert CCT_InvalidOptionBalance();
@@ -429,9 +420,7 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   }
 
   function _getBasePrice() internal view returns (uint) {
-    CCTSAStorage storage $ = _getCCTSAStorage();
-
-    (uint spotPrice,) = $.baseFeed.getSpot();
+    (uint spotPrice,) = _getCCTSAStorage().baseFeed.getSpot();
     return spotPrice;
   }
 
@@ -452,13 +441,11 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   }
 
   function getCCTSAParams() public view returns (CCTSAParams memory) {
-    CCTSAStorage storage $ = _getCCTSAStorage();
-    return $.ccParams;
+    return _getCCTSAStorage().ccParams;
   }
 
   function lastSeenHash() public view returns (bytes32) {
-    CCTSAStorage storage $ = _getCCTSAStorage();
-    return $.lastSeenHash;
+    return _getCCTSAStorage().lastSeenHash;
   }
 
   function totalCCTSAAddresses()

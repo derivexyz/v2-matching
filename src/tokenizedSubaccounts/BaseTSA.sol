@@ -45,7 +45,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     /// @dev minimum deposit amount of "depositAsset", in depositAsset decimals
     uint minDepositValue;
     uint withdrawalDelay;
-    /// @dev multipliers for deposit amounts, to allow for conversions like 1:3000, as well as charging a fee
+    /// @dev multipliers for deposit amounts, to allow for conversions like 1:3000, as well as charging a deposit fee
     uint depositScale;
     /// @dev multipliers for withdrawal amounts, to allow for conversions like 3000:1, as well as charging a fee
     uint withdrawScale;
@@ -53,6 +53,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     address feeRecipient;
   }
 
+  /// @dev A withdrawal is considered complete when amountShares is 0. They can be partially completed.
   struct WithdrawalRequest {
     address beneficiary;
     uint amountShares;
@@ -60,6 +61,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     uint assetsReceived;
   }
 
+  /// @dev A deposit is considered complete when sharesReceived is > 0. There are no partially complete deposits.
   struct DepositRequest {
     address recipient;
     uint amountDepositAsset;
@@ -82,7 +84,6 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     mapping(address => bool) shareKeepers;
     mapping(uint => DepositRequest) queuedDeposit;
     uint nextQueuedDepositId;
-    uint queuedDepositHead;
     mapping(uint => WithdrawalRequest) queuedWithdrawals;
     uint nextQueuedWithdrawalId;
     uint queuedWithdrawalHead;
@@ -156,8 +157,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   }
 
   function setShareKeeper(address keeper, bool isKeeper) external onlyOwner {
-    BaseTSAStorage storage $ = _getBaseTSAStorage();
-    $.shareKeepers[keeper] = isKeeper;
+    _getBaseTSAStorage().shareKeepers[keeper] = isKeeper;
 
     emit ShareKeeperUpdated(keeper, isKeeper);
   }
@@ -200,6 +200,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     _processDeposit(depositId);
   }
 
+  /// @notice Process a number of deposit requests.
   function processDeposits(uint[] memory depositIds) external onlyShareKeeper checkBlocked {
     _collectFee();
     for (uint i = 0; i < depositIds.length; ++i) {
@@ -318,15 +319,16 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     return getSharesValue(_scaleWithdraw(amountShares));
   }
 
+  /// @dev Conversion factor for shares to deposit asset. Returns in amountAsset decimals.
   function _scaleWithdraw(uint amountShares) internal view virtual returns (uint) {
-    BaseTSAStorage storage $ = _getBaseTSAStorage();
-
-    return amountShares * $.tsaParams.withdrawScale / 1e18;
+    return amountShares * _getBaseTSAStorage().tsaParams.withdrawScale / 1e18;
   }
 
   //////////
   // Fees //
   //////////
+
+  /// @notice Public function to trigger fee collection
   function collectFee() external {
     _collectFee();
   }
@@ -387,9 +389,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
   /// @dev The total supply of the token, including pending withdrawals. **In depositAsset decimals**.
   function totalSupply() public view override returns (uint) {
-    BaseTSAStorage storage $ = _getBaseTSAStorage();
-
-    return super.totalSupply() + $.totalPendingWithdrawals;
+    return super.totalSupply() + _getBaseTSAStorage().totalPendingWithdrawals;
   }
 
   ///////////

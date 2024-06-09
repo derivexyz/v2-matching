@@ -32,17 +32,13 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   // Admin //
   ///////////
   function setSigner(address signer, bool _isSigner) external onlyOwner {
-    BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
-
-    $.signers[signer] = _isSigner;
+    _getBaseSigningTSAStorage().signers[signer] = _isSigner;
 
     emit SignerUpdated(signer, _isSigner);
   }
 
   function setSignaturesDisabled(bool disabled) external onlyOwner {
-    BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
-
-    $.signaturesDisabled = disabled;
+    _getBaseSigningTSAStorage().signaturesDisabled = disabled;
 
     emit SignaturesDisabledUpdated(disabled);
   }
@@ -51,15 +47,13 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   // Signing //
   /////////////
   function signActionData(IMatching.Action memory action) external virtual onlySigner {
-    BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
-
     bytes32 hash = getActionTypedDataHash(action);
 
     if (action.signer != address(this)) {
       revert BOCST_InvalidAction();
     }
     _verifyAction(action, hash);
-    $.signedData[hash] = true;
+    _getBaseSigningTSAStorage().signedData[hash] = true;
 
     emit ActionSigned(msg.sender, hash, action);
   }
@@ -73,9 +67,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   }
 
   function _revokeSignature(bytes32 hash) internal virtual {
-    BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
-
-    $.signedData[hash] = false;
+    _getBaseSigningTSAStorage().signedData[hash] = false;
 
     emit SignatureRevoked(msg.sender, hash);
   }
@@ -113,21 +105,15 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   // Views //
   ///////////
   function isSigner(address signer) external view returns (bool) {
-    BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
-
-    return $.signers[signer];
+    return _getBaseSigningTSAStorage().signers[signer];
   }
 
   function signaturesDisabled() external view returns (bool) {
-    BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
-
-    return $.signaturesDisabled;
+    return _getBaseSigningTSAStorage().signaturesDisabled;
   }
 
   function signedData(bytes32 hash) public view returns (bool) {
-    BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
-
-    return $.signedData[hash];
+    return _getBaseSigningTSAStorage().signedData[hash];
   }
 
   function isActionSigned(IMatching.Action memory action) external view returns (bool) {
@@ -138,9 +124,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   // Modifiers //
   ///////////////
   modifier onlySigner() {
-    BaseSigningTSAStorage storage $ = _getBaseSigningTSAStorage();
-
-    if (!$.signers[msg.sender]) {
+    if (!_getBaseSigningTSAStorage().signers[msg.sender]) {
       revert BOCST_OnlySigner();
     }
     _;
