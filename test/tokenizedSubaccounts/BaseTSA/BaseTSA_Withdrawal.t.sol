@@ -77,6 +77,7 @@ contract CCTSA_BaseTSA_WithdrawalTests is CCTSATestUtils {
 
     // only shareKeeper can process withdrawals before the withdrawal delay
     vm.prank(address(0xaa));
+    vm.expectRevert(BaseTSA.BTSA_OnlyShareKeeper.selector);
     tsa.processWithdrawalRequests(1);
 
     // nothing happened, check state
@@ -85,9 +86,6 @@ contract CCTSA_BaseTSA_WithdrawalTests is CCTSATestUtils {
     assertEq(tsa.balanceOf(address(this)), 400e18);
     assertEq(markets["weth"].erc20.balanceOf(address(this)), 0);
 
-    // withdrawals can be processed by anyone if not processed in time
-    vm.warp(block.timestamp + 1 weeks);
-    vm.prank(address(0xaa));
     tsa.processWithdrawalRequests(1);
 
     // check state
@@ -156,11 +154,9 @@ contract CCTSA_BaseTSA_WithdrawalTests is CCTSATestUtils {
     vm.warp(block.timestamp + 2 days);
     tsa.requestWithdrawal(300e18);
 
-    // anyone should be able to process 1 and 2
     vm.warp(block.timestamp + 5 days);
 
-    vm.prank(address(0xaa));
-    tsa.processWithdrawalRequests(3);
+    tsa.processWithdrawalRequests(2);
 
     // check state
     assertEq(tsa.totalPendingWithdrawals(), 300e18);

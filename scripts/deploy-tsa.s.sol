@@ -15,7 +15,7 @@ import {IWithdrawalModule} from "../src/interfaces/IWithdrawalModule.sol";
 import {ITradeModule} from "../src/interfaces/ITradeModule.sol";
 import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
 import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
-import "../src/tokenizedSubaccounts/LRTCCTSA.sol";
+import "../src/tokenizedSubaccounts/CCTSA.sol";
 import "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {TokenizedSubAccount} from "../src/tokenizedSubaccounts/TSA.sol";
 import "openzeppelin/proxy/transparent/ProxyAdmin.sol";
@@ -23,7 +23,7 @@ import "openzeppelin/proxy/transparent/ProxyAdmin.sol";
 
 contract DeploySettlementUtils is Utils {
 
-  LRTCCTSA.LRTCCTSAParams public defaultLrtccTSAParams = LRTCCTSA.LRTCCTSAParams({
+  CoveredCallTSA.CCTSAParams public defaultLrtccTSAParams = CoveredCallTSA.CCTSAParams({
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
     worstSpotBuyPrice: 1.01e18,
@@ -55,7 +55,7 @@ contract DeploySettlementUtils is Utils {
       abi.encodeWithSelector(tsaImplementation.initialize.selector, "TSA", "TSA", address(0))
     );
 
-    LRTCCTSA lrtcctsaImplementation = new LRTCCTSA();
+    CoveredCallTSA lrtcctsaImplementation = new CoveredCallTSA();
 
     proxyAdmin.upgradeAndCall(
       ITransparentUpgradeableProxy(address(proxy)),
@@ -73,28 +73,27 @@ contract DeploySettlementUtils is Utils {
           symbol: "Tokenised DN WETH",
           name: "DNWETH"
         }),
-        LRTCCTSA.LRTCCTSAInitParams({
+        CoveredCallTSA.CCTSAInitParams({
           baseFeed: ISpotFeed(_getMarketAddress("ETH", "spotFeed")),
           depositModule: IDepositModule(_getMatchingModule("deposit")),
-          withdrawalModule: IWithdrawalModule(_getMatchingModule("deposit")),
-          tradeModule: ITradeModule(_getMatchingModule("deposit")),
+          withdrawalModule: IWithdrawalModule(_getMatchingModule("withdrawal")),
+          tradeModule: ITradeModule(_getMatchingModule("trade")),
           optionAsset: IOptionAsset(_getMarketAddress("ETH", "option"))
         })
       )
     );
 
-    LRTCCTSA(address(proxy)).setTSAParams(
+    CoveredCallTSA(address(proxy)).setTSAParams(
       BaseTSA.TSAParams({
         depositCap: 10000e18,
         minDepositValue: 1e18,
-        withdrawalDelay: 1 weeks,
         depositScale: 1e18,
         withdrawScale: 1e18,
         managementFee: 0,
         feeRecipient: address(0)
       })
     );
-    LRTCCTSA(address(proxy)).setLRTCCTSAParams(defaultLrtccTSAParams);
+    CoveredCallTSA(address(proxy)).setCCTSAParams(defaultLrtccTSAParams);
 
 
     string memory objKey = "tsa-deployment";

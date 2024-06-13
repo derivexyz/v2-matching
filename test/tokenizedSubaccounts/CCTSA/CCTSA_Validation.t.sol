@@ -147,6 +147,8 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
   // Base Verify //
   /////////////////
   function testLastActionHashIsRevoked() public {
+    _depositToTSA(10e18);
+
     // Submit a deposit request
     IActionVerifier.Action memory action1 = _createDepositAction(1e18);
 
@@ -167,12 +169,18 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     vm.expectRevert(IActionVerifier.OV_InvalidSignature.selector);
     _submitToMatching(action1);
 
+    // TODO: Can withdraw even with a pending deposit action. Can lead to pending deposits being moved to TSA...
+    tsa.requestWithdrawal(10e18);
+    tsa.processWithdrawalRequests(1);
+
     // Fails as no funds were actually deposited, but passes signature validation
     vm.expectRevert("ERC20: transfer amount exceeds balance");
     _submitToMatching(action2);
   }
 
   function testInvalidModules() public {
+    _depositToTSA(1e18);
+
     vm.startPrank(signer);
 
     IActionVerifier.Action memory action = _createDepositAction(1e18);
@@ -193,8 +201,9 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
   function testDepositValidation() public {
     vm.startPrank(signer);
 
-    // correctly verifies deposit actions.
-    IActionVerifier.Action memory action = _createDepositAction(1e18);
+    // cannot deposit more than is available
+    IActionVerifier.Action memory action = _createDepositAction(2e18);
+    vm.expectRevert(CoveredCallTSA.CCT_DepositingTooMuch.selector);
     tsa.signActionData(action);
 
     // reverts for invalid assets.

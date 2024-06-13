@@ -18,6 +18,7 @@ contract CCTSA_BaseOnChainSigningTSATests is CCTSATestUtils {
     deployPredeposit(address(0));
     upgradeToCCTSA("weth");
     setupCCTSA();
+    _depositToTSA(1e18);
   }
 
   function testCanSetSigner() public {

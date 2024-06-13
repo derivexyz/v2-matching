@@ -152,12 +152,14 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
     _revokeSignature($.lastSeenHash);
     $.lastSeenHash = actionHash;
 
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
+
     if (address(action.module) == address($.depositModule)) {
-      _verifyDepositAction(action);
+      _verifyDepositAction(action, tsaAddresses);
     } else if (address(action.module) == address($.withdrawalModule)) {
-      _verifyWithdrawAction(action);
+      _verifyWithdrawAction(action, tsaAddresses);
     } else if (address(action.module) == address($.tradeModule)) {
-      _verifyTradeAction(action);
+      _verifyTradeAction(action, tsaAddresses);
     } else {
       revert CCT_InvalidModule();
     }
@@ -167,11 +169,15 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   // Deposits //
   //////////////
 
-  function _verifyDepositAction(IMatching.Action memory action) internal view {
+  function _verifyDepositAction(IMatching.Action memory action, BaseTSAAddresses memory tsaAddresses) internal view {
     IDepositModule.DepositData memory depositData = abi.decode(action.data, (IDepositModule.DepositData));
 
-    if (depositData.asset != address(getBaseTSAAddresses().wrappedDepositAsset)) {
+    if (depositData.asset != address(tsaAddresses.wrappedDepositAsset)) {
       revert CCT_InvalidAsset();
+    }
+
+    if (depositData.amount > tsaAddresses.depositAsset.balanceOf(address(this)) - totalPendingDeposits()) {
+      revert CCT_DepositingTooMuch();
     }
   }
 
@@ -179,9 +185,7 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   // Withdrawals //
   /////////////////
 
-  function _verifyWithdrawAction(IMatching.Action memory action) internal view {
-    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
-
+  function _verifyWithdrawAction(IMatching.Action memory action, BaseTSAAddresses memory tsaAddresses) internal view {
     IWithdrawalModule.WithdrawalData memory withdrawalData = abi.decode(action.data, (IWithdrawalModule.WithdrawalData));
 
     if (withdrawalData.asset != address(tsaAddresses.wrappedDepositAsset)) {
@@ -205,20 +209,20 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   // Trading //
   /////////////
 
-  function _verifyTradeAction(IMatching.Action memory action) internal view {
+  function _verifyTradeAction(IMatching.Action memory action, BaseTSAAddresses memory tsaAddresses) internal view {
     ITradeModule.TradeData memory tradeData = abi.decode(action.data, (ITradeModule.TradeData));
 
     if (tradeData.desiredAmount <= 0) {
       revert CCT_InvalidDesiredAmount();
     }
 
-    if (tradeData.asset == address(getBaseTSAAddresses().wrappedDepositAsset)) {
+    if (tradeData.asset == address(tsaAddresses.wrappedDepositAsset)) {
       if (tradeData.isBid) {
-        // Buying more s with excess cash
-        _verifyCollateralBuy(tradeData);
+        // Buying more collateral with excess cash
+        _verifyCollateralBuy(tradeData, tsaAddresses);
       } else {
-        // Selling s to cover cash debt
-        _verifyCollateralSell(tradeData);
+        // Selling collateral to cover cash debt
+        _verifyCollateralSell(tradeData, tsaAddresses);
       }
       return;
     } else if (tradeData.asset == address(_getCCTSAStorage().optionAsset)) {
@@ -231,9 +235,11 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
     }
   }
 
-  function _verifyCollateralBuy(ITradeModule.TradeData memory tradeData) internal view {
+  function _verifyCollateralBuy(ITradeModule.TradeData memory tradeData, BaseTSAAddresses memory tsaAddresses)
+    internal
+    view
+  {
     CCTSAStorage storage $ = _getCCTSAStorage();
-    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     int cashBalance = tsaAddresses.subAccounts.getBalance(subAccount(), tsaAddresses.cash, 0);
     if (cashBalance <= 0) {
@@ -256,9 +262,11 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
     }
   }
 
-  function _verifyCollateralSell(ITradeModule.TradeData memory tradeData) internal view {
+  function _verifyCollateralSell(ITradeModule.TradeData memory tradeData, BaseTSAAddresses memory tsaAddresses)
+    internal
+    view
+  {
     CCTSAStorage storage $ = _getCCTSAStorage();
-    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     int cashBalance = tsaAddresses.subAccounts.getBalance(subAccount(), tsaAddresses.cash, 0);
     if (cashBalance >= 0) {
@@ -303,6 +311,7 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
     _validateOptionDetails(tradeData.subId.toUint96(), tradeData.limitPrice.toUint256());
   }
 
+  // TODO: add to option check
   function _verifyFee(uint worstFee, uint basePrice) internal view {
     CCTSAStorage storage $ = _getCCTSAStorage();
 
@@ -374,7 +383,7 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
       depositAssetBalance -= totalPendingDeposits();
     }
 
-    (, int mtm) = tsaAddresses.manager.getMarginAndMarkToMarket(subAccount(), true, 0);
+    (int margin, int mtm) = tsaAddresses.manager.getMarginAndMarkToMarket(subAccount(), true, 0);
     uint spotPrice = _getBasePrice();
 
     // convert to depositAsset value but in 18dp
@@ -389,12 +398,12 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
     }
 
     // Might not be technically insolvent (could have enough depositAsset to cover the deficit), but we block deposits
-    // and withdrawals whenever the subaccount value is negative (i.e. insolvent)
-    if (convertedMtM < 0) {
+    // and withdrawals whenever the margin is negative (i.e. liquidatable)
+    if (convertedMtM < 0 || margin < 0) {
       revert CCT_PositionInsolvent();
     }
 
-    return (convertedMtM + depositAssetBalance.toInt256()).abs();
+    return uint(convertedMtM) + depositAssetBalance;
   }
 
   /// @notice Get the number of short calls, base balance and cash balance of the subaccount. Ignores any assets held
@@ -466,6 +475,7 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   error CCT_InvalidActionExpiry();
   error CCT_InvalidModule();
   error CCT_InvalidAsset();
+  error CCT_DepositingTooMuch();
   error CCT_WithdrawingUtilisedCollateral();
   error CCT_WithdrawalNegativeCash();
   error CCT_SellingTooManyCalls();

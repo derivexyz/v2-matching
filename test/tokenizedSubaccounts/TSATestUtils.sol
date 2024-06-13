@@ -123,7 +123,6 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
       BaseTSA.TSAParams({
         depositCap: type(uint).max,
         minDepositValue: 0,
-        withdrawalDelay: 1 weeks,
         depositScale: 1e18,
         withdrawScale: 1e18,
         managementFee: 0,
@@ -214,7 +213,6 @@ contract CCTSATestUtils is TSATestUtils {
       BaseTSA.TSAParams({
         depositCap: 10000e18,
         minDepositValue: 1e18,
-        withdrawalDelay: 1 weeks,
         depositScale: 1e18,
         withdrawScale: 1e18,
         managementFee: 0,

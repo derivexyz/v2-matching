@@ -44,7 +44,6 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     uint depositCap;
     /// @dev minimum deposit amount of "depositAsset", in depositAsset decimals
     uint minDepositValue;
-    uint withdrawalDelay;
     /// @dev multipliers for deposit amounts, to allow for conversions like 1:3000, as well as charging a deposit fee
     uint depositScale;
     /// @dev multipliers for withdrawal amounts, to allow for conversions like 3000:1, as well as charging a fee
@@ -176,6 +175,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     if (amount < $.tsaParams.minDepositValue) {
       revert BTSA_DepositBelowMinimum();
     }
+    // tODO: move this down
     // Then transfer in assets once shares are minted
     $.depositAsset.transferFrom(msg.sender, address(this), amount);
     $.totalPendingDeposits += amount;
@@ -218,6 +218,9 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     }
     uint shares = _getSharesForDeposit(request.amountDepositAsset);
 
+    // TODO
+    require(shares > 0);
+
     request.sharesReceived = shares;
     $.totalPendingDeposits -= request.amountDepositAsset;
 
@@ -257,8 +260,6 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
       revert BTSA_InvalidWithdrawalAmount();
     }
 
-    _burn(msg.sender, amount);
-
     withdrawalId = $.nextQueuedWithdrawalId++;
 
     $.queuedWithdrawals[withdrawalId] =
@@ -266,24 +267,30 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
     $.totalPendingWithdrawals += amount;
 
+    _burn(msg.sender, amount);
+
     emit WithdrawalRequested(withdrawalId, msg.sender, amount);
   }
 
   /// @notice Process a number of withdrawal requests, up to a limit.
-  function processWithdrawalRequests(uint limit) external checkBlocked {
+  function processWithdrawalRequests(uint limit) external checkBlocked onlyShareKeeper {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
     _collectFee();
 
     for (uint i = 0; i < limit; ++i) {
-      WithdrawalRequest storage request = $.queuedWithdrawals[$.queuedWithdrawalHead];
-
-      if (!$.shareKeepers[msg.sender] && request.timestamp + $.tsaParams.withdrawalDelay > block.timestamp) {
+      if ($.queuedWithdrawalHead >= $.nextQueuedWithdrawalId) {
         break;
       }
 
-      uint totalBalance = $.depositAsset.balanceOf(address(this));
+      WithdrawalRequest storage request = $.queuedWithdrawals[$.queuedWithdrawalHead];
+
+      uint totalBalance = $.depositAsset.balanceOf(address(this)) - $.totalPendingDeposits;
       uint requiredAmount = _getSharesToWithdrawAmount(request.amountShares);
+
+      if (totalBalance == 0) {
+        break;
+      }
 
       if (totalBalance < requiredAmount) {
         // withdraw a portion
@@ -480,15 +487,15 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   event ModuleApproved(address module);
   event ShareKeeperUpdated(address keeper, bool isKeeper);
 
-  event DepositInitiated(uint depositId, address recipient, uint amount);
-  event DepositProcessed(uint depositId, address recipient, bool success, uint shares);
+  event DepositInitiated(uint indexed depositId, address indexed recipient, uint amount);
+  event DepositProcessed(uint indexed depositId, address indexed recipient, bool success, uint shares);
 
-  event WithdrawalRequested(uint withdrawalId, address beneficiary, uint amount);
+  event WithdrawalRequested(uint indexed withdrawalId, address indexed beneficiary, uint amount);
   event WithdrawalProcessed(
-    uint withdrawalId, address beneficiary, bool complete, uint sharesProcessed, uint amountReceived
+    uint indexed withdrawalId, address indexed beneficiary, bool complete, uint sharesProcessed, uint amountReceived
   );
 
-  event FeeCollected(address recipient, uint amount, uint timestamp, uint totalSupply);
+  event FeeCollected(address indexed recipient, uint amount, uint timestamp, uint totalSupply);
 
   error BTSA_InvalidParams();
   error BTSA_DepositBelowMinimum();
