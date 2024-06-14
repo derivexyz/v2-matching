@@ -15,6 +15,8 @@ import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
 import {IDutchAuction} from "v2-core/src/interfaces/IDutchAuction.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {ITradeModule} from "../../src/interfaces/ITradeModule.sol";
+import {IDepositModule} from "../../src/interfaces/IDepositModule.sol";
+import {IWithdrawalModule} from "../../src/interfaces/IWithdrawalModule.sol";
 import {IActionVerifier} from "../../src/interfaces/IActionVerifier.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IMatchingModule} from "../../src/interfaces/IMatchingModule.sol";

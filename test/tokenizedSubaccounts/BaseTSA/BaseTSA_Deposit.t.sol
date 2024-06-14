@@ -98,6 +98,8 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     assertEq(tsa.balanceOf(address(this)), 0);
     assertEq(tsa.totalPendingDeposits(), depositAmount * numDeposits);
     assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount * numDeposits);
+    assertEq(tsa.getNumShares(1e18), 1e18);
+    assertEq(tsa.getSharesValue(1e18), 1e18);
 
     for (uint i = 0; i < numDeposits; i++) {
       BaseTSA.DepositRequest memory depReq = tsa.queuedDeposit(depositIds[i]);
@@ -122,9 +124,14 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     assertEq(tsa.balanceOf(address(this)), depositAmount * 2, "Share balance of depositor");
     assertEq(tsa.totalSupply(), depositAmount * 2, "TSA total supply");
     assertEq(tsa.totalPendingDeposits(), depositAmount * 3, "Total pending deposits");
+    assertEq(tsa.getNumShares(1e18), 1e18);
+    assertEq(tsa.getSharesValue(1e18), 1e18);
 
     // Double the value of the pool
     markets["weth"].erc20.mint(address(tsa), depositAmount * 2);
+
+    assertEq(tsa.getNumShares(1e18), 0.5e18);
+    assertEq(tsa.getSharesValue(1e18), 2e18);
 
     tsa.processDeposit(depositIds[3]);
     tsa.processDeposit(depositIds[2]);
@@ -172,6 +179,7 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     uint liquidationId = _createInsolventAuction();
 
     // Try to process the deposit
+    assertEq(tsa.isBlocked(), true);
     vm.expectRevert(BaseTSA.BTSA_Blocked.selector);
     tsa.processDeposit(depositId);
 

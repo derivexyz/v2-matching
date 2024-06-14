@@ -61,16 +61,24 @@ contract CCTSA_BaseOnChainSigningTSATests is CCTSATestUtils {
     tsa.signActionData(action);
 
     assertTrue(tsa.isActionSigned(action));
+    assertTrue(tsa.signedData(tsa.getActionTypedDataHash(action)));
 
     bytes32 hash = tsa.getActionTypedDataHash(action);
     tsa.revokeSignature(hash);
 
     assertTrue(!tsa.isActionSigned(action));
+    assertTrue(!tsa.signedData(tsa.getActionTypedDataHash(action)));
   }
 
   function testOnlySignerCanSign() public {
     IActionVerifier.Action memory action = _createDepositAction(1e18);
     vm.expectRevert(BaseOnChainSigningTSA.BOCST_OnlySigner.selector);
+    tsa.signActionData(action);
+
+    // action.signer must be tsa contract
+    action.signer = signer;
+    vm.prank(signer);
+    vm.expectRevert(BaseOnChainSigningTSA.BOCST_InvalidAction.selector);
     tsa.signActionData(action);
   }
 

@@ -308,14 +308,13 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
       revert CCT_CannotSellOptionsWithNegativeCash();
     }
 
+    _verifyFee(tradeData.worstFee, _getBasePrice());
     _validateOptionDetails(tradeData.subId.toUint96(), tradeData.limitPrice.toUint256());
   }
 
-  // TODO: add to option check
   function _verifyFee(uint worstFee, uint basePrice) internal view {
     CCTSAStorage storage $ = _getCCTSAStorage();
 
-    require(worstFee < basePrice.multiplyDecimal($.ccParams.feeFactor), "CCTSA: Fee too high");
     if (worstFee > basePrice.multiplyDecimal($.ccParams.feeFactor)) {
       revert CCT_FeeTooHigh();
     }
@@ -457,7 +456,7 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
     return _getCCTSAStorage().lastSeenHash;
   }
 
-  function totalCCTSAAddresses()
+  function getCCTSAAddresses()
     public
     view
     returns (ISpotFeed, IDepositModule, IWithdrawalModule, ITradeModule, IOptionAsset)

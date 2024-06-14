@@ -17,6 +17,16 @@ contract CCTSA_BaseTSA_Admin is CCTSATestUtils {
   }
 
   function testCanSetTSAParams() public {
+    BaseTSA.BaseTSAAddresses memory baseAddresses = tsa.getBaseTSAAddresses();
+
+    assertEq(address(baseAddresses.subAccounts), address(subAccounts));
+    assertEq(address(baseAddresses.auction), address(auction));
+    assertEq(address(baseAddresses.cash), address(cash));
+    assertEq(address(baseAddresses.wrappedDepositAsset), address(markets["weth"].base));
+    assertEq(address(baseAddresses.depositAsset), address(markets["weth"].erc20));
+    assertEq(address(baseAddresses.manager), address(srm));
+    assertEq(address(baseAddresses.matching), address(matching));
+
     BaseTSA.TSAParams memory params = tsa.getTSAParams();
 
     params.managementFee = 0.02e18 + 1;
@@ -56,6 +66,9 @@ contract CCTSA_BaseTSA_Admin is CCTSATestUtils {
 
     tsa.approveModule(address(tradeModule), 0);
     assertEq(markets["weth"].erc20.allowance(address(tsa), address(tradeModule)), 0);
+
+    vm.expectRevert(BaseTSA.BTSA_ModuleNotPartOfMatching.selector);
+    tsa.approveModule(address(alice), type(uint).max);
   }
 
   function testCanSetShareKeeper() public {

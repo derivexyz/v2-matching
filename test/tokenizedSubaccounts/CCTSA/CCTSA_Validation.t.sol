@@ -211,6 +211,14 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     vm.expectRevert(CoveredCallTSA.CCT_InvalidAsset.selector);
     tsa.signActionData(action);
 
+    action.expiry = block.timestamp + defaultCCTSAParams.minSignatureExpiry - 1;
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidActionExpiry.selector);
+    tsa.signActionData(action);
+
+    action.expiry = block.timestamp + defaultCCTSAParams.maxSignatureExpiry + 1;
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidActionExpiry.selector);
+    tsa.signActionData(action);
+
     vm.stopPrank();
   }
 
@@ -274,21 +282,14 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
   }
 
   function testRevertsForInvalidWithdrawals() public {
-    // Mint some tokens and approve the TSA contract to spend them
-    uint depositAmount = 1e18;
-    markets["weth"].erc20.mint(address(this), depositAmount);
-    markets["weth"].erc20.approve(address(tsa), depositAmount);
-
-    // Initiate and process a deposit
-    uint depositId = tsa.initiateDeposit(depositAmount, address(this));
-    tsa.processDeposit(depositId);
+    _depositToTSA(1e18);
 
     uint64 expiry = uint64(block.timestamp + 7 days);
-    _executeDeposit(depositAmount);
+    _executeDeposit(1e18);
     _tradeOption(-0.8e18, 100e18, expiry, 2200e18);
 
     (uint sc, uint base, int cash) = tsa.getSubAccountStats();
-    assertEq(base, depositAmount);
+    assertEq(base, 1e18);
     assertEq(sc, 0.8e18);
     assertEq(cash, 80e18);
 
@@ -320,6 +321,40 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
   //////////////////
   // Spot Trading //
   //////////////////
+
+  function testValidateTradeAction() public {
+    // Cant sell more than you have
+    ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
+      asset: address(10),
+      subId: 0,
+      limitPrice: int(2500e18),
+      desiredAmount: 0.5e18,
+      worstFee: 1e18,
+      recipientId: tsaSubacc,
+      isBid: false
+    });
+    IActionVerifier.Action memory action = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++signerNonce,
+      module: tradeModule,
+      data: abi.encode(tradeData),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+
+    vm.prank(signer);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidAsset.selector);
+    tsa.signActionData(action);
+
+    tradeData.desiredAmount = 0;
+    tradeData.asset = address(markets["weth"].option);
+    action.data = abi.encode(tradeData);
+
+    vm.prank(signer);
+    vm.expectRevert(CoveredCallTSA.CCT_InvalidDesiredAmount.selector);
+    tsa.signActionData(action);
+  }
 
   function testCanBuySpot() public {
     _depositToTSA(10e18);
@@ -471,34 +506,6 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     tsa.signActionData(action);
   }
 
-  function testCannotSwapInvalidAssets() public {
-    // Cant sell more than you have
-    bytes memory tradeData = abi.encode(
-      ITradeModule.TradeData({
-        asset: address(10),
-        subId: 0,
-        limitPrice: int(2500e18),
-        desiredAmount: 0.5e18,
-        worstFee: 1e18,
-        recipientId: tsaSubacc,
-        isBid: false
-      })
-    );
-    IActionVerifier.Action memory action = IActionVerifier.Action({
-      subaccountId: tsaSubacc,
-      nonce: ++signerNonce,
-      module: tradeModule,
-      data: tradeData,
-      expiry: block.timestamp + 8 minutes,
-      owner: address(tsa),
-      signer: address(tsa)
-    });
-
-    vm.prank(signer);
-    vm.expectRevert(CoveredCallTSA.CCT_InvalidAsset.selector);
-    tsa.signActionData(action);
-  }
-
   ////////////////////
   // Option Trading //
   ////////////////////
@@ -598,5 +605,85 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     tsa.signActionData(action);
 
     vm.stopPrank();
+  }
+
+  function testCantTradeWithNegativeCash() public {
+    _depositToTSA(1e18);
+    _executeDeposit(1e18);
+
+    uint64 expiry = uint64(block.timestamp + 7 days);
+    _tradeOption(-1e18, 100e18, expiry, 2200e18);
+
+    // Create negative cash in the account
+    vm.warp(block.timestamp + 8 days);
+    _setSettlementPrice("weth", expiry, 2500e18);
+    srm.settleOptions(markets["weth"].option, tsa.subAccount());
+    ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
+      asset: address(markets["weth"].option),
+      subId: OptionEncoding.toSubId(expiry, 2200e18, true),
+      limitPrice: int(100e18),
+      desiredAmount: int(1e18),
+      worstFee: 1e18,
+      recipientId: tsaSubacc,
+      isBid: false
+    });
+
+    IActionVerifier.Action memory action = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++signerNonce,
+      module: tradeModule,
+      data: abi.encode(tradeData),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+
+    vm.prank(signer);
+    vm.expectRevert(CoveredCallTSA.CCT_CannotSellOptionsWithNegativeCash.selector);
+    tsa.signActionData(action);
+  }
+
+  function testOtherTradeFailures() public {
+    _depositToTSA(1e18);
+    _executeDeposit(1e18);
+
+    uint64 expiry = uint64(block.timestamp);
+
+    // Create negative cash in the account
+    ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
+      asset: address(markets["weth"].option),
+      subId: OptionEncoding.toSubId(expiry, 2200e18, true),
+      limitPrice: int(100e18),
+      desiredAmount: int(1e18),
+      worstFee: 1e18,
+      recipientId: tsaSubacc,
+      isBid: false
+    });
+
+    IActionVerifier.Action memory action = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++signerNonce,
+      module: tradeModule,
+      data: abi.encode(tradeData),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+
+    vm.prank(signer);
+    vm.expectRevert(CoveredCallTSA.CCT_OptionExpired.selector);
+    tsa.signActionData(action);
+
+    expiry = uint64(block.timestamp + 7 days);
+    tradeData.subId = OptionEncoding.toSubId(expiry, 2200e18, true);
+    tradeData.worstFee = 2000e18;
+    action.data = abi.encode(tradeData);
+
+    _setForwardPrice("weth", uint64(expiry), 2000e18, 1e18);
+    _setFixedSVIDataForExpiry("weth", uint64(expiry));
+
+    vm.prank(signer);
+    vm.expectRevert(CoveredCallTSA.CCT_FeeTooHigh.selector);
+    tsa.signActionData(action);
   }
 }

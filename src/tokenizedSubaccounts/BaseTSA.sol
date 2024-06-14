@@ -11,13 +11,14 @@ import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 import {CashAsset} from "v2-core/src/assets/CashAsset.sol";
 import {ERC20Upgradeable} from "openzeppelin-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "openzeppelin-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 /// @title Base Tokenized SubAccount
 /// @notice Base class for tokenized subaccounts
 /// @dev This contract is abstract and must be inherited by a concrete implementation. It works assuming share decimals
 /// are the same as depositAsset decimals.
 /// @author Lyra
-abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
+abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, ReentrancyGuardUpgradeable {
   struct BaseTSAInitParams {
     ISubAccounts subAccounts;
     DutchAuction auction;
@@ -110,6 +111,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     // Use "unchained" to make sure an existing owner isn't replaced when upgraded
     __Ownable_init_unchained(initialOwner);
     __ERC20_init(initParams.name, initParams.symbol);
+    __ReentrancyGuard_init();
 
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
@@ -169,13 +171,12 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   // Each individual deposit is allocated an id, which can be used to track the deposit request. They do not need to be
   // processed sequentially.
 
-  function initiateDeposit(uint amount, address recipient) external checkBlocked returns (uint depositId) {
+  function initiateDeposit(uint amount, address recipient) external checkBlocked nonReentrant returns (uint depositId) {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
     if (amount < $.tsaParams.minDepositValue) {
       revert BTSA_DepositBelowMinimum();
     }
-    // tODO: move this down
     // Then transfer in assets once shares are minted
     $.depositAsset.transferFrom(msg.sender, address(this), amount);
     $.totalPendingDeposits += amount;
@@ -218,8 +219,9 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
     }
     uint shares = _getSharesForDeposit(request.amountDepositAsset);
 
-    // TODO
-    require(shares > 0);
+    if (shares == 0) {
+      revert BTSA_MustReceiveShares();
+    }
 
     request.sharesReceived = shares;
     $.totalPendingDeposits -= request.amountDepositAsset;
@@ -251,7 +253,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
 
   /// @notice Request a withdrawal of an amount of shares. These will be removed from the account and be processed
   /// in the future.
-  function requestWithdrawal(uint amount) external checkBlocked returns (uint withdrawalId) {
+  function requestWithdrawal(uint amount) external checkBlocked nonReentrant returns (uint withdrawalId) {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
     if (balanceOf(msg.sender) < amount) {
       revert BTSA_InsufficientBalance();
@@ -498,6 +500,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable {
   event FeeCollected(address indexed recipient, uint amount, uint timestamp, uint totalSupply);
 
   error BTSA_InvalidParams();
+  error BTSA_MustReceiveShares();
   error BTSA_DepositBelowMinimum();
   error BTSA_DepositCapExceeded();
   error BTSA_DepositAlreadyProcessed();

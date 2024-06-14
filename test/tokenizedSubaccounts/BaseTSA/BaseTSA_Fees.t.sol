@@ -94,6 +94,21 @@ contract CCTSA_BaseTSA_FeesTests is CCTSATestUtils {
     assertEq(markets["weth"].erc20.balanceOf(address(alice)), uint(1e18) * 201 / 10201);
   }
 
+  function testFeeCollectionWithNoShares() public {
+    CoveredCallTSA.TSAParams memory params = tsa.getTSAParams();
+    params.feeRecipient = address(alice);
+    params.managementFee = 1e16; // 1%
+
+    tsa.setTSAParams(params);
+
+    assertEq(tsa.lastFeeCollected(), block.timestamp);
+
+    // Collecing fee with 0 total supply still updates timestamp
+    vm.warp(block.timestamp + 1);
+    tsa.collectFee();
+    assertEq(tsa.lastFeeCollected(), block.timestamp);
+  }
+
   function testFeeCollectionWithDifferentDecimals() public {
     // TODO
   }

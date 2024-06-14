@@ -78,5 +78,32 @@ contract CCTSA_ViewsTests is CCTSATestUtils {
     assertEq(cash, 400e18);
 
     assertApproxEqAbs(tsa.getAccountValue(false), 4.16e18, 0.01e18);
+
+    // set margin to be negative (slash base collateral margin and value options highly)
+    _setForwardPrice("weth", uint64(block.timestamp + 1 weeks), 10000e18, 1e18);
+    _setForwardPrice("weth", uint64(block.timestamp + 1 weeks + 1 hours), 10000e18, 1e18);
+    _setForwardPrice("weth", uint64(block.timestamp + 1 weeks + 2 hours), 10000e18, 1e18);
+
+    // value base at 1% for IM
+    srm.setBaseAssetMarginFactor(markets["weth"].id, 0.1e18, 0.1e18);
+
+    (int margin, int mtm) = srm.getMarginAndMarkToMarket(tsa.subAccount(), true, 0);
+    assertLt(margin, 0);
+    assertGt(mtm, 0);
+
+    vm.expectRevert(CoveredCallTSA.CCT_PositionInsolvent.selector);
+    tsa.getAccountValue(false);
+  }
+
+  function testGetters() public {
+    assertEq(tsa.getBasePrice(), 2000e18);
+
+    (ISpotFeed sf, IDepositModule dm, IWithdrawalModule wm, ITradeModule tm, IOptionAsset oa) = tsa.getCCTSAAddresses();
+
+    assertEq(address(sf), address(markets["weth"].spotFeed));
+    assertEq(address(dm), address(depositModule));
+    assertEq(address(wm), address(withdrawalModule));
+    assertEq(address(tm), address(tradeModule));
+    assertEq(address(oa), address(markets["weth"].option));
   }
 }

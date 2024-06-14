@@ -201,4 +201,12 @@ contract CCTSA_BaseTSA_WithdrawalTests is CCTSATestUtils {
 
     assertApproxEqAbs(markets["weth"].erc20.balanceOf(address(this)), 552.8e18, 0.000001e18);
   }
+
+  function testWithdrawReverts() public {
+    vm.expectRevert(BaseTSA.BTSA_InsufficientBalance.selector);
+    tsa.requestWithdrawal(100e18);
+
+    vm.expectRevert(BaseTSA.BTSA_InvalidWithdrawalAmount.selector);
+    tsa.requestWithdrawal(0);
+  }
 }
