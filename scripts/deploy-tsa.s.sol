@@ -58,7 +58,7 @@ contract DeploySettlementUtils is Utils {
     CoveredCallTSA lrtcctsaImplementation = new CoveredCallTSA();
 
     proxyAdmin.upgradeAndCall(
-      ITransparentUpgradeableProxy(address(proxy)),
+      ITransparentUpgradeableProxy(address(0x797Db58F4c6611253e92B9a3260E3Cc9C69430a5)),
       address(lrtcctsaImplementation),
       abi.encodeWithSelector(
         lrtcctsaImplementation.initialize.selector,
@@ -67,14 +67,14 @@ contract DeploySettlementUtils is Utils {
           subAccounts: ISubAccounts(_getCoreContract("subAccounts")),
           auction: DutchAuction(_getCoreContract("auction")),
           cash: CashAsset(_getCoreContract("cash")),
-          wrappedDepositAsset: IWrappedERC20Asset(_getMarketAddress("ETH", "base")),
+          wrappedDepositAsset: IWrappedERC20Asset(_getMarketAddress("rswETH", "base")),
           manager: ILiquidatableManager(_getCoreContract("srm")),
           matching: IMatching(_getMatchingModule("matching")),
-          symbol: "Tokenised DN WETH",
-          name: "DNWETH"
+          symbol: "rswETHC",
+          name: "rswETH Covered Call"
         }),
         CoveredCallTSA.CCTSAInitParams({
-          baseFeed: ISpotFeed(_getMarketAddress("ETH", "spotFeed")),
+          baseFeed: ISpotFeed(_getMarketAddress("rswETH", "spotFeed")),
           depositModule: IDepositModule(_getMatchingModule("deposit")),
           withdrawalModule: IWithdrawalModule(_getMatchingModule("withdrawal")),
           tradeModule: ITradeModule(_getMatchingModule("trade")),
