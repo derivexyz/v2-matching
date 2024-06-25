@@ -217,6 +217,8 @@ contract TSAShareHandler is Ownable2Step {
     pendingActionIds[fallbackDest].add(vaultActionId);
     allActionIds[fallbackDest].add(vaultActionId);
     pendingUsers.add(fallbackDest);
+
+    emit ActionInitiated(vault, fallbackDest, actionId, withdrawalRecipient, withdrawalConnector, amount);
   }
 
   function _completeAction(IBaseTSA toVault, uint actionId) internal {
@@ -398,4 +400,18 @@ contract TSAShareHandler is Ownable2Step {
     require(keepers[msg.sender], "only keeper");
     _;
   }
+
+  ////////////
+  // Events //
+  ////////////
+
+  event ActionInitiated(
+    IBaseTSA indexed vault,
+    address indexed fallbackDest,
+    uint actionId,
+    address withdrawalRecipient,
+    address withdrawalConnector,
+    uint amount
+  );
+
 }

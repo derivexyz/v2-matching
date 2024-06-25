@@ -19,9 +19,10 @@ import "../src/tokenizedSubaccounts/CCTSA.sol";
 import "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {TokenizedSubAccount} from "../src/tokenizedSubaccounts/TSA.sol";
 import "openzeppelin/proxy/transparent/ProxyAdmin.sol";
+import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
 
 
-contract DeploySettlementUtils is Utils {
+contract DeployTSA is Utils {
 
   CoveredCallTSA.CCTSAParams public defaultLrtccTSAParams = CoveredCallTSA.CCTSAParams({
     minSignatureExpiry: 5 minutes,
@@ -58,7 +59,7 @@ contract DeploySettlementUtils is Utils {
     CoveredCallTSA lrtcctsaImplementation = new CoveredCallTSA();
 
     proxyAdmin.upgradeAndCall(
-      ITransparentUpgradeableProxy(address(0x797Db58F4c6611253e92B9a3260E3Cc9C69430a5)),
+      ITransparentUpgradeableProxy(address(proxy)),
       address(lrtcctsaImplementation),
       abi.encodeWithSelector(
         lrtcctsaImplementation.initialize.selector,
@@ -67,14 +68,14 @@ contract DeploySettlementUtils is Utils {
           subAccounts: ISubAccounts(_getCoreContract("subAccounts")),
           auction: DutchAuction(_getCoreContract("auction")),
           cash: CashAsset(_getCoreContract("cash")),
-          wrappedDepositAsset: IWrappedERC20Asset(_getMarketAddress("rswETH", "base")),
+          wrappedDepositAsset: IWrappedERC20Asset(_getMarketAddress("ETH", "base")),
           manager: ILiquidatableManager(_getCoreContract("srm")),
           matching: IMatching(_getMatchingModule("matching")),
-          symbol: "rswETHC",
-          name: "rswETH Covered Call"
+          symbol: "ETH",
+          name: "ETH Covered Call"
         }),
         CoveredCallTSA.CCTSAInitParams({
-          baseFeed: ISpotFeed(_getMarketAddress("rswETH", "spotFeed")),
+          baseFeed: ISpotFeed(_getMarketAddress("ETH", "spotFeed")),
           depositModule: IDepositModule(_getMatchingModule("deposit")),
           withdrawalModule: IWithdrawalModule(_getMatchingModule("withdrawal")),
           tradeModule: ITradeModule(_getMatchingModule("trade")),
@@ -85,8 +86,8 @@ contract DeploySettlementUtils is Utils {
 
     CoveredCallTSA(address(proxy)).setTSAParams(
       BaseTSA.TSAParams({
-        depositCap: 10000e18,
-        minDepositValue: 1e18,
+        depositCap: 10000000e18,
+        minDepositValue: 0.01e18,
         depositScale: 1e18,
         withdrawScale: 1e18,
         managementFee: 0,
@@ -95,9 +96,11 @@ contract DeploySettlementUtils is Utils {
     );
     CoveredCallTSA(address(proxy)).setCCTSAParams(defaultLrtccTSAParams);
 
+    TSAShareHandler shareHandler = new TSAShareHandler();
 
     string memory objKey = "tsa-deployment";
 
+    vm.serializeAddress(objKey, "shareHandler", address(shareHandler));
     vm.serializeAddress(objKey, "proxyAdmin", address(proxyAdmin));
     vm.serializeAddress(objKey, "implementation", address(lrtcctsaImplementation));
     string memory finalObj = vm.serializeAddress(objKey, "DNWETH", address(proxy));
