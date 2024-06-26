@@ -5,12 +5,11 @@ import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {EnumerableSet} from "openzeppelin/utils/structs/EnumerableSet.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
-
 interface IBridge {
   function bridge(
     address receiver_,
-    uint256 amount_,
-    uint256 msgGasLimit_,
+    uint amount_,
+    uint msgGasLimit_,
     address connector_,
     bytes calldata execPayload_,
     bytes calldata options_
@@ -18,10 +17,7 @@ interface IBridge {
 }
 
 interface IConnector {
-  function getMinFees(
-    uint256 msgGasLimit_,
-    uint256 payloadSize_
-  ) external view returns (uint256 totalFees);
+  function getMinFees(uint msgGasLimit_, uint payloadSize_) external view returns (uint totalFees);
 
   function getMessageId() external view returns (bytes32);
 }
@@ -63,13 +59,13 @@ interface IBaseTSA {
 
   function getBaseTSAAddresses() external view returns (BaseTSAAddresses memory);
 
-  function initiateDeposit(uint256 amount, address recipient) external returns (uint256 actionId);
+  function initiateDeposit(uint amount, address recipient) external returns (uint actionId);
 
-  function requestWithdrawal(uint256 amount) external returns (uint256 actionId);
+  function requestWithdrawal(uint amount) external returns (uint actionId);
 
-  function queuedDeposit(uint256 actionId) external view returns (DepositRequest memory);
+  function queuedDeposit(uint actionId) external view returns (DepositRequest memory);
 
-  function queuedWithdrawal(uint256 actionId) external view returns (WithdrawalRequest memory);
+  function queuedWithdrawal(uint actionId) external view returns (WithdrawalRequest memory);
 }
 
 contract TSAShareHandler is Ownable2Step {
@@ -128,7 +124,13 @@ contract TSAShareHandler is Ownable2Step {
   //////////////
 
   /// @notice if withdrawalConnector is address(0) or invalid, funds will be sent to fallbackDest
-  function initiateDeposit(IBaseTSA toVault, address fallbackDest, address withdrawalConnector, address withdrawalRecipient, uint amount) external {
+  function initiateDeposit(
+    IBaseTSA toVault,
+    address fallbackDest,
+    address withdrawalConnector,
+    address withdrawalRecipient,
+    uint amount
+  ) external {
     require(fallbackDest != address(0), "fallbackDest cannot be 0");
 
     IBaseTSA.BaseTSAAddresses memory tsaAddrs = toVault.getBaseTSAAddresses();
@@ -151,7 +153,13 @@ contract TSAShareHandler is Ownable2Step {
   // Withdrawals //
   /////////////////
 
-  function initiateWithdrawal(IBaseTSA fromVault, address fallbackDest, address withdrawalConnector, address withdrawalRecipient, uint amount) external {
+  function initiateWithdrawal(
+    IBaseTSA fromVault,
+    address fallbackDest,
+    address withdrawalConnector,
+    address withdrawalRecipient,
+    uint amount
+  ) external {
     require(fallbackDest != address(0), "fallbackDest cannot be 0");
 
     IBaseTSA.BaseTSAAddresses memory tsaAddrs = fromVault.getBaseTSAAddresses();
@@ -227,8 +235,7 @@ contract TSAShareHandler is Ownable2Step {
     PendingTSAAction storage pendingAction = actions[vaultActionId];
 
     require(
-      pendingActionIds[pendingAction.fallbackDest].contains(vaultActionId),
-      "action not found or already processed"
+      pendingActionIds[pendingAction.fallbackDest].contains(vaultActionId), "action not found or already processed"
     );
 
     bool isDeposit = actionId & (1 << 255) == 0;
@@ -272,7 +279,11 @@ contract TSAShareHandler is Ownable2Step {
   // Bridge //
   ////////////
   function _processBridge(
-    IERC20Metadata token, uint amount, address recipient, address bridgeConnector, address fallbackAddr
+    IERC20Metadata token,
+    uint amount,
+    address recipient,
+    address bridgeConnector,
+    address fallbackAddr
   ) internal returns (bytes32 messageId) {
     (address bridge, address bridgeToken) = _tryGetBridgeDetails(bridgeConnector);
 
@@ -280,13 +291,7 @@ contract TSAShareHandler is Ownable2Step {
 
     if (bridgeToken == address(token) && recipient != address(0)) {
       messageId = IConnectorPlugExt(bridgeConnector).getMessageId();
-      bool success = _tryBridge(
-        token,
-        IBridgeExt(bridge),
-        recipient,
-        amount,
-        bridgeConnector
-      );
+      bool success = _tryBridge(token, IBridgeExt(bridge), recipient, amount, bridgeConnector);
       if (success) {
         sendToFallback = false;
       }
@@ -302,20 +307,14 @@ contract TSAShareHandler is Ownable2Step {
   ///////////////////
 
   /// @dev Returns zero address if bridge is not found, connector is invalid or no token() function on bridge address
-  function _tryGetBridgeDetails(
-    address connector
-  ) internal returns (address bridge, address bridgeToken) {
-    (bool success, bytes memory data) = connector.call(
-      abi.encodeWithSignature("bridge__()")
-    );
+  function _tryGetBridgeDetails(address connector) internal returns (address bridge, address bridgeToken) {
+    (bool success, bytes memory data) = connector.call(abi.encodeWithSignature("bridge__()"));
     if (!success || data.length == 0) {
       return (address(0), address(0));
     }
     bridge = abi.decode(data, (address));
 
-    (success, data) = bridge.call(
-      abi.encodeWithSignature("token()")
-    );
+    (success, data) = bridge.call(abi.encodeWithSignature("token()"));
     if (!success || data.length == 0) {
       return (address(0), address(0));
     }
@@ -332,22 +331,14 @@ contract TSAShareHandler is Ownable2Step {
   ) internal returns (bool) {
     withdrawToken.approve(address(bridge), amount);
 
-    uint256 fees = IConnectorPlugExt(withdrawConnector).getMinFees(
-      withdrawalMinGasLimit,
-      0
-    );
+    uint fees = IConnectorPlugExt(withdrawConnector).getMinFees(withdrawalMinGasLimit, 0);
 
     if (fees > address(this).balance) {
       // We revert if not enough ETH present at this contract address; so we can try again later
       revert("INSUFFICIENT_ETH_BALANCE");
     }
     try bridge.bridge{value: fees}(
-      recipient,
-      amount,
-      withdrawalMinGasLimit,
-      withdrawConnector,
-      new bytes(0),
-      new bytes(0)
+      recipient, amount, withdrawalMinGasLimit, withdrawConnector, new bytes(0), new bytes(0)
     ) {
       return true;
     } catch {
@@ -376,6 +367,41 @@ contract TSAShareHandler is Ownable2Step {
   }
 
   function getAllPendingActions() external view returns (PendingTSAAction[] memory pendingActions) {
+    address[] memory users = pendingUsers.values();
+    uint actionCount = 0;
+    for (uint i = 0; i < users.length; i++) {
+      actionCount += pendingActionIds[users[i]].length();
+    }
+
+    pendingActions = new PendingTSAAction[](actionCount);
+
+    uint index = 0;
+
+    for (uint i = 0; i < users.length; i++) {
+      bytes32[] memory vaultActionIds = pendingActionIds[users[i]].values();
+      for (uint j = 0; j < vaultActionIds.length; j++) {
+        PendingTSAAction storage action = actions[vaultActionIds[j]];
+        if (action.actionId & (1 << 255) == 0) {
+          // is a deposit
+          if (action.vault.queuedDeposit(action.actionId).sharesReceived > 0) {
+            pendingActions[index++] = actions[vaultActionIds[j]];
+          }
+        } else {
+          if (action.vault.queuedWithdrawal(action.actionId & ~uint(1 << 255)).amountShares == 0) {
+            pendingActions[index++] = actions[vaultActionIds[j]];
+          }
+        }
+      }
+    }
+
+    assembly {
+      mstore(pendingActions, index)
+    }
+
+    return pendingActions;
+  }
+
+  function getAllUnprocessedActions() external view returns (PendingTSAAction[] memory pendingActions) {
     address[] memory users = pendingUsers.values();
     uint actionCount = 0;
     for (uint i = 0; i < users.length; i++) {
@@ -413,5 +439,4 @@ contract TSAShareHandler is Ownable2Step {
     address withdrawalConnector,
     uint amount
   );
-
 }

@@ -5,7 +5,6 @@ import "forge-std/console2.sol";
 import "./TSATestUtils.sol";
 import "../../src/tokenizedSubaccounts/TSAShareHandler.sol";
 
-
 contract MockConnector {
   address public bridge__;
   uint internal messageId;
@@ -15,10 +14,7 @@ contract MockConnector {
     messageId = messageId_;
   }
 
-  function getMinFees(
-    uint256 msgGasLimit_,
-    uint256 payloadSize_
-  ) external view returns (uint256 totalFees) {
+  function getMinFees(uint msgGasLimit_, uint payloadSize_) external view returns (uint totalFees) {
     return 0.001e18;
   }
 
@@ -36,8 +32,8 @@ contract MockBridge {
 
   function bridge(
     address receiver_,
-    uint256 amount_,
-    uint256 msgGasLimit_,
+    uint amount_,
+    uint msgGasLimit_,
     address connector_,
     bytes calldata execPayload_,
     bytes calldata options_
@@ -45,7 +41,6 @@ contract MockBridge {
     IERC20(token).transferFrom(msg.sender, address(this), amount_);
   }
 }
-
 
 /// @notice Very rough integration test for CCTSA
 contract TSAShareHandlerTest is CCTSATestUtils {
@@ -56,7 +51,6 @@ contract TSAShareHandlerTest is CCTSATestUtils {
 
   address connectorIn;
   address connectorOut;
-
 
   function setUp() public override {
     super.setUp();
@@ -75,7 +69,6 @@ contract TSAShareHandlerTest is CCTSATestUtils {
   }
 
   function testCanUseShareHandlerWithoutConnector() public {
-
     markets["weth"].erc20.mint(address(this), 10e18);
     markets["weth"].erc20.approve(address(shareHandler), 10e18);
 
@@ -87,6 +80,13 @@ contract TSAShareHandlerTest is CCTSATestUtils {
     shareHandler.initiateDeposit(IBaseTSA(address(tsa)), address(alice), address(0), address(this), 1e18);
 
     TSAShareHandler.PendingTSAAction[] memory actions = shareHandler.getAllPendingActions();
+    assertEq(actions.length, 0);
+
+    actions = shareHandler.getAllUnprocessedActions();
+    assertEq(actions.length, 1);
+
+    tsa.processDeposit(actions[0].actionId);
+    actions = shareHandler.getAllPendingActions();
 
     assertEq(actions.length, 1);
     assertEq(actions[0].amount, 1e18);
@@ -96,8 +96,6 @@ contract TSAShareHandlerTest is CCTSATestUtils {
     assertEq(actions[0].fallbackDest, address(alice));
     assertEq(actions[0].withdrawalConnector, address(0));
     assertEq(actions[0].withdrawalRecipient, address(this));
-
-    tsa.processDeposit(actions[0].actionId);
 
     // only received 0.5 shares
     assertEq(tsa.balanceOf(address(shareHandler)), 0.5e18);
@@ -127,6 +125,14 @@ contract TSAShareHandlerTest is CCTSATestUtils {
     shareHandler.initiateWithdrawal(IBaseTSA(address(tsa)), address(alice), address(0), address(this), 0.5e18);
     vm.stopPrank();
 
+    actions = shareHandler.getAllUnprocessedActions();
+    assertEq(actions.length, 1);
+
+    actions = shareHandler.getAllPendingActions();
+    assertEq(actions.length, 0);
+
+    tsa.processWithdrawalRequests(1);
+
     actions = shareHandler.getAllPendingActions();
 
     assertEq(actions.length, 1);
@@ -137,8 +143,6 @@ contract TSAShareHandlerTest is CCTSATestUtils {
     assertEq(actions[0].fallbackDest, address(alice));
     assertEq(actions[0].withdrawalConnector, address(0));
     assertEq(actions[0].withdrawalRecipient, address(this));
-
-    tsa.processWithdrawalRequests(1);
 
     assertEq(markets["weth"].erc20.balanceOf(address(shareHandler)), 1e18);
 
@@ -153,7 +157,6 @@ contract TSAShareHandlerTest is CCTSATestUtils {
   }
 
   function testCanUseShareHandlerWithConnector() public {
-
     markets["weth"].erc20.mint(address(this), 10e18);
     markets["weth"].erc20.approve(address(shareHandler), 10e18);
 
@@ -161,13 +164,18 @@ contract TSAShareHandlerTest is CCTSATestUtils {
     _depositToTSA(1e18);
     markets["weth"].erc20.mint(address(tsa), 1e18);
 
-
     // BaseTSA toVault, address fallbackDest, address withdrawalConnector, address withdrawalRecipient, uint amount
     shareHandler.initiateDeposit(IBaseTSA(address(tsa)), address(alice), address(connectorOut), address(this), 1e18);
 
     TSAShareHandler.PendingTSAAction[] memory actions = shareHandler.getAllPendingActions();
+    assertEq(actions.length, 0);
 
+    actions = shareHandler.getAllUnprocessedActions();
     assertEq(actions.length, 1);
+
+    tsa.processDeposit(actions[0].actionId);
+    actions = shareHandler.getAllPendingActions();
+
     assertEq(actions[0].amount, 1e18);
     // Ids start from 0, so this is the second deposit
     assertEq(actions[0].actionId, 1);
@@ -175,8 +183,6 @@ contract TSAShareHandlerTest is CCTSATestUtils {
     assertEq(actions[0].fallbackDest, address(alice));
     assertEq(actions[0].withdrawalConnector, address(connectorOut));
     assertEq(actions[0].withdrawalRecipient, address(this));
-
-    tsa.processDeposit(actions[0].actionId);
 
     // only received 0.5 shares
     assertEq(tsa.balanceOf(address(shareHandler)), 0.5e18);
@@ -208,6 +214,15 @@ contract TSAShareHandlerTest is CCTSATestUtils {
     shareHandler.initiateWithdrawal(IBaseTSA(address(tsa)), address(alice), address(connectorIn), address(this), 0.5e18);
     vm.stopPrank();
 
+    // unprocessed, but not ready for the next step (i.e. not pending)
+    actions = shareHandler.getAllUnprocessedActions();
+    assertEq(actions.length, 1);
+
+    actions = shareHandler.getAllPendingActions();
+    assertEq(actions.length, 0);
+
+    tsa.processWithdrawalRequests(1);
+
     actions = shareHandler.getAllPendingActions();
 
     assertEq(actions.length, 1);
@@ -218,8 +233,6 @@ contract TSAShareHandlerTest is CCTSATestUtils {
     assertEq(actions[0].fallbackDest, address(alice));
     assertEq(actions[0].withdrawalConnector, address(connectorIn));
     assertEq(actions[0].withdrawalRecipient, address(this));
-
-    tsa.processWithdrawalRequests(1);
 
     assertEq(markets["weth"].erc20.balanceOf(address(shareHandler)), 1e18);
 
