@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
 
 import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
 import {ILiquidatableManager} from "v2-core/src/interfaces/ILiquidatableManager.sol";

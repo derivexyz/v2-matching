@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.20;
 
 import {IntLib} from "lyra-utils/math/IntLib.sol";
 import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";

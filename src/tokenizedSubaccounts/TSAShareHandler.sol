@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
 import {EnumerableSet} from "openzeppelin/utils/structs/EnumerableSet.sol";
