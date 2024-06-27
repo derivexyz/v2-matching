@@ -275,7 +275,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
   }
 
   /// @notice Process a number of withdrawal requests, up to a limit.
-  function processWithdrawalRequests(uint limit) external checkBlocked onlyShareKeeper {
+  function processWithdrawalRequests(uint limit) external checkBlocked onlyShareKeeper nonReentrant {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
     _collectFee();
