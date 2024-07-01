@@ -297,7 +297,6 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
       if (totalBalance < requiredAmount) {
         // withdraw a portion
         uint withdrawAmount = totalBalance;
-        $.depositAsset.transfer(request.beneficiary, withdrawAmount);
         uint difference = requiredAmount - withdrawAmount;
         uint finalShareAmount = request.amountShares * difference / requiredAmount;
         uint sharesRedeemed = request.amountShares - finalShareAmount;
@@ -308,10 +307,9 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
 
         emit WithdrawalProcessed($.queuedWithdrawalHead, request.beneficiary, false, sharesRedeemed, withdrawAmount);
 
+        $.depositAsset.transfer(request.beneficiary, withdrawAmount);
         break;
       } else {
-        $.depositAsset.transfer(request.beneficiary, requiredAmount);
-
         uint sharesRedeemed = request.amountShares;
 
         $.totalPendingWithdrawals -= sharesRedeemed;
@@ -319,6 +317,8 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
         request.assetsReceived += requiredAmount;
 
         emit WithdrawalProcessed($.queuedWithdrawalHead, request.beneficiary, true, sharesRedeemed, requiredAmount);
+
+        $.depositAsset.transfer(request.beneficiary, requiredAmount);
       }
       $.queuedWithdrawalHead++;
     }
