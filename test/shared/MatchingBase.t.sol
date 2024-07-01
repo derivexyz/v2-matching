@@ -21,11 +21,8 @@ import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
 import "../../src/modules/LiquidateModule.sol";
 import "../../src/modules/RfqModule.sol";
 
-/**
- * @dev we deploy actual Account contract in these tests to simplify verification process
- */
-contract MatchingBase is PMRMTestBase {
-  // SubAccounts subAccounts;
+contract MatchingHelpers is Test {
+  address tradeExecutor = address(0xaaaa);
 
   Matching public matching;
   DepositModule public depositModule;
@@ -35,46 +32,17 @@ contract MatchingBase is PMRMTestBase {
   LiquidateModule public liquidateModule;
   RfqModule public rfqModule;
 
-  // signer
-  uint internal camAcc;
-  uint internal camPk;
-  address internal cam;
-
-  uint internal dougAcc;
-  uint internal dougPk;
-  address internal doug;
-
-  uint referenceTime;
-  uint defaultCallId;
-
-  address tradeExecutor = address(0xaaaa);
-  uint cashDeposit = 10000e18;
   bytes32 domainSeparator;
 
-  function setUp() public virtual override {
-    super.setUp();
-
-    // Setup signers
-    camPk = 0xBEEF;
-    cam = vm.addr(camPk);
-
-    dougPk = 0xEEEE;
-    doug = vm.addr(dougPk);
-
-    vm.warp(block.timestamp + 365 days);
-    referenceTime = block.timestamp;
-    defaultCallId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
-
+  function _deployMatching(ISubAccounts subAccounts, address cash, DutchAuction auction, uint feeRecipient) internal {
     // Setup matching contract and modules
     matching = new Matching(subAccounts);
     depositModule = new DepositModule(matching);
     withdrawalModule = new WithdrawalModule(matching);
     transferModule = new TransferModule(matching);
-    tradeModule = new TradeModule(matching, IAsset(address(cash)), aliceAcc);
-    tradeModule.setPerpAsset(IPerpAsset(address(mockPerp)), true);
+    tradeModule = new TradeModule(matching, IAsset(cash), feeRecipient);
     liquidateModule = new LiquidateModule(matching, auction);
-    rfqModule = new RfqModule(matching, IAsset(address(cash)), aliceAcc);
-    rfqModule.setPerpAsset(IPerpAsset(address(mockPerp)), true);
+    rfqModule = new RfqModule(matching, IAsset(cash), feeRecipient);
 
     matching.setAllowedModule(address(depositModule), true);
     matching.setAllowedModule(address(withdrawalModule), true);
@@ -84,14 +52,55 @@ contract MatchingBase is PMRMTestBase {
     matching.setAllowedModule(address(rfqModule), true);
 
     domainSeparator = matching.domainSeparator();
-    matching.setTradeExecutor(tradeExecutor, true);
+    matching.setTradeExecutor(address(tradeExecutor), true);
+  }
 
-    _setupAccounts();
-    _openCLOBAccount(cam, camAcc);
-    _openCLOBAccount(doug, dougAcc);
+  function _setPerp(address perp) internal {
+    tradeModule.setPerpAsset(IPerpAsset(perp), true);
+    rfqModule.setPerpAsset(IPerpAsset(perp), true);
+  }
 
-    _depositCash(camAcc, cashDeposit);
-    _depositCash(dougAcc, cashDeposit);
+  function _getActionHash(IActionVerifier.Action memory action) internal view returns (bytes32) {
+    return matching.getActionHash(action);
+  }
+
+  function _signAction(bytes32 actionHash, uint signerPk) internal view returns (bytes memory) {
+    //    console2.log("typed hash");
+    //    console2.logBytes32(domainSeparator);
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, ECDSA.toTypedDataHash(domainSeparator, actionHash));
+    return bytes.concat(r, s, bytes1(v));
+  }
+
+  function _encodeDepositData(uint amount, address asset, address newManager) internal pure returns (bytes memory) {
+    IDepositModule.DepositData memory data =
+      IDepositModule.DepositData({amount: amount, asset: asset, managerForNewAccount: newManager});
+
+    return abi.encode(data);
+  }
+
+  function _encodeWithdrawData(uint amount, address asset) internal pure returns (bytes memory) {
+    IWithdrawalModule.WithdrawalData memory data = IWithdrawalModule.WithdrawalData({asset: asset, assetAmount: amount});
+
+    return abi.encode(data);
+  }
+
+  function _encodeLiquidateData(
+    uint liqAccId,
+    uint cashTransfer,
+    uint percent,
+    int priceLimit,
+    uint lastSeenTradeId,
+    bool merge
+  ) internal pure returns (bytes memory) {
+    ILiquidateModule.LiquidationData memory data = ILiquidateModule.LiquidationData({
+      liquidatedAccountId: liqAccId,
+      cashTransfer: cashTransfer,
+      percentOfAcc: percent,
+      priceLimit: priceLimit,
+      lastSeenTradeId: lastSeenTradeId,
+      mergeAccount: merge
+    });
+    return abi.encode(data);
   }
 
   function _verifyAndMatch(IActionVerifier.Action[] memory actions, bytes[] memory signatures, bytes memory actionData)
@@ -136,6 +145,52 @@ contract MatchingBase is PMRMTestBase {
     action = _createUnsignedAction(accountId, nonce, module, data, expiry, owner, signer);
     signature = _signAction(matching.getActionHash(action), pk);
   }
+}
+
+/**
+ * @dev we deploy actual Account contract in these tests to simplify verification process
+ */
+contract MatchingBase is PMRMTestBase, MatchingHelpers {
+  // SubAccounts subAccounts;
+
+  // signer
+  uint internal camAcc;
+  uint internal camPk;
+  address internal cam;
+
+  uint internal dougAcc;
+  uint internal dougPk;
+  address internal doug;
+
+  uint referenceTime;
+  uint defaultCallId;
+
+  uint cashDeposit = 10000e18;
+
+  function setUp() public virtual override {
+    super.setUp();
+
+    // Setup signers
+    camPk = 0xBEEF;
+    cam = vm.addr(camPk);
+
+    dougPk = 0xEEEE;
+    doug = vm.addr(dougPk);
+
+    vm.warp(block.timestamp + 365 days);
+    referenceTime = block.timestamp;
+    defaultCallId = OptionEncoding.toSubId(block.timestamp + 4 weeks, 2000e18, true);
+
+    MatchingHelpers._deployMatching(subAccounts, address(cash), auction, aliceAcc);
+    _setPerp(address(mockPerp));
+
+    _setupAccounts();
+    _openCLOBAccount(cam, camAcc);
+    _openCLOBAccount(doug, dougAcc);
+
+    _depositCash(camAcc, cashDeposit);
+    _depositCash(dougAcc, cashDeposit);
+  }
 
   function _createNewAccount(address owner) internal returns (uint) {
     // create a new account
@@ -146,49 +201,6 @@ contract MatchingBase is PMRMTestBase {
     vm.stopPrank();
 
     return newAccountId;
-  }
-
-  function _getActionHash(IActionVerifier.Action memory action) internal view returns (bytes32) {
-    return matching.getActionHash(action);
-  }
-
-  function _signAction(bytes32 actionHash, uint signerPk) internal view returns (bytes memory) {
-    console2.log("typed hash");
-    console2.logBytes32(domainSeparator);
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, ECDSA.toTypedDataHash(domainSeparator, actionHash));
-    return bytes.concat(r, s, bytes1(v));
-  }
-
-  function _encodeDepositData(uint amount, address asset, address newManager) internal pure returns (bytes memory) {
-    IDepositModule.DepositData memory data =
-      IDepositModule.DepositData({amount: amount, asset: asset, managerForNewAccount: newManager});
-
-    return abi.encode(data);
-  }
-
-  function _encodeWithdrawData(uint amount, address asset) internal pure returns (bytes memory) {
-    IWithdrawalModule.WithdrawalData memory data = IWithdrawalModule.WithdrawalData({asset: asset, assetAmount: amount});
-
-    return abi.encode(data);
-  }
-
-  function _encodeLiquidateData(
-    uint liqAccId,
-    uint cashTransfer,
-    uint percent,
-    int priceLimit,
-    uint lastSeenTradeId,
-    bool merge
-  ) internal pure returns (bytes memory) {
-    ILiquidateModule.LiquidationData memory data = ILiquidateModule.LiquidationData({
-      liquidatedAccountId: liqAccId,
-      cashTransfer: cashTransfer,
-      percentOfAcc: percent,
-      priceLimit: priceLimit,
-      lastSeenTradeId: lastSeenTradeId,
-      mergeAccount: merge
-    });
-    return abi.encode(data);
   }
 
   function _setupAccounts() internal {

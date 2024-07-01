@@ -58,6 +58,8 @@ MARKET_NAME=BTC forge script scripts/add-perp-to-modules.s.sol --rpc-url $ETH_RP
 MARKET_NAME=SOL forge script scripts/add-perp-to-modules.s.sol --rpc-url $ETH_RPC_URL --broadcast
 MARKET_NAME=DOGE forge script scripts/add-perp-to-modules.s.sol --rpc-url $ETH_RPC_URL --broadcast
 
+forge script scripts/deploy-tsa.s.sol --rpc-url $ETH_RPC_URL --broadcast
+
 if [[ "$ETH_RPC_URL" =~ .*local.* ]]; then
   forge script scripts/update-callees.s.sol --rpc-url $ETH_RPC_URL --broadcast
 

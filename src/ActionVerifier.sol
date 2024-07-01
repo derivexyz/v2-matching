@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.13;
 
-import "forge-std/console2.sol";
-
 // Libraries
 import "openzeppelin/utils/cryptography/SignatureChecker.sol";
 
