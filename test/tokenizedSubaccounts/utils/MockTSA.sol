@@ -42,7 +42,7 @@ contract MockTSA is BaseOnChainSigningTSA {
   ///////////////////////
   // Action Validation //
   ///////////////////////
-  function _verifyAction(IMatching.Action memory, bytes32) internal virtual override {
+  function _verifyAction(IMatching.Action memory, bytes32, bytes memory) internal virtual override {
     require(_getMockTSAStorage().passActions, "MockTSA: actions are disabled");
   }
 

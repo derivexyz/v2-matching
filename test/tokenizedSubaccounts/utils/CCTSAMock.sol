@@ -5,5 +5,5 @@ import "../../../src/tokenizedSubaccounts/CCTSA.sol";
 
 /// @title CCTSAMock
 contract CCTSAMock is CoveredCallTSA {
-  function _verifyAction(IMatching.Action memory, bytes32) internal virtual override {}
+  function _verifyAction(IMatching.Action memory, bytes32, bytes memory) internal virtual override {}
 }

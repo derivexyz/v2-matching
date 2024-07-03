@@ -137,7 +137,11 @@ contract CoveredCallTSA is BaseOnChainSigningTSA {
   ///////////////////////
   // Action Validation //
   ///////////////////////
-  function _verifyAction(IMatching.Action memory action, bytes32 actionHash) internal virtual override {
+  function _verifyAction(IMatching.Action memory action, bytes32 actionHash, bytes memory /* extraData */ )
+    internal
+    virtual
+    override
+  {
     CCTSAStorage storage $ = _getCCTSAStorage();
 
     if (

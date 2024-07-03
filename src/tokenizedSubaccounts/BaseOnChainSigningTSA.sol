@@ -47,30 +47,11 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   // Signing //
   /////////////
   function signActionData(IMatching.Action memory action) external virtual onlySigner {
-    bytes32 hash = getActionTypedDataHash(action);
-
-    if (action.signer != address(this)) {
-      revert BOCST_InvalidAction();
-    }
-    _verifyAction(action, hash);
-    _getBaseSigningTSAStorage().signedData[hash] = true;
-
-    emit ActionSigned(msg.sender, hash, action);
+    _signActionData(action, "");
   }
 
-  function signRfqActionData(IMatching.Action memory action, IRfqModule.TradeData[] memory trades)
-    external
-    virtual
-    onlySigner
-  {
-    bytes32 hash = getActionTypedDataHash(action);
-    IRfqModule.TakerOrder memory takerOrder = abi.decode(action.data, (IRfqModule.TakerOrder));
-    action.data = abi.encode(IRfqModule.RfqOrder(takerOrder.maxFee, trades));
-
-    _verifyAction(action, hash);
-    _getBaseSigningTSAStorage().signedData[hash] = true;
-
-    emit ActionSigned(msg.sender, hash, action);
+  function signActionData(IMatching.Action memory action, bytes memory extraData) external virtual onlySigner {
+    _signActionData(action, extraData);
   }
 
   function revokeActionSignature(IMatching.Action memory action) external virtual onlySigner {
@@ -81,13 +62,25 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     _revokeSignature(typedDataHash);
   }
 
+  function _signActionData(IMatching.Action memory action, bytes memory extraData) internal {
+    bytes32 hash = getActionTypedDataHash(action);
+
+    if (action.signer != address(this)) {
+      revert BOCST_InvalidAction();
+    }
+    _verifyAction(action, hash, extraData);
+    _getBaseSigningTSAStorage().signedData[hash] = true;
+
+    emit ActionSigned(msg.sender, hash, action);
+  }
+
   function _revokeSignature(bytes32 hash) internal virtual {
     _getBaseSigningTSAStorage().signedData[hash] = false;
 
     emit SignatureRevoked(msg.sender, hash);
   }
 
-  function _verifyAction(IMatching.Action memory action, bytes32 actionHash) internal virtual;
+  function _verifyAction(IMatching.Action memory action, bytes32 actionHash, bytes memory extraData) internal virtual;
 
   function getActionTypedDataHash(IMatching.Action memory action) public view returns (bytes32) {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
