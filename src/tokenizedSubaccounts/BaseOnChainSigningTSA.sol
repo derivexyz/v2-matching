@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "./BaseTSA.sol";
-
+import "../interfaces/IRfqModule.sol";
 import "openzeppelin/utils/cryptography/ECDSA.sol";
 
 /// @title BaseOnChainSigningTSA
@@ -58,6 +58,21 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     emit ActionSigned(msg.sender, hash, action);
   }
 
+  function signRfqActionData(IMatching.Action memory action, IRfqModule.TradeData[] memory trades)
+    external
+    virtual
+    onlySigner
+  {
+    bytes32 hash = getActionTypedDataHash(action);
+    IRfqModule.TakerOrder memory takerOrder = abi.decode(action.data, (IRfqModule.TakerOrder));
+    action.data = abi.encode(IRfqModule.RfqOrder(takerOrder.maxFee, trades));
+
+    _verifyAction(action, hash);
+    _getBaseSigningTSAStorage().signedData[hash] = true;
+
+    emit ActionSigned(msg.sender, hash, action);
+  }
+
   function revokeActionSignature(IMatching.Action memory action) external virtual onlySigner {
     _revokeSignature(getActionTypedDataHash(action));
   }
@@ -89,6 +104,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     checkBlocked
     returns (bytes4 magicValue)
   {
+    // contains hash of one particular action
     if (_isValidSignature(_hash, _signature)) {
       return MAGICVALUE;
     }
