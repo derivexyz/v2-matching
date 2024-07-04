@@ -9,12 +9,14 @@ import {
 } from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ProxyAdmin} from "openzeppelin/proxy/transparent/ProxyAdmin.sol";
 import {CoveredCallTSA, BaseTSA, BaseOnChainSigningTSA} from "../../src/tokenizedSubaccounts/CCTSA.sol";
+import {PrincipalProtectedTSA} from "../../src/tokenizedSubaccounts/PPTSA.sol";
 
 import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
 
 import {IDutchAuction} from "v2-core/src/interfaces/IDutchAuction.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {ITradeModule} from "../../src/interfaces/ITradeModule.sol";
+import {IRfqModule} from "../../src/interfaces/IRfqModule.sol";
 import {IDepositModule} from "../../src/interfaces/IDepositModule.sol";
 import {IWithdrawalModule} from "../../src/interfaces/IWithdrawalModule.sol";
 import {IActionVerifier} from "../../src/interfaces/IActionVerifier.sol";
@@ -44,6 +46,7 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     _setupTaker();
     _setupMarketFeeds();
     _setupTradeModule();
+    _setupRfqModule();
   }
 
   function _setupMatching() internal {
@@ -86,6 +89,11 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     srm.setBaseAssetMarginFactor(markets["weth"].id, 0.8e18, 0.8e18);
     srm.setBaseAssetMarginFactor(markets["wbtc"].id, 0.8e18, 0.8e18);
     tradeModule.setPerpAsset(markets["weth"].perp, true);
+  }
+
+  function _setupRfqModule() internal {
+    rfqModule.setFeeRecipient(bobAcc);
+    rfqModule.setPerpAsset(markets["weth"].perp, true);
   }
 
   function deployPredeposit(address erc20) internal {
@@ -138,6 +146,44 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     signer = vm.addr(signerPk);
 
     mockTsa.setSigner(signer, true);
+  }
+
+  function _setFixedSVIDataForExpiry(string memory key, uint64 expiry) internal {
+    vm.warp(block.timestamp + 1);
+
+    LyraForwardFeed forwardFeed = markets[key].forwardFeed;
+    (uint fwdPrice,) = forwardFeed.getForwardPrice(uint64(expiry));
+
+    LyraVolFeed volFeed = markets[key].volFeed;
+
+    IBaseLyraFeed.FeedData memory feedData = _getFixedVolData(expiry, fwdPrice);
+
+    // sign data
+    bytes memory data = _signFeedData(volFeed, keeperPk, feedData);
+
+    volFeed.acceptData(data);
+  }
+
+  function _getFixedVolData(uint64 expiry, uint fwdPrice) internal view returns (IBaseLyraFeed.FeedData memory) {
+    uint64 SVI_refTau = uint64(Black76.annualise(uint64(expiry - block.timestamp)));
+    // vol will be sqrt(1.8)
+    int SVI_a = int((1.8e18) * uint(SVI_refTau) / 1e18);
+    uint SVI_b = 0;
+    int SVI_rho = 0;
+    int SVI_m = 0;
+    uint SVI_sigma = 0;
+    uint SVI_fwd = fwdPrice;
+    uint64 confidence = 1e18;
+
+    // example data: a = 1, b = 1.5, sig = 0.05, rho = -0.1, m = -0.05
+    bytes memory volData = abi.encode(expiry, SVI_a, SVI_b, SVI_rho, SVI_m, SVI_sigma, SVI_fwd, SVI_refTau, confidence);
+    return IBaseLyraFeed.FeedData({
+      data: volData,
+      timestamp: uint64(block.timestamp),
+      deadline: block.timestamp + 5,
+      signers: new address[](1),
+      signatures: new bytes[](1)
+    });
   }
 }
 
@@ -230,44 +276,6 @@ contract CCTSATestUtils is TSATestUtils {
     signer = vm.addr(signerPk);
 
     tsa.setSigner(signer, true);
-  }
-
-  function _setFixedSVIDataForExpiry(string memory key, uint64 expiry) internal {
-    vm.warp(block.timestamp + 1);
-
-    LyraForwardFeed forwardFeed = markets[key].forwardFeed;
-    (uint fwdPrice,) = forwardFeed.getForwardPrice(uint64(expiry));
-
-    LyraVolFeed volFeed = markets[key].volFeed;
-
-    IBaseLyraFeed.FeedData memory feedData = _getFixedVolData(expiry, fwdPrice);
-
-    // sign data
-    bytes memory data = _signFeedData(volFeed, keeperPk, feedData);
-
-    volFeed.acceptData(data);
-  }
-
-  function _getFixedVolData(uint64 expiry, uint fwdPrice) internal view returns (IBaseLyraFeed.FeedData memory) {
-    uint64 SVI_refTau = uint64(Black76.annualise(uint64(expiry - block.timestamp)));
-    // vol will be sqrt(1.8)
-    int SVI_a = int((1.8e18) * uint(SVI_refTau) / 1e18);
-    uint SVI_b = 0;
-    int SVI_rho = 0;
-    int SVI_m = 0;
-    uint SVI_sigma = 0;
-    uint SVI_fwd = fwdPrice;
-    uint64 confidence = 1e18;
-
-    // example data: a = 1, b = 1.5, sig = 0.05, rho = -0.1, m = -0.05
-    bytes memory volData = abi.encode(expiry, SVI_a, SVI_b, SVI_rho, SVI_m, SVI_sigma, SVI_fwd, SVI_refTau, confidence);
-    return IBaseLyraFeed.FeedData({
-      data: volData,
-      timestamp: uint64(block.timestamp),
-      deadline: block.timestamp + 5,
-      signers: new address[](1),
-      signatures: new bytes[](1)
-    });
   }
 
   function _tradeOption(int amount, uint price, uint expiry, uint strike) internal {
@@ -510,5 +518,196 @@ contract CCTSATestUtils is TSATestUtils {
     // mint a crazy amount of cash to clear insolvency...
     usdc.mint(address(cash), 1e18);
     cash.disableWithdrawFee();
+  }
+}
+
+// TODO: Merge this with CCTSATestUtils?
+contract PPTSATestUtils is TSATestUtils {
+  using SignedMath for int;
+
+  PrincipalProtectedTSA public tsa;
+  PrincipalProtectedTSA public tsaImplementation;
+  uint public tsaSubacc;
+
+  PrincipalProtectedTSA.PPTSAParams public defaultPPTSAParams = PrincipalProtectedTSA.PPTSAParams({
+    minSignatureExpiry: 5 minutes,
+    maxSignatureExpiry: 30 minutes,
+    worstSpotBuyPrice: 1.01e18,
+    worstSpotSellPrice: 0.99e18,
+    spotTransactionLeniency: 1.01e18,
+    maxMarkValueToStrikeDiffRatio: 1e18,
+    minMarkValueToStrikeDiffRatio: 1,
+    optionMinTimeToExpiry: 1 days,
+    optionMaxTimeToExpiry: 30 days,
+    feeFactor: 0.01e18,
+    strikeDiff: 400e18,
+    maxTotalCostTolerance: 1e18,
+    maxBuyPctOfTVL: 1e18,
+    negMaxCashTolerance: 0.01e18
+  });
+
+  function upgradeToPPTSA(string memory market) internal {
+    IWrappedERC20Asset wrappedDepositAsset;
+    ISpotFeed baseFeed;
+    IOptionAsset optionAsset;
+
+    // if market is USDC collateral (for decimal tests)
+    if (keccak256(abi.encodePacked(market)) == keccak256(abi.encodePacked("usdc"))) {
+      wrappedDepositAsset = IWrappedERC20Asset(address(cash));
+      baseFeed = stableFeed;
+      optionAsset = IOptionAsset(address(0));
+    } else {
+      wrappedDepositAsset = markets[market].base;
+      baseFeed = markets[market].spotFeed;
+      optionAsset = markets[market].option;
+    }
+
+    tsaImplementation = new PrincipalProtectedTSA();
+
+    proxyAdmin.upgradeAndCall(
+      ITransparentUpgradeableProxy(address(proxy)),
+      address(tsaImplementation),
+      abi.encodeWithSelector(
+        tsaImplementation.initialize.selector,
+        address(this),
+        BaseTSA.BaseTSAInitParams({
+          subAccounts: subAccounts,
+          auction: auction,
+          cash: cash,
+          wrappedDepositAsset: wrappedDepositAsset,
+          manager: srm,
+          matching: matching,
+          symbol: "Tokenised SubAccount",
+          name: "TSA"
+        }),
+        PrincipalProtectedTSA.PPTSAInitParams({
+          baseFeed: baseFeed,
+          depositModule: depositModule,
+          withdrawalModule: withdrawalModule,
+          tradeModule: tradeModule,
+          optionAsset: optionAsset,
+          rfqModule: rfqModule
+        })
+      )
+    );
+
+    tsa = PrincipalProtectedTSA(address(proxy));
+    tsaSubacc = tsa.subAccount();
+  }
+
+  function setupPPTSA() internal {
+    tsa.setTSAParams(
+      BaseTSA.TSAParams({
+        depositCap: 10000e18,
+        minDepositValue: 1e18,
+        depositScale: 1e18,
+        withdrawScale: 1e18,
+        managementFee: 0,
+        feeRecipient: address(0)
+      })
+    );
+
+    tsa.setPPTSAParams(defaultPPTSAParams);
+
+    tsa.setShareKeeper(address(this), true);
+
+    signerPk = 0xBEEF;
+    signer = vm.addr(signerPk);
+
+    tsa.setSigner(signer, true);
+  }
+
+  function _executeDeposit(uint amount) internal {
+    IActionVerifier.Action memory action = _createDepositAction(amount);
+    vm.prank(signer);
+    tsa.signActionData(action);
+
+    _submitToMatching(action);
+  }
+
+  function _createDepositAction(uint amount) internal returns (IActionVerifier.Action memory) {
+    bytes memory depositData = _encodeDepositData(amount, address(markets["weth"].base), address(0));
+
+    IActionVerifier.Action memory action = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++signerNonce,
+      module: depositModule,
+      data: depositData,
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+
+    return action;
+  }
+
+  function _submitToMatching(IActionVerifier.Action memory action) internal {
+    bytes memory encodedAction = abi.encode(action);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
+    bytes[] memory signatures = new bytes[](1);
+    actions[0] = action;
+    _verifyAndMatch(actions, signatures, encodedAction);
+  }
+
+  function _tradeRfq(int amount, uint price, uint expiry, uint strike, uint price2, uint strike2) internal {
+    _setForwardPrice("weth", uint64(expiry), 2000e18, 1e18);
+    _setFixedSVIDataForExpiry("weth", uint64(expiry));
+
+    // for now we're just supporting passing in maker
+    // TODO: Add support for passing in as taker in tests
+    IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](2);
+    trades[0] = IRfqModule.TradeData({
+      asset: address(markets["weth"].option),
+      subId: OptionEncoding.toSubId(expiry, strike, true),
+      price: price,
+      amount: amount
+    });
+
+    trades[1] = IRfqModule.TradeData({
+      asset: address(markets["weth"].option),
+      subId: OptionEncoding.toSubId(expiry, strike2, true),
+      price: price2,
+      amount: -amount
+    });
+
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
+    bytes[] memory signatures = new bytes[](2);
+    IRfqModule.RfqOrder memory order = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
+
+    IRfqModule.TakerOrder memory takerOrder =
+      IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(trades)), maxFee: 0});
+
+    actions[0] = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++signerNonce,
+      module: rfqModule,
+      data: abi.encode(order),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+
+    (actions[1], signatures[1]) = _createActionAndSign(
+      takerSubacc,
+      ++takerNonce,
+      address(rfqModule),
+      abi.encode(takerOrder),
+      block.timestamp + 1 days,
+      taker,
+      taker,
+      takerPk
+    );
+    vm.prank(signer);
+    tsa.signActionData(actions[0]);
+
+    IRfqModule.FillData memory fill = IRfqModule.FillData({
+      makerAccount: tsaSubacc,
+      takerAccount: takerSubacc,
+      makerFee: 0,
+      takerFee: 0,
+      managerData: bytes("")
+    });
+
+    _verifyAndMatch(actions, signatures, abi.encode(fill));
   }
 }

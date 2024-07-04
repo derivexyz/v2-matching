@@ -36,6 +36,7 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     ISpotFeed baseFeed;
     IDepositModule depositModule;
     IWithdrawalModule withdrawalModule;
+    ITradeModule tradeModule;
     IRfqModule rfqModule;
     IOptionAsset optionAsset;
   }
@@ -51,13 +52,9 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     uint worstSpotSellPrice;
     /// @dev A factor on how strict to be with preventing too much cash being used in swapping base asset (e.g. 1.01e18)
     int spotTransactionLeniency;
-    /// @dev The worst difference to vol that is accepted for pricing options (e.g. 0.9e18)
-    uint optionVolSlippageFactor;
     /// @dev The minimum amount of gain accepted for opening an option position (e.g. 0.01e18)
-    /// POC: This is new
     uint maxMarkValueToStrikeDiffRatio;
     /// @dev The maximum amount of gain accepted for opening an option position (e.g. 0.1e18)
-    /// POC: This is new
     uint minMarkValueToStrikeDiffRatio;
     /// @dev Lower bound for option expiry
     uint optionMinTimeToExpiry;
@@ -66,14 +63,13 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     /// @dev Percentage of spot that can be paid as a fee for both spot/options (e.g. 0.01e18)
     uint feeFactor;
     /// @dev requirement of distance between two strikes
-    /// POC: This is new
     uint strikeDiff;
     /// @dev the max tolerance we allow when calculating cost of a trade
-    /// POC: This is new
     uint maxTotalCostTolerance;
     /// @dev used as tolerance for how much TVL we can use for RFQ
-    /// POC: This is new
     uint maxBuyPctOfTVL;
+    /// @dev the max tolerance we allow when calculating cost of a trade
+    uint negMaxCashTolerance;
   }
 
   /// @custom:storage-location erc7201:lyra.storage.PrincipalProtectedTSA
@@ -87,6 +83,14 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     PPTSAParams ppParams;
     /// @dev Only one hash is considered valid at a time, and it is revoked when a new one comes in.
     bytes32 lastSeenHash;
+  }
+
+  struct StrikeData {
+    uint strike;
+    uint expiry;
+    uint markPrice;
+    uint tradePrice;
+    int tradeAmount;
   }
 
   // keccak256(abi.encode(uint256(keccak256("lyra.storage.PrincipalProtectedTSA")) - 1)) & ~bytes32(uint256(0xff))
@@ -133,9 +137,8 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
         || (newParams.worstSpotBuyPrice < 1e18 || newParams.worstSpotBuyPrice > 1.2e18)
         || (newParams.worstSpotSellPrice > 1e18 || newParams.worstSpotSellPrice < 0.8e18)
         || (newParams.spotTransactionLeniency < 1e18 || newParams.spotTransactionLeniency > 1.2e18)
-        || newParams.optionVolSlippageFactor > 1e18
-        || newParams.minMarkValueToStrikeDiffRatio < newParams.maxMarkValueToStrikeDiffRatio
-        || newParams.maxMarkValueToStrikeDiffRatio > 1e20 || newParams.maxMarkValueToStrikeDiffRatio < 1e18
+        || newParams.minMarkValueToStrikeDiffRatio > newParams.maxMarkValueToStrikeDiffRatio
+        || newParams.maxMarkValueToStrikeDiffRatio > 1e20 || newParams.maxMarkValueToStrikeDiffRatio < 1e16
         || newParams.optionMaxTimeToExpiry <= newParams.optionMinTimeToExpiry || newParams.feeFactor > 0.05e18
     ) {
       revert PPT_InvalidParams();
@@ -149,6 +152,7 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
   ///////////////////////
   // Action Validation //
   ///////////////////////
+  // TODO: Move the account value checks and the selling/buying collat checks and maybe deposits into an abstract contract.
   function _verifyAction(IMatching.Action memory action, bytes32 actionHash, bytes memory extraData)
     internal
     virtual
@@ -175,7 +179,7 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     } else if (address(action.module) == address($.tradeModule)) {
       _verifyTradeAction(action, tsaAddresses);
     } else if (address(action.module) == address($.rfqModule)) {
-      _verifyRfqAction(action, tsaAddresses, extraData);
+      _verifyRfqAction(action, extraData);
     } else {
       revert PPT_InvalidModule();
     }
@@ -208,14 +212,24 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
       revert PPT_InvalidAsset();
     }
 
-    (bool hasTrades, uint baseBalance,) = _getSubAccountStats();
-    if (hasTrades) {
+    (bool hasOptions, uint baseBalance, int cashBalance) = _getSubAccountStats();
+    if (hasOptions) {
       revert PPT_WithdrawingWithOpenTrades();
     }
 
     uint amount18 = ConvertDecimals.to18Decimals(withdrawalData.assetAmount, tsaAddresses.depositAsset.decimals());
+    if (amount18 > baseBalance) {
+      revert PPT_InvalidOptionBalance();
+    }
 
-    if (baseBalance < amount18) {
+    if (cashBalance >= 0) {
+      return;
+    }
+
+    if (
+      cashBalance.abs().multiplyDecimal(_getPPTSAStorage().ppParams.negMaxCashTolerance)
+        < (baseBalance - amount18).multiplyDecimal(_getBasePrice())
+    ) {
       revert PPT_WithdrawingUtilisedCollateral();
     }
   }
@@ -234,10 +248,10 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     if (tradeData.asset == address(tsaAddresses.wrappedDepositAsset)) {
       if (tradeData.isBid) {
         // Buying more collateral with excess cash
-        _verifyCollateralBuy(tradeData.worstFee, tradeData.limitPrice, tradeData.desiredAmount, tsaAddresses);
+        _verifyCollateralBuy(tradeData, tsaAddresses);
       } else {
         // Selling collateral to cover cash debt
-        _verifyCollateralSell(tradeData.worstFee, tradeData.limitPrice, tradeData.desiredAmount, tsaAddresses);
+        _verifyCollateralSell(tradeData, tsaAddresses);
       }
       return;
     } else {
@@ -245,43 +259,65 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     }
   }
 
-  function _verifyRfqAction(
-    IMatching.Action memory action,
-    BaseTSAAddresses memory tsaAddresses,
-    bytes memory extraData
-  ) internal view {
-    IRfqModule.TakerOrder memory takerOrder = abi.decode(action.data, (IRfqModule.TakerOrder));
-    if (keccak256(extraData) != takerOrder.orderHash) {
-      revert PPT_TradeDataDoesNotMatchOrderHash();
+  /// @dev if extraData is 0 this means that the action is a maker action
+  /// otherwise it is a taker action
+  /// this logic is so the vault can execute as taker and maker while keeping the code aware of all trades
+  function _verifyRfqAction(IMatching.Action memory action, bytes memory extraData) internal view {
+    uint maxFee;
+    IRfqModule.TradeData[] memory trades;
+    if (extraData.length == 0) {
+      IRfqModule.RfqOrder memory makeOrder = abi.decode(action.data, (IRfqModule.RfqOrder));
+      maxFee = makeOrder.maxFee;
+      trades = makeOrder.trades;
+    } else {
+      IRfqModule.TakerOrder memory takerOrder = abi.decode(action.data, (IRfqModule.TakerOrder));
+      if (keccak256(extraData) != takerOrder.orderHash) {
+        revert PPT_TradeDataDoesNotMatchOrderHash();
+      }
+      maxFee = takerOrder.maxFee;
+      trades = abi.decode(extraData, (IRfqModule.TradeData[]));
     }
-    IRfqModule.RfqOrder memory tradeData = abi.decode(extraData, (IRfqModule.RfqOrder));
+    if (trades[0].asset != address(_getPPTSAStorage().optionAsset)) {
+      revert PPT_InvalidAsset();
+    }
 
-    if (tradeData.trades.length == 0) {
+    (StrikeData memory lowerStrike, StrikeData memory higherStrike) = _createStrikes(trades);
+
+    _verifyRfqExecute(lowerStrike, higherStrike, maxFee);
+  }
+
+  function _createStrikes(IRfqModule.TradeData[] memory trades)
+    internal
+    view
+    returns (StrikeData memory lowerStrike, StrikeData memory higherStrike)
+  {
+    if (trades.length != 2 || trades[0].asset != trades[1].asset) {
       revert PPT_InvalidParams();
     }
-
-    if (tradeData.trades[0].asset == address(tsaAddresses.wrappedDepositAsset)) {
-      if (tradeData.trades.length != 1) {
-        revert PPT_InvalidParams();
-      }
-      if (tradeData.trades[0].amount > 0) {
-        _verifyCollateralBuy(
-          tradeData.maxFee, tradeData.trades[0].price.toInt256(), tradeData.trades[0].amount, tsaAddresses
-        );
-      } else {
-        _verifyCollateralSell(
-          tradeData.maxFee, tradeData.trades[0].price.toInt256(), tradeData.trades[0].amount, tsaAddresses
-        );
-      }
-      return;
-    } else if (tradeData.trades[0].asset == address(_getPPTSAStorage().optionAsset)) {
-      _verifyRfqExecute(tradeData);
-    } else {
-      revert PPT_InvalidAsset();
+    StrikeData memory strike1 = _createStrikeData(trades[0]);
+    StrikeData memory strike2 = _createStrikeData(trades[1]);
+    if (strike1.strike > strike2.strike) {
+      return (strike2, strike1);
     }
+    return (strike1, strike2);
   }
 
-  function _verifyCollateralBuy(uint maxFee, int price, int amount, BaseTSAAddresses memory tsaAddresses) internal view {
+  function _createStrikeData(IRfqModule.TradeData memory trade) internal view returns (StrikeData memory) {
+    (uint expiry, uint strike, uint callPrice) = _getCallPrice(trade);
+    return StrikeData({
+      strike: strike,
+      expiry: expiry,
+      markPrice: callPrice,
+      tradePrice: trade.price,
+      tradeAmount: trade.amount
+    });
+  }
+
+  // buying collateral will be through the trade module
+  function _verifyCollateralBuy(ITradeModule.TradeData memory tradeData, BaseTSAAddresses memory tsaAddresses)
+    internal
+    view
+  {
     PPTSAStorage storage $ = _getPPTSAStorage();
 
     int cashBalance = tsaAddresses.subAccounts.getBalance(subAccount(), tsaAddresses.cash, 0);
@@ -290,20 +326,22 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     }
     uint basePrice = _getBasePrice();
 
-    _verifyFee(maxFee, basePrice);
+    // We don't worry too much about the fee in the calculations, as we trust the exchange won't cause issues. We make
+    // sure max fee doesn't exceed 0.5% of spot though.
+    _verifyFee(tradeData.worstFee, basePrice);
 
-    if (price.abs() > basePrice.multiplyDecimal($.ppParams.worstSpotBuyPrice)) {
+    if (tradeData.limitPrice.toUint256() > basePrice.multiplyDecimal($.ppParams.worstSpotBuyPrice)) {
       revert PPT_SpotLimitPriceTooHigh();
     }
 
-    int cost = price.multiplyDecimal(amount);
+    int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
     int bufferedBalance = cashBalance.multiplyDecimal($.ppParams.spotTransactionLeniency);
     if (cost > bufferedBalance) {
       revert PPT_BuyingTooMuchCollateral();
     }
   }
 
-  function _verifyCollateralSell(uint maxFee, int price, int amount, BaseTSAAddresses memory tsaAddresses)
+  function _verifyCollateralSell(ITradeModule.TradeData memory tradeData, BaseTSAAddresses memory tsaAddresses)
     internal
     view
   {
@@ -316,14 +354,14 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
 
     uint basePrice = _getBasePrice();
 
-    _verifyFee(maxFee, basePrice);
+    _verifyFee(tradeData.worstFee, basePrice);
 
-    if (price.abs() < basePrice.multiplyDecimal($.ppParams.worstSpotSellPrice)) {
+    if (tradeData.limitPrice.toUint256() < basePrice.multiplyDecimal($.ppParams.worstSpotSellPrice)) {
       revert PPT_SpotLimitPriceTooLow();
     }
 
     // cost is positive, balance is negative
-    int cost = price.multiplyDecimal(amount);
+    int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
     int bufferedBalance = cashBalance.multiplyDecimal($.ppParams.spotTransactionLeniency);
 
     // We make sure we're not selling more $ value of collateral than we have in debt
@@ -332,29 +370,24 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     }
   }
 
-  function _verifyRfqExecute(IRfqModule.RfqOrder memory tradeData) internal view {
+  function _verifyRfqExecute(StrikeData memory lowerStrike, StrikeData memory higherStrike, uint maxFee) internal view {
     PPTSAStorage storage $ = _getPPTSAStorage();
-    if (tradeData.trades.length != 2 || tradeData.trades[0].asset != tradeData.trades[1].asset) {
-      revert PPT_InvalidParams();
-    }
-
-    (, uint strike1,) = OptionEncoding.fromSubId(tradeData.trades[0].subId.toUint96());
-    (, uint strike2,) = OptionEncoding.fromSubId(tradeData.trades[1].subId.toUint96());
-    uint strikeDiff = strike2 > strike1 ? strike2 - strike1 : strike1 - strike2;
-    if (strikeDiff != _getPPTSAStorage().ppParams.strikeDiff) {
+    if (higherStrike.strike - lowerStrike.strike != _getPPTSAStorage().ppParams.strikeDiff) {
       revert PPT_StrikePriceOutsideOfDiff();
     }
 
-    // TODO: if the amount is less than 0 does that indicate a sell?
-    if (tradeData.trades[0].amount != -tradeData.trades[1].amount) {
+    if (higherStrike.tradeAmount != -lowerStrike.tradeAmount) {
       revert PPT_InvalidTradeAmountForMaker();
     }
 
     (, uint baseBalance,) = _getSubAccountStats();
 
-    _verifyFee(tradeData.maxFee, _getBasePrice());
-    int totalCostOfTrade = _validateOptionDetails(tradeData, strike1, strike2);
-    if (totalCostOfTrade.min(0).toUint256() >= baseBalance.multiplyDecimal($.ppParams.maxBuyPctOfTVL)) {
+    _verifyFee(maxFee, _getBasePrice());
+    int totalCostOfTrade = lowerStrike.tradePrice.toInt256().multiplyDecimal(lowerStrike.tradeAmount)
+      + higherStrike.tradePrice.toInt256().multiplyDecimal(higherStrike.tradeAmount);
+    _validateOptionDetails(lowerStrike, higherStrike, totalCostOfTrade);
+
+    if (totalCostOfTrade.abs() >= baseBalance.multiplyDecimal($.ppParams.maxBuyPctOfTVL)) {
       revert PPT_SellingTooManyCalls();
     }
   }
@@ -371,69 +404,62 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
   // Option Math //
   /////////////////
 
-  function _validateOptionDetails(IRfqModule.RfqOrder memory tradeData, uint strike1, uint strike2)
+  function _validateOptionDetails(StrikeData memory lowerStrike, StrikeData memory higherStrike, int totalTradeCost)
     internal
     view
-    returns (int totalCost)
   {
     PPTSAStorage storage $ = _getPPTSAStorage();
-    int markCost = 0;
-    uint[] memory tradePrices = new uint[](2);
-
-    for (uint i = 0; i < tradeData.trades.length; i++) {
-      IRfqModule.TradeData memory trade = tradeData.trades[i];
-      uint callPrice = _getCallPrice(trade);
-      tradePrices[i] = callPrice;
-      totalCost += trade.price.toInt256().multiplyDecimal(trade.amount);
-
-      markCost += callPrice.toInt256().multiplyDecimal(trade.amount);
-    }
-    if (markCost < 0) {
-      // the more expensive option should be the lower strike price since its deeper ITM
-      // so mark cost should always be above 0 since MM is selling the deeper ITM option (selling means amount is positive)
+    int markCost = lowerStrike.markPrice.toInt256().multiplyDecimal(lowerStrike.tradeAmount)
+      + higherStrike.markPrice.toInt256().multiplyDecimal(higherStrike.tradeAmount);
+    if (markCost > 0) {
       revert PPT_InvalidMarkCost();
     }
-    if (totalCost.abs() > markCost.abs().multiplyDecimal($.ppParams.maxTotalCostTolerance)) {
+
+    if (totalTradeCost.abs() > markCost.abs().multiplyDecimal($.ppParams.maxTotalCostTolerance)) {
       revert PPT_TotalCostOverTolerance();
     }
-    uint strikeDiff = strike2 > strike1 ? strike2 - strike1 : strike1 - strike2;
-    uint tradeDiff = strike2 > strike1 ? tradePrices[1] - tradePrices[0] : tradePrices[0] - tradePrices[1];
-    uint markValueToStrikeDiffRatio = (strikeDiff.divideDecimal(tradeDiff));
+
+    uint markValueToStrikeDiffRatio =
+      ((lowerStrike.markPrice - higherStrike.markPrice).divideDecimal(higherStrike.strike - lowerStrike.strike));
+
     if (
       markValueToStrikeDiffRatio < $.ppParams.minMarkValueToStrikeDiffRatio
         || markValueToStrikeDiffRatio > $.ppParams.maxMarkValueToStrikeDiffRatio
     ) {
       revert PPT_MarkValueNotWithinBounds();
     }
-    return totalCost;
   }
 
-  function _getCallPrice(IRfqModule.TradeData memory trade) internal view returns (uint callPrice) {
+  function _getCallPrice(IRfqModule.TradeData memory trade)
+    internal
+    view
+    returns (uint expiry, uint strike, uint callPrice)
+  {
     PPTSAStorage storage $ = _getPPTSAStorage();
-    (uint expiry, uint strike, bool isCall) = OptionEncoding.fromSubId(trade.subId.toUint96());
+    (uint optionExpiry, uint optionStrike, bool isCall) = OptionEncoding.fromSubId(trade.subId.toUint96());
     if (!isCall) {
       revert PPT_OnlyShortCallsAllowed();
     }
-    if (block.timestamp >= expiry) {
+    if (block.timestamp >= optionExpiry) {
       revert PPT_OptionExpired();
     }
-    uint timeToExpiry = expiry - block.timestamp;
+    uint timeToExpiry = optionExpiry - block.timestamp;
     if (timeToExpiry < $.ppParams.optionMinTimeToExpiry || timeToExpiry > $.ppParams.optionMaxTimeToExpiry) {
       revert PPT_OptionExpiryOutOfBounds();
     }
 
-    (uint vol, uint forwardPrice) = _getFeedValues(strike.toUint128(), expiry.toUint64());
+    (uint vol, uint forwardPrice) = _getFeedValues(optionStrike.toUint128(), optionExpiry.toUint64());
 
     (callPrice,,) = Black76.pricesAndDelta(
       Black76.Black76Inputs({
         timeToExpirySec: timeToExpiry.toUint64(),
-        volatility: (vol.multiplyDecimal($.ppParams.optionVolSlippageFactor)).toUint128(),
+        volatility: vol.toUint128(),
         fwdPrice: forwardPrice.toUint128(),
-        strikePrice: strike.toUint128(),
+        strikePrice: optionStrike.toUint128(),
         discount: 1e18
       })
     );
-    return callPrice;
+    return (optionExpiry, optionStrike, callPrice);
   }
 
   function _getFeedValues(uint128 strike, uint64 expiry) internal view returns (uint vol, uint forwardPrice) {
@@ -450,20 +476,20 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
   // Account Value //
   ///////////////////
 
-  function _getSubAccountStats() internal view returns (bool hasTrades, uint baseBalance, int cashBalance) {
+  function _getSubAccountStats() internal view returns (bool hasOptions, uint baseBalance, int cashBalance) {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
     ISubAccounts.AssetBalance[] memory balances = tsaAddresses.subAccounts.getAccountBalances(subAccount());
-    hasTrades = false;
+    hasOptions = false;
     for (uint i = 0; i < balances.length; i++) {
       if (balances[i].asset == _getPPTSAStorage().optionAsset) {
-        hasTrades = true;
+        hasOptions = true;
       } else if (balances[i].asset == tsaAddresses.wrappedDepositAsset) {
         baseBalance = balances[i].balance.abs();
       } else if (balances[i].asset == tsaAddresses.cash) {
         cashBalance = balances[i].balance;
       }
     }
-    return (hasTrades, baseBalance, cashBalance);
+    return (hasOptions, baseBalance, cashBalance);
   }
 
   function _getBasePrice() internal view returns (uint) {
@@ -554,11 +580,9 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
   error PPT_OnlyShortCallsAllowed();
   error PPT_OptionExpired();
   error PPT_OptionExpiryOutOfBounds();
-  error PPT_OptionPriceTooLow();
   error PPT_PositionInsolvent();
   error PPT_InvalidOptionBalance();
   error PPT_InvalidDesiredAmount();
-  error PPT_CanOnlyOpenShortOptions();
   error PPT_MustHavePositiveCash();
   error PPT_BuyingTooMuchCollateral();
   error PPT_SpotLimitPriceTooHigh();
