@@ -10,7 +10,6 @@ import {SignedDecimalMath} from "lyra-utils/decimals/SignedDecimalMath.sol";
 import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 
 import "./BaseTSA.sol";
-import "../interfaces/IRfqModule.sol";
 import "openzeppelin/utils/cryptography/ECDSA.sol";
 
 import {ITradeModule} from "../interfaces/ITradeModule.sol";
