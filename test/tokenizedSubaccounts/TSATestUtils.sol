@@ -28,12 +28,12 @@ import {MockTSA} from "./utils/MockTSA.sol";
 contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   uint internal signerPk;
   address internal signer;
-  uint internal signerNonce = 0;
+  uint internal tsaNonce = 0;
 
-  uint internal takerPk;
-  address internal taker;
-  uint internal takerNonce = 0;
-  uint internal takerSubacc;
+  uint internal nonVaultPk;
+  address internal nonVaultAddr;
+  uint internal nonVaultNonce = 0;
+  uint internal nonVaultSubacc;
 
   TransparentUpgradeableProxy proxy;
   ProxyAdmin proxyAdmin;
@@ -55,22 +55,22 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   }
 
   function _setupTaker() internal {
-    takerPk = 0xDEAD;
-    taker = vm.addr(takerPk);
-    takerSubacc = subAccounts.createAccount(address(this), markets["weth"].pmrm);
+    nonVaultPk = 0xDEAD;
+    nonVaultAddr = vm.addr(nonVaultPk);
+    nonVaultSubacc = subAccounts.createAccount(address(this), markets["weth"].pmrm);
     usdc.mint(address(this), 1_000_000e6);
     usdc.approve(address(cash), 1_000_000e6);
-    cash.deposit(takerSubacc, 1_000_000e6);
+    cash.deposit(nonVaultSubacc, 1_000_000e6);
 
     markets["weth"].base.setTotalPositionCap(markets["weth"].pmrm, 1_000_000e18);
     markets["weth"].base.setTotalPositionCap(srm, 1_000_000e18);
 
     markets["weth"].erc20.mint(address(this), 100_000e18);
     markets["weth"].erc20.approve(address(markets["weth"].base), 100_000e18);
-    markets["weth"].base.deposit(takerSubacc, 100_000e18);
+    markets["weth"].base.deposit(nonVaultSubacc, 100_000e18);
 
     subAccounts.setApprovalForAll(address(matching), true);
-    matching.depositSubAccountFor(takerSubacc, taker);
+    matching.depositSubAccountFor(nonVaultSubacc, nonVaultAddr);
   }
 
   function _setupMarketFeeds() internal {
@@ -197,15 +197,18 @@ contract CCTSATestUtils is TSATestUtils {
   CoveredCallTSA.CCTSAParams public defaultCCTSAParams = CoveredCallTSA.CCTSAParams({
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
-    worstSpotBuyPrice: 1.01e18,
-    worstSpotSellPrice: 0.99e18,
-    spotTransactionLeniency: 1.01e18,
     optionVolSlippageFactor: 0.5e18,
     optionMaxDelta: 0.4e18,
     optionMinTimeToExpiry: 1 days,
     optionMaxTimeToExpiry: 30 days,
-    optionMaxNegCash: -100e18,
-    feeFactor: 0.01e18
+    optionMaxNegCash: -100e18
+  });
+
+  BaseOnChainSigningTSA.BaseSigningParams public defaultBaseParams = BaseOnChainSigningTSA.BaseSigningParams({
+    feeFactor: 0.01e18,
+    spotTransactionLeniency: 1.01e18,
+    worstSpotBuyPrice: 1.01e18,
+    worstSpotSellPrice: 0.99e18
   });
 
   function upgradeToCCTSA(string memory market) internal {
@@ -268,7 +271,7 @@ contract CCTSATestUtils is TSATestUtils {
       })
     );
 
-    tsa.setCCTSAParams(defaultCCTSAParams);
+    tsa.setCCTSAParams(defaultCCTSAParams, defaultBaseParams);
 
     tsa.setShareKeeper(address(this), true);
 
@@ -301,7 +304,7 @@ contract CCTSATestUtils is TSATestUtils {
         limitPrice: int(price),
         desiredAmount: int(amount.abs()),
         worstFee: 1e18,
-        recipientId: takerSubacc,
+        recipientId: nonVaultSubacc,
         isBid: amount < 0
       })
     );
@@ -311,7 +314,7 @@ contract CCTSATestUtils is TSATestUtils {
 
     actions[0] = IActionVerifier.Action({
       subaccountId: tsaSubacc,
-      nonce: ++signerNonce,
+      nonce: ++tsaNonce,
       module: tradeModule,
       data: tradeData,
       expiry: block.timestamp + 8 minutes,
@@ -320,18 +323,25 @@ contract CCTSATestUtils is TSATestUtils {
     });
 
     (actions[1], signatures[1]) = _createActionAndSign(
-      takerSubacc, ++takerNonce, address(tradeModule), tradeMaker, block.timestamp + 1 days, taker, taker, takerPk
+      nonVaultSubacc,
+      ++nonVaultNonce,
+      address(tradeModule),
+      tradeMaker,
+      block.timestamp + 1 days,
+      nonVaultAddr,
+      nonVaultAddr,
+      nonVaultPk
     );
 
     vm.prank(signer);
-    tsa.signActionData(actions[0]);
+    tsa.signActionData(actions[0], "");
 
     _verifyAndMatch(
       actions,
       signatures,
       _createMatchedTrade(
         tsaSubacc,
-        takerSubacc,
+        nonVaultSubacc,
         amount.abs(),
         int(price),
         // trade fees
@@ -361,7 +371,7 @@ contract CCTSATestUtils is TSATestUtils {
         limitPrice: int(price),
         desiredAmount: int(amount.abs()),
         worstFee: 1e18,
-        recipientId: takerSubacc,
+        recipientId: nonVaultSubacc,
         isBid: amount < 0
       })
     );
@@ -371,7 +381,7 @@ contract CCTSATestUtils is TSATestUtils {
 
     actions[0] = IActionVerifier.Action({
       subaccountId: tsaSubacc,
-      nonce: ++signerNonce,
+      nonce: ++tsaNonce,
       module: tradeModule,
       data: tradeData,
       expiry: block.timestamp + 8 minutes,
@@ -380,18 +390,25 @@ contract CCTSATestUtils is TSATestUtils {
     });
 
     (actions[1], signatures[1]) = _createActionAndSign(
-      takerSubacc, ++takerNonce, address(tradeModule), tradeMaker, block.timestamp + 1 days, taker, taker, takerPk
+      nonVaultSubacc,
+      ++nonVaultNonce,
+      address(tradeModule),
+      tradeMaker,
+      block.timestamp + 1 days,
+      nonVaultAddr,
+      nonVaultAddr,
+      nonVaultPk
     );
 
     vm.prank(signer);
-    tsa.signActionData(actions[0]);
+    tsa.signActionData(actions[0], "");
 
     _verifyAndMatch(
       actions,
       signatures,
       _createMatchedTrade(
         tsaSubacc,
-        takerSubacc,
+        nonVaultSubacc,
         amount.abs(),
         int(price),
         // trade fees
@@ -431,7 +448,7 @@ contract CCTSATestUtils is TSATestUtils {
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: tsaSubacc,
-      nonce: ++signerNonce,
+      nonce: ++tsaNonce,
       module: depositModule,
       data: depositData,
       expiry: block.timestamp + 8 minutes,
@@ -445,7 +462,7 @@ contract CCTSATestUtils is TSATestUtils {
   function _executeDeposit(uint amount) internal {
     IActionVerifier.Action memory action = _createDepositAction(amount);
     vm.prank(signer);
-    tsa.signActionData(action);
+    tsa.signActionData(action, "");
 
     _submitToMatching(action);
   }
@@ -455,7 +472,7 @@ contract CCTSATestUtils is TSATestUtils {
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: tsaSubacc,
-      nonce: ++signerNonce,
+      nonce: ++tsaNonce,
       module: withdrawalModule,
       data: withdrawalData,
       expiry: block.timestamp + 8 minutes,
@@ -469,7 +486,7 @@ contract CCTSATestUtils is TSATestUtils {
   function _executeWithdrawal(uint amount) internal {
     IActionVerifier.Action memory action = _createWithdrawalAction(amount);
     vm.prank(signer);
-    tsa.signActionData(action);
+    tsa.signActionData(action, "");
 
     _submitToMatching(action);
   }
@@ -530,20 +547,23 @@ contract PPTSATestUtils is TSATestUtils {
   uint public tsaSubacc;
 
   PrincipalProtectedTSA.PPTSAParams public defaultPPTSAParams = PrincipalProtectedTSA.PPTSAParams({
-    minSignatureExpiry: 5 minutes,
-    maxSignatureExpiry: 30 minutes,
-    worstSpotBuyPrice: 1.01e18,
-    worstSpotSellPrice: 0.99e18,
-    spotTransactionLeniency: 1.01e18,
     maxMarkValueToStrikeDiffRatio: 1e18,
     minMarkValueToStrikeDiffRatio: 1,
-    optionMinTimeToExpiry: 1 days,
-    optionMaxTimeToExpiry: 30 days,
-    feeFactor: 0.01e18,
     strikeDiff: 400e18,
     maxTotalCostTolerance: 1e18,
     maxBuyPctOfTVL: 1e18,
-    negMaxCashTolerance: 0.01e18
+    negMaxCashTolerance: 0.01e18,
+    optionMinTimeToExpiry: 1 days,
+    optionMaxTimeToExpiry: 30 days,
+    minSignatureExpiry: 5 minutes,
+    maxSignatureExpiry: 30 minutes
+  });
+
+  BaseOnChainSigningTSA.BaseSigningParams public defaultBaseParams = BaseOnChainSigningTSA.BaseSigningParams({
+    feeFactor: 0.01e18,
+    spotTransactionLeniency: 1.01e18,
+    worstSpotBuyPrice: 1.01e18,
+    worstSpotSellPrice: 0.99e18
   });
 
   function upgradeToPPTSA(string memory market) internal {
@@ -607,7 +627,7 @@ contract PPTSATestUtils is TSATestUtils {
       })
     );
 
-    tsa.setPPTSAParams(defaultPPTSAParams);
+    tsa.setPPTSAParams(defaultPPTSAParams, defaultBaseParams);
 
     tsa.setShareKeeper(address(this), true);
 
@@ -620,7 +640,7 @@ contract PPTSATestUtils is TSATestUtils {
   function _executeDeposit(uint amount) internal {
     IActionVerifier.Action memory action = _createDepositAction(amount);
     vm.prank(signer);
-    tsa.signActionData(action);
+    tsa.signActionData(action, "");
 
     _submitToMatching(action);
   }
@@ -630,7 +650,7 @@ contract PPTSATestUtils is TSATestUtils {
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: tsaSubacc,
-      nonce: ++signerNonce,
+      nonce: ++tsaNonce,
       module: depositModule,
       data: depositData,
       expiry: block.timestamp + 8 minutes,
@@ -649,12 +669,13 @@ contract PPTSATestUtils is TSATestUtils {
     _verifyAndMatch(actions, signatures, encodedAction);
   }
 
-  function _tradeRfq(int amount, uint price, uint expiry, uint strike, uint price2, uint strike2) internal {
+  function _setupRfq(int amount, uint price, uint expiry, uint strike, uint price2, uint strike2)
+    internal
+    returns (IRfqModule.RfqOrder memory order, IRfqModule.TakerOrder memory takerOrder)
+  {
     _setForwardPrice("weth", uint64(expiry), 2000e18, 1e18);
     _setFixedSVIDataForExpiry("weth", uint64(expiry));
 
-    // for now we're just supporting passing in maker
-    // TODO: Add support for passing in as taker in tests
     IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](2);
     trades[0] = IRfqModule.TradeData({
       asset: address(markets["weth"].option),
@@ -670,16 +691,61 @@ contract PPTSATestUtils is TSATestUtils {
       amount: -amount
     });
 
+    order = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
+
+    takerOrder = IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(trades)), maxFee: 0});
+  }
+
+  function _tradeRfqAsTaker(int amount, uint price, uint expiry, uint strike, uint price2, uint strike2) internal {
+    (IRfqModule.RfqOrder memory order, IRfqModule.TakerOrder memory takerOrder) =
+      _setupRfq(amount, price, expiry, strike, price2, strike2);
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     bytes[] memory signatures = new bytes[](2);
-    IRfqModule.RfqOrder memory order = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
+    // maker order
+    (actions[0], signatures[0]) = _createActionAndSign(
+      nonVaultSubacc,
+      ++nonVaultNonce,
+      address(rfqModule),
+      abi.encode(order),
+      block.timestamp + 1 days,
+      nonVaultAddr,
+      nonVaultAddr,
+      nonVaultPk
+    );
 
-    IRfqModule.TakerOrder memory takerOrder =
-      IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(trades)), maxFee: 0});
+    // taker order
+    actions[1] = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++tsaNonce,
+      module: rfqModule,
+      data: abi.encode(takerOrder),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+    vm.prank(signer);
+    tsa.signActionData(actions[1], abi.encode(order.trades));
+
+    IRfqModule.FillData memory fill = IRfqModule.FillData({
+      makerAccount: nonVaultSubacc,
+      takerAccount: tsaSubacc,
+      makerFee: 0,
+      takerFee: 0,
+      managerData: bytes("")
+    });
+
+    _verifyAndMatch(actions, signatures, abi.encode(fill));
+  }
+
+  function _tradeRfqAsMaker(int amount, uint price, uint expiry, uint strike, uint price2, uint strike2) internal {
+    (IRfqModule.RfqOrder memory order, IRfqModule.TakerOrder memory takerOrder) =
+      _setupRfq(amount, price, expiry, strike, price2, strike2);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
+    bytes[] memory signatures = new bytes[](2);
 
     actions[0] = IActionVerifier.Action({
       subaccountId: tsaSubacc,
-      nonce: ++signerNonce,
+      nonce: ++tsaNonce,
       module: rfqModule,
       data: abi.encode(order),
       expiry: block.timestamp + 8 minutes,
@@ -688,26 +754,50 @@ contract PPTSATestUtils is TSATestUtils {
     });
 
     (actions[1], signatures[1]) = _createActionAndSign(
-      takerSubacc,
-      ++takerNonce,
+      nonVaultSubacc,
+      ++tsaNonce,
       address(rfqModule),
       abi.encode(takerOrder),
       block.timestamp + 1 days,
-      taker,
-      taker,
-      takerPk
+      nonVaultAddr,
+      nonVaultAddr,
+      nonVaultPk
     );
     vm.prank(signer);
-    tsa.signActionData(actions[0]);
+    tsa.signActionData(actions[0], "");
 
     IRfqModule.FillData memory fill = IRfqModule.FillData({
       makerAccount: tsaSubacc,
-      takerAccount: takerSubacc,
+      takerAccount: nonVaultSubacc,
       makerFee: 0,
       takerFee: 0,
       managerData: bytes("")
     });
 
     _verifyAndMatch(actions, signatures, abi.encode(fill));
+  }
+
+  function _createWithdrawalAction(uint amount) internal returns (IActionVerifier.Action memory) {
+    bytes memory withdrawalData = _encodeWithdrawData(amount, address(markets["weth"].base));
+
+    IActionVerifier.Action memory action = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++tsaNonce,
+      module: withdrawalModule,
+      data: withdrawalData,
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+
+    return action;
+  }
+
+  function _executeWithdrawal(uint amount) internal {
+    IActionVerifier.Action memory action = _createWithdrawalAction(amount);
+    vm.prank(signer);
+    tsa.signActionData(action, "");
+
+    _submitToMatching(action);
   }
 }

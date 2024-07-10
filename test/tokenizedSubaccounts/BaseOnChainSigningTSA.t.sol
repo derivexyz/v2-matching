@@ -38,7 +38,7 @@ contract CCTSA_BaseOnChainSigningTSATests is CCTSATestUtils {
   function testCanSignActionData() public {
     tsa.setSigner(address(this), true);
     IActionVerifier.Action memory action = _createDepositAction(1e18);
-    tsa.signActionData(action);
+    tsa.signActionData(action, "");
 
     assertTrue(tsa.isActionSigned(action));
   }
@@ -46,7 +46,7 @@ contract CCTSA_BaseOnChainSigningTSATests is CCTSATestUtils {
   function testCanRevokeSignature() public {
     tsa.setSigner(address(this), true);
     IActionVerifier.Action memory action = _createDepositAction(1e18);
-    tsa.signActionData(action);
+    tsa.signActionData(action, "");
 
     assertTrue(tsa.isActionSigned(action));
 
@@ -58,7 +58,7 @@ contract CCTSA_BaseOnChainSigningTSATests is CCTSATestUtils {
   function testCanRevokeSignatureWithHash() public {
     tsa.setSigner(address(this), true);
     IActionVerifier.Action memory action = _createDepositAction(1e18);
-    tsa.signActionData(action);
+    tsa.signActionData(action, "");
 
     assertTrue(tsa.isActionSigned(action));
     assertTrue(tsa.signedData(tsa.getActionTypedDataHash(action)));
@@ -73,13 +73,13 @@ contract CCTSA_BaseOnChainSigningTSATests is CCTSATestUtils {
   function testOnlySignerCanSign() public {
     IActionVerifier.Action memory action = _createDepositAction(1e18);
     vm.expectRevert(BaseOnChainSigningTSA.BOCST_OnlySigner.selector);
-    tsa.signActionData(action);
+    tsa.signActionData(action, "");
 
     // action.signer must be tsa contract
     action.signer = signer;
     vm.prank(signer);
     vm.expectRevert(BaseOnChainSigningTSA.BOCST_InvalidAction.selector);
-    tsa.signActionData(action);
+    tsa.signActionData(action, "");
   }
 
   function testOnlySignerCanRevoke() public {

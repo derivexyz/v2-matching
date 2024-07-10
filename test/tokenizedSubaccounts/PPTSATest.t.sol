@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.18;
 
-import "forge-std/console2.sol";
 import "./TSATestUtils.sol";
 
 /// @notice proof of concept integration tests for PPTSA
@@ -13,6 +12,7 @@ contract PPTSATest is PPTSATestUtils {
     setupPPTSA();
   }
 
+  // test this as maker too
   function testPPCanDepositTradeWithdraw() public {
     markets["weth"].erc20.mint(address(this), 10e18);
     markets["weth"].erc20.approve(address(tsa), 10e18);
@@ -53,8 +53,28 @@ contract PPTSATest is PPTSATestUtils {
     uint expiry = block.timestamp + 1 weeks;
     (,, int cashBalance) = tsa.getSubAccountStats();
     assertEq(cashBalance, 0);
-    _tradeRfq(1e18, 3.9e18, expiry, 800e18, 4.0e18, 400e18);
+    _tradeRfqAsMaker(1e18, 3.9e18, expiry, 800e18, 4.0e18, 400e18);
     (,, cashBalance) = tsa.getSubAccountStats();
     assertEq(cashBalance, 1e17);
+
+    vm.warp(block.timestamp + 7 days);
+    (,, cashBalance) = tsa.getSubAccountStats();
+    _executeWithdrawal(0.5e18);
+
+    assertEq(subAccounts.getBalance(tsa.subAccount(), markets["weth"].base, 0), 0.8e18);
+  }
+
+  function testPPCanTradeAsTaker() public {
+    markets["weth"].erc20.mint(address(this), 10e18);
+    markets["weth"].erc20.approve(address(tsa), 10e18);
+    uint depositId = tsa.initiateDeposit(1e18, address(this));
+    tsa.processDeposit(depositId);
+
+    _executeDeposit(0.5e18);
+    (,, int cashBalance) = tsa.getSubAccountStats();
+    assertEq(cashBalance, 0);
+    _tradeRfqAsTaker(1e18, 3.9e18, block.timestamp + 1 weeks, 800e18, 4.0e18, 400e18);
+    (,, cashBalance) = tsa.getSubAccountStats();
+    assertEq(cashBalance, -1e17);
   }
 }

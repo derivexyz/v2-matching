@@ -42,26 +42,10 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
   }
 
   struct PPTSAParams {
-    /// @dev Minimum time before an action is expired
-    uint minSignatureExpiry;
-    /// @dev Maximum time before an action is expired
-    uint maxSignatureExpiry;
-    /// @dev Percentage of spot price that the TSA will buy baseAsset at in the worst case (e.g. 1.02e18)
-    uint worstSpotBuyPrice;
-    /// @dev Percentage of spot price that the TSA will sell baseAsset at in the worst case (e.g. 0.98e18)
-    uint worstSpotSellPrice;
-    /// @dev A factor on how strict to be with preventing too much cash being used in swapping base asset (e.g. 1.01e18)
-    int spotTransactionLeniency;
     /// @dev The minimum amount of gain accepted for opening an option position (e.g. 0.01e18)
     uint maxMarkValueToStrikeDiffRatio;
     /// @dev The maximum amount of gain accepted for opening an option position (e.g. 0.1e18)
     uint minMarkValueToStrikeDiffRatio;
-    /// @dev Lower bound for option expiry
-    uint optionMinTimeToExpiry;
-    /// @dev Upper bound for option expiry
-    uint optionMaxTimeToExpiry;
-    /// @dev Percentage of spot that can be paid as a fee for both spot/options (e.g. 0.01e18)
-    uint feeFactor;
     /// @dev requirement of distance between two strikes
     uint strikeDiff;
     /// @dev the max tolerance we allow when calculating cost of a trade
@@ -70,6 +54,14 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     uint maxBuyPctOfTVL;
     /// @dev the max tolerance we allow when calculating cost of a trade
     uint negMaxCashTolerance;
+    /// @dev Minimum time before an action is expired
+    uint minSignatureExpiry;
+    /// @dev Maximum time before an action is expired
+    uint maxSignatureExpiry;
+    /// @dev Lower bound for option expiry
+    uint optionMinTimeToExpiry;
+    /// @dev Upper bound for option expiry
+    uint optionMaxTimeToExpiry;
   }
 
   /// @custom:storage-location erc7201:lyra.storage.PrincipalProtectedTSA
@@ -130,29 +122,29 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
   ///////////
   // Admin //
   ///////////
-  function setPPTSAParams(PPTSAParams memory newParams) external onlyOwner {
+  function setPPTSAParams(PPTSAParams memory newParams, BaseSigningParams memory baseParams) external onlyOwner {
     // TODO: Add new params to this check. (What are some good bounds for these normally?)
     if (
       newParams.minSignatureExpiry < 1 minutes || newParams.minSignatureExpiry > newParams.maxSignatureExpiry
-        || (newParams.worstSpotBuyPrice < 1e18 || newParams.worstSpotBuyPrice > 1.2e18)
-        || (newParams.worstSpotSellPrice > 1e18 || newParams.worstSpotSellPrice < 0.8e18)
-        || (newParams.spotTransactionLeniency < 1e18 || newParams.spotTransactionLeniency > 1.2e18)
+        || (baseParams.worstSpotBuyPrice < 1e18 || baseParams.worstSpotBuyPrice > 1.2e18)
+        || (baseParams.worstSpotSellPrice > 1e18 || baseParams.worstSpotSellPrice < 0.8e18)
+        || (baseParams.spotTransactionLeniency < 1e18 || baseParams.spotTransactionLeniency > 1.2e18)
         || newParams.minMarkValueToStrikeDiffRatio > newParams.maxMarkValueToStrikeDiffRatio
         || newParams.maxMarkValueToStrikeDiffRatio > 1e20 || newParams.maxMarkValueToStrikeDiffRatio < 1e16
-        || newParams.optionMaxTimeToExpiry <= newParams.optionMinTimeToExpiry || newParams.feeFactor > 0.05e18
+        || newParams.optionMaxTimeToExpiry <= newParams.optionMinTimeToExpiry || baseParams.feeFactor > 0.05e18
     ) {
       revert PPT_InvalidParams();
     }
+    _setBaseParams(baseParams);
 
     _getPPTSAStorage().ppParams = newParams;
 
-    emit PPTSAParamsSet(newParams);
+    emit PPTSAParamsSet(newParams, baseParams);
   }
 
   ///////////////////////
   // Action Validation //
   ///////////////////////
-  // TODO: Move the account value checks and the selling/buying collat checks and maybe deposits into an abstract contract.
   function _verifyAction(IMatching.Action memory action, bytes32 actionHash, bytes memory extraData)
     internal
     virtual
@@ -246,14 +238,7 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     }
 
     if (tradeData.asset == address(tsaAddresses.wrappedDepositAsset)) {
-      if (tradeData.isBid) {
-        // Buying more collateral with excess cash
-        _verifyCollateralBuy(tradeData, tsaAddresses);
-      } else {
-        // Selling collateral to cover cash debt
-        _verifyCollateralSell(tradeData, tsaAddresses);
-      }
-      return;
+      _tradeCollateral(tradeData);
     } else {
       revert PPT_InvalidAsset();
     }
@@ -313,63 +298,6 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     });
   }
 
-  // buying collateral will be through the trade module
-  function _verifyCollateralBuy(ITradeModule.TradeData memory tradeData, BaseTSAAddresses memory tsaAddresses)
-    internal
-    view
-  {
-    PPTSAStorage storage $ = _getPPTSAStorage();
-
-    int cashBalance = tsaAddresses.subAccounts.getBalance(subAccount(), tsaAddresses.cash, 0);
-    if (cashBalance <= 0) {
-      revert PPT_MustHavePositiveCash();
-    }
-    uint basePrice = _getBasePrice();
-
-    // We don't worry too much about the fee in the calculations, as we trust the exchange won't cause issues. We make
-    // sure max fee doesn't exceed 0.5% of spot though.
-    _verifyFee(tradeData.worstFee, basePrice);
-
-    if (tradeData.limitPrice.toUint256() > basePrice.multiplyDecimal($.ppParams.worstSpotBuyPrice)) {
-      revert PPT_SpotLimitPriceTooHigh();
-    }
-
-    int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
-    int bufferedBalance = cashBalance.multiplyDecimal($.ppParams.spotTransactionLeniency);
-    if (cost > bufferedBalance) {
-      revert PPT_BuyingTooMuchCollateral();
-    }
-  }
-
-  function _verifyCollateralSell(ITradeModule.TradeData memory tradeData, BaseTSAAddresses memory tsaAddresses)
-    internal
-    view
-  {
-    PPTSAStorage storage $ = _getPPTSAStorage();
-
-    int cashBalance = tsaAddresses.subAccounts.getBalance(subAccount(), tsaAddresses.cash, 0);
-    if (cashBalance >= 0) {
-      revert PPT_MustHaveNegativeCash();
-    }
-
-    uint basePrice = _getBasePrice();
-
-    _verifyFee(tradeData.worstFee, basePrice);
-
-    if (tradeData.limitPrice.toUint256() < basePrice.multiplyDecimal($.ppParams.worstSpotSellPrice)) {
-      revert PPT_SpotLimitPriceTooLow();
-    }
-
-    // cost is positive, balance is negative
-    int cost = tradeData.limitPrice.multiplyDecimal(tradeData.desiredAmount);
-    int bufferedBalance = cashBalance.multiplyDecimal($.ppParams.spotTransactionLeniency);
-
-    // We make sure we're not selling more $ value of collateral than we have in debt
-    if (cost.abs() > bufferedBalance.abs()) {
-      revert PPT_SellingTooMuchCollateral();
-    }
-  }
-
   function _verifyRfqExecute(StrikeData memory lowerStrike, StrikeData memory higherStrike, uint maxFee) internal view {
     PPTSAStorage storage $ = _getPPTSAStorage();
     if (higherStrike.strike - lowerStrike.strike != _getPPTSAStorage().ppParams.strikeDiff) {
@@ -389,14 +317,6 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
 
     if (totalCostOfTrade.abs() >= baseBalance.multiplyDecimal($.ppParams.maxBuyPctOfTVL)) {
       revert PPT_SellingTooManyCalls();
-    }
-  }
-
-  function _verifyFee(uint worstFee, uint basePrice) internal view {
-    PPTSAStorage storage $ = _getPPTSAStorage();
-
-    if (worstFee > basePrice.multiplyDecimal($.ppParams.feeFactor)) {
-      revert PPT_FeeTooHigh();
     }
   }
 
@@ -447,9 +367,7 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     if (timeToExpiry < $.ppParams.optionMinTimeToExpiry || timeToExpiry > $.ppParams.optionMaxTimeToExpiry) {
       revert PPT_OptionExpiryOutOfBounds();
     }
-
     (uint vol, uint forwardPrice) = _getFeedValues(optionStrike.toUint128(), optionExpiry.toUint64());
-
     (callPrice,,) = Black76.pricesAndDelta(
       Black76.Black76Inputs({
         timeToExpirySec: timeToExpiry.toUint64(),
@@ -482,7 +400,11 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     hasOptions = false;
     for (uint i = 0; i < balances.length; i++) {
       if (balances[i].asset == _getPPTSAStorage().optionAsset) {
-        hasOptions = true;
+        (uint optionExpiry,,) = OptionEncoding.fromSubId(balances[i].subId.toUint96());
+        (bool settled,) = _getPPTSAStorage().optionAsset.getSettlement(optionExpiry);
+        if (settled) {
+          hasOptions = true;
+        }
       } else if (balances[i].asset == tsaAddresses.wrappedDepositAsset) {
         baseBalance = balances[i].balance.abs();
       } else if (balances[i].asset == tsaAddresses.cash) {
@@ -492,7 +414,7 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
     return (hasOptions, baseBalance, cashBalance);
   }
 
-  function _getBasePrice() internal view returns (uint) {
+  function _getBasePrice() internal view virtual override returns (uint) {
     (uint spotPrice,) = _getPPTSAStorage().baseFeed.getSpot();
     return spotPrice;
   }
@@ -501,7 +423,7 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
   // Account Value //
   ///////////////////
 
-  function _getAccountValue(bool includePending) internal view override returns (uint) {
+  function _getAccountValue(bool includePending) internal view virtual override returns (uint) {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     uint depositAssetBalance = tsaAddresses.depositAsset.balanceOf(address(this));
@@ -567,7 +489,7 @@ contract PrincipalProtectedTSA is BaseOnChainSigningTSA {
   ///////////////////
   // Events/Errors //
   ///////////////////
-  event PPTSAParamsSet(PPTSAParams params);
+  event PPTSAParamsSet(PPTSAParams params, BaseSigningParams baseParams);
 
   error PPT_InvalidParams();
   error PPT_InvalidActionExpiry();
