@@ -8,7 +8,12 @@ import {
   ITransparentUpgradeableProxy
 } from "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ProxyAdmin} from "openzeppelin/proxy/transparent/ProxyAdmin.sol";
-import {CoveredCallTSA, BaseTSA, BaseOnChainSigningTSA} from "../../src/tokenizedSubaccounts/CCTSA.sol";
+import {
+  CoveredCallTSA,
+  BaseTSA,
+  BaseOnChainSigningTSA,
+  BaseCollateralManagementTSA
+} from "../../src/tokenizedSubaccounts/CCTSA.sol";
 import {PrincipalProtectedTSA} from "../../src/tokenizedSubaccounts/PPTSA.sol";
 
 import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
@@ -185,6 +190,31 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
       signatures: new bytes[](1)
     });
   }
+
+  function _createMatchedTrade(
+    uint takerAccount,
+    uint makerAcc,
+    uint amountFilled,
+    int price,
+    uint takerFee,
+    uint makerFee
+  ) internal pure returns (bytes memory) {
+    ITradeModule.FillDetails memory fillDetails =
+      ITradeModule.FillDetails({filledAccount: makerAcc, amountFilled: amountFilled, price: price, fee: makerFee});
+
+    ITradeModule.FillDetails[] memory fills = new ITradeModule.FillDetails[](1);
+    fills[0] = fillDetails;
+
+    ITradeModule.OrderData memory orderData = ITradeModule.OrderData({
+      takerAccount: takerAccount,
+      takerFee: takerFee,
+      fillDetails: fills,
+      managerData: bytes("")
+    });
+
+    bytes memory encodedAction = abi.encode(orderData);
+    return encodedAction;
+  }
 }
 
 contract CCTSATestUtils is TSATestUtils {
@@ -195,20 +225,19 @@ contract CCTSATestUtils is TSATestUtils {
   uint public tsaSubacc;
 
   CoveredCallTSA.CCTSAParams public defaultCCTSAParams = CoveredCallTSA.CCTSAParams({
+    baseParams: BaseCollateralManagementTSA.BaseCollateralManagementParams({
+      feeFactor: 0.01e18,
+      spotTransactionLeniency: 1.01e18,
+      worstSpotBuyPrice: 1.01e18,
+      worstSpotSellPrice: 0.99e18,
+      optionMinTimeToExpiry: 1 days,
+      optionMaxTimeToExpiry: 30 days
+    }),
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
     optionVolSlippageFactor: 0.5e18,
     optionMaxDelta: 0.4e18,
-    optionMinTimeToExpiry: 1 days,
-    optionMaxTimeToExpiry: 30 days,
     optionMaxNegCash: -100e18
-  });
-
-  BaseOnChainSigningTSA.BaseSigningParams public defaultBaseParams = BaseOnChainSigningTSA.BaseSigningParams({
-    feeFactor: 0.01e18,
-    spotTransactionLeniency: 1.01e18,
-    worstSpotBuyPrice: 1.01e18,
-    worstSpotSellPrice: 0.99e18
   });
 
   function upgradeToCCTSA(string memory market) internal {
@@ -271,7 +300,7 @@ contract CCTSATestUtils is TSATestUtils {
       })
     );
 
-    tsa.setCCTSAParams(defaultCCTSAParams, defaultBaseParams);
+    tsa.setCCTSAParams(defaultCCTSAParams);
 
     tsa.setShareKeeper(address(this), true);
 
@@ -418,31 +447,6 @@ contract CCTSATestUtils is TSATestUtils {
     );
   }
 
-  function _createMatchedTrade(
-    uint takerAccount,
-    uint makerAcc,
-    uint amountFilled,
-    int price,
-    uint takerFee,
-    uint makerFee
-  ) internal pure returns (bytes memory) {
-    ITradeModule.FillDetails memory fillDetails =
-      ITradeModule.FillDetails({filledAccount: makerAcc, amountFilled: amountFilled, price: price, fee: makerFee});
-
-    ITradeModule.FillDetails[] memory fills = new ITradeModule.FillDetails[](1);
-    fills[0] = fillDetails;
-
-    ITradeModule.OrderData memory orderData = ITradeModule.OrderData({
-      takerAccount: takerAccount,
-      takerFee: takerFee,
-      fillDetails: fills,
-      managerData: bytes("")
-    });
-
-    bytes memory encodedAction = abi.encode(orderData);
-    return encodedAction;
-  }
-
   function _createDepositAction(uint amount) internal returns (IActionVerifier.Action memory) {
     bytes memory depositData = _encodeDepositData(amount, address(markets["weth"].base), address(0));
 
@@ -547,23 +551,24 @@ contract PPTSATestUtils is TSATestUtils {
   uint public tsaSubacc;
 
   PrincipalProtectedTSA.PPTSAParams public defaultPPTSAParams = PrincipalProtectedTSA.PPTSAParams({
+    baseParams: BaseCollateralManagementTSA.BaseCollateralManagementParams({
+      feeFactor: 0.01e18,
+      spotTransactionLeniency: 1.01e18,
+      worstSpotBuyPrice: 1.01e18,
+      worstSpotSellPrice: 0.99e18,
+      optionMinTimeToExpiry: 1 days,
+      optionMaxTimeToExpiry: 30 days
+    }),
     maxMarkValueToStrikeDiffRatio: 1e18,
     minMarkValueToStrikeDiffRatio: 1,
     strikeDiff: 400e18,
     maxTotalCostTolerance: 1e18,
     maxBuyPctOfTVL: 1e18,
-    negMaxCashTolerance: 0.01e18,
-    optionMinTimeToExpiry: 1 days,
-    optionMaxTimeToExpiry: 30 days,
+    negMaxCashTolerance: 0.1e18,
     minSignatureExpiry: 5 minutes,
-    maxSignatureExpiry: 30 minutes
-  });
-
-  BaseOnChainSigningTSA.BaseSigningParams public defaultBaseParams = BaseOnChainSigningTSA.BaseSigningParams({
-    feeFactor: 0.01e18,
-    spotTransactionLeniency: 1.01e18,
-    worstSpotBuyPrice: 1.01e18,
-    worstSpotSellPrice: 0.99e18
+    maxSignatureExpiry: 30 minutes,
+    isCallSpread: true,
+    isLongSpread: true
   });
 
   function upgradeToPPTSA(string memory market) internal {
@@ -627,7 +632,7 @@ contract PPTSATestUtils is TSATestUtils {
       })
     );
 
-    tsa.setPPTSAParams(defaultPPTSAParams, defaultBaseParams);
+    tsa.setPPTSAParams(defaultPPTSAParams);
 
     tsa.setShareKeeper(address(this), true);
 
@@ -799,5 +804,12 @@ contract PPTSATestUtils is TSATestUtils {
     tsa.signActionData(action, "");
 
     _submitToMatching(action);
+  }
+
+  function _depositToTSA(uint amount) internal {
+    markets["weth"].erc20.mint(address(this), amount);
+    markets["weth"].erc20.approve(address(tsa), amount);
+    uint depositId = tsa.initiateDeposit(amount, address(this));
+    tsa.processDeposit(depositId);
   }
 }

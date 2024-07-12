@@ -91,7 +91,7 @@ contract CCTSA_ViewsTests is CCTSATestUtils {
     assertLt(margin, 0);
     assertGt(mtm, 0);
 
-    vm.expectRevert(CoveredCallTSA.CCT_PositionInsolvent.selector);
+    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_PositionInsolvent.selector);
     tsa.getAccountValue(false);
   }
 

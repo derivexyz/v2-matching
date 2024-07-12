@@ -39,10 +39,6 @@ contract MockTSA is BaseOnChainSigningTSA {
     _getMockTSAStorage().accountValue = _accountValue;
   }
 
-  function _getBasePrice() internal view virtual override returns (uint) {
-    return 1e18;
-  }
-
   ///////////////////////
   // Action Validation //
   ///////////////////////

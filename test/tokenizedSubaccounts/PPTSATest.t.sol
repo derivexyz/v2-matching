@@ -53,7 +53,9 @@ contract PPTSATest is PPTSATestUtils {
     uint expiry = block.timestamp + 1 weeks;
     (,, int cashBalance) = tsa.getSubAccountStats();
     assertEq(cashBalance, 0);
-    _tradeRfqAsMaker(1e18, 3.9e18, expiry, 800e18, 4.0e18, 400e18);
+    // this means that the higher strike should be positive.
+    // taker means the higher strike is negative
+    _tradeRfqAsMaker(1e18, 3.9e18, expiry, 400e18, 4e18, 800e18);
     (,, cashBalance) = tsa.getSubAccountStats();
     assertEq(cashBalance, 1e17);
 
@@ -67,10 +69,10 @@ contract PPTSATest is PPTSATestUtils {
   function testPPCanTradeAsTaker() public {
     markets["weth"].erc20.mint(address(this), 10e18);
     markets["weth"].erc20.approve(address(tsa), 10e18);
-    uint depositId = tsa.initiateDeposit(1e18, address(this));
+    uint depositId = tsa.initiateDeposit(4e18, address(this));
     tsa.processDeposit(depositId);
 
-    _executeDeposit(0.5e18);
+    _executeDeposit(4e18);
     (,, int cashBalance) = tsa.getSubAccountStats();
     assertEq(cashBalance, 0);
     _tradeRfqAsTaker(1e18, 3.9e18, block.timestamp + 1 weeks, 800e18, 4.0e18, 400e18);
