@@ -15,7 +15,6 @@ import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
 import {IDepositModule} from "../interfaces/IDepositModule.sol";
 import {IWithdrawalModule} from "../interfaces/IWithdrawalModule.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
-import "forge-std/console2.sol";
 
 import {
   StandardManager, IStandardManager, IVolFeed, IForwardFeed
@@ -205,7 +204,7 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
       revert PPT_InvalidAsset();
     }
 
-    (uint openSpreads, uint baseBalance, int cashBalance) = _getSubAccountStats();
+    (, uint baseBalance, int cashBalance) = _getSubAccountStats();
 
     uint amount18 = ConvertDecimals.to18Decimals(withdrawalData.assetAmount, tsaAddresses.depositAsset.decimals());
     if (amount18 > baseBalance) {
@@ -272,7 +271,18 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
     _verifyRfqExecute(lowerStrike, higherStrike, maxFee);
   }
 
-  // put boolean logic table here
+  /// @dev the following function validates whether the maker is selling or buying a spread
+  /// The following table determines whether or not the high strike should be sold or bought
+  ///
+  /// isCallSpread | isLongSpread | isTaker | makerShouldBeSellingSpread
+  ///      0       |       0      |    0    |   0 (higherStrike should be < 0)
+  ///      0       |       0      |    1    |   1 (higherStrike should be > 0)
+  ///      0       |       1      |    0    |   1
+  ///      0       |       1      |    1    |   0
+  ///      1       |       0      |    0    |   1
+  ///      1       |       0      |    1    |   0
+  ///      1       |       1      |    0    |   0
+  ///      1       |       1      |    1    |   1
   function _verifyHigherStrikeAmount(int strikeAmount, bool isTaker) internal view {
     PPTSAParams memory params = _getPPTSAStorage().ppParams;
     bool makerShouldBeSellingSpread = (params.isCallSpread == params.isLongSpread) ? isTaker : !isTaker;
@@ -301,11 +311,11 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
   }
 
   function _createStrikeData(IRfqModule.TradeData memory trade) internal view returns (StrikeData memory) {
-    (uint expiry, uint strike, uint callPrice) = _getCallPrice(trade);
+    (uint expiry, uint strike, uint markPrice) = _getMarkPrice(trade);
     return StrikeData({
       strike: strike,
       expiry: expiry,
-      markPrice: callPrice.toInt256(),
+      markPrice: markPrice.toInt256(),
       tradePrice: trade.price,
       tradeAmount: trade.amount
     });
@@ -351,13 +361,13 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
       + higherStrike.tradePrice.toInt256().multiplyDecimal(higherStrike.tradeAmount);
 
     if ($.ppParams.isLongSpread) {
-      if ($.ppParams.maxTotalCostTolerance > 5e18 || $.ppParams.maxTotalCostTolerance < 1e18) {
+      if ($.ppParams.maxTotalCostTolerance < 1e18) {
         revert PPT_InvalidCostTolerance();
       } else if (totalCostOfTrade.abs() > markCost.abs().multiplyDecimal($.ppParams.maxTotalCostTolerance)) {
         revert PPT_TotalCostOverTolerance();
       }
     } else {
-        if ($.ppParams.maxTotalCostTolerance > 1e18 || $.ppParams.maxTotalCostTolerance < 2e17) {
+        if ($.ppParams.maxTotalCostTolerance > 1e18) {
             revert PPT_InvalidCostTolerance();
         } else if (totalCostOfTrade.abs() < markCost.abs().multiplyDecimal($.ppParams.maxTotalCostTolerance)) {
             revert PPT_TotalCostBelowTolerance();
@@ -375,22 +385,22 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
     }
   }
 
-  // TODO: Possibility of supporting only puts or only calls.
-  function _getCallPrice(IRfqModule.TradeData memory trade)
+  function _getMarkPrice(IRfqModule.TradeData memory trade)
     internal
     view
-    returns (uint expiry, uint strike, uint callPrice)
+    returns (uint expiry, uint strike, uint markPrice)
   {
     PPTSAStorage storage $ = _getPPTSAStorage();
     (uint optionExpiry, uint optionStrike, bool isCall) = OptionEncoding.fromSubId(trade.subId.toUint96());
-    if (!isCall) {
-      revert PPT_OnlyCallsAllowed();
+    if ($.ppParams.isCallSpread != isCall) {
+      revert PPT_WrongInputSpread();
     }
     if (block.timestamp >= optionExpiry) {
       revert PPT_OptionExpired();
     }
-    (callPrice,) = _getOptionPrice(optionExpiry, optionStrike);
-    return (optionExpiry, optionStrike, callPrice);
+    (uint callPrice, uint putPrice,) = _getOptionPrice(optionExpiry, optionStrike);
+    markPrice = isCall ? callPrice : putPrice;
+    return (optionExpiry, optionStrike, markPrice);
   }
 
   ///////////////////
@@ -462,7 +472,7 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
   error PPT_DepositingTooMuch();
   error PPT_WithdrawingUtilisedCollateral();
   error PPT_TradeTooLarge();
-  error PPT_OnlyCallsAllowed();
+  error PPT_WrongInputSpread();
   error PPT_OptionExpired();
   error PPT_InvalidBaseBalance();
   error PPT_InvalidDesiredAmount();

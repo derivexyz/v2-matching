@@ -256,7 +256,7 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
     if (block.timestamp >= expiry) {
       revert CCT_OptionExpired();
     }
-    (uint callPrice, uint callDelta) = _getOptionPrice(expiry, strike);
+    (uint callPrice,, uint callDelta) = _getOptionPrice(expiry, strike);
 
     if (callDelta > $.ccParams.optionMaxDelta) {
       revert CCT_OptionDeltaTooHigh();

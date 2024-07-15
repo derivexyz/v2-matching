@@ -563,7 +563,7 @@ contract PPTSATestUtils is TSATestUtils {
     minMarkValueToStrikeDiffRatio: 1,
     strikeDiff: 400e18,
     maxTotalCostTolerance: 1e18,
-    maxBuyPctOfTVL: 1e18,
+    maxBuyPctOfTVL: 2e17,
     negMaxCashTolerance: 0.1e18,
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,

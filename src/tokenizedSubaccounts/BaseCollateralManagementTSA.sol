@@ -154,14 +154,14 @@ abstract contract BaseCollateralManagementTSA is BaseOnChainSigningTSA {
   // Option Math //
   /////////////////
 
-  function _getOptionPrice(uint optionExpiry, uint optionStrike) internal view returns (uint callPrice, uint callDelta) {
+  function _getOptionPrice(uint optionExpiry, uint optionStrike) internal view returns (uint callPrice, uint putPrice, uint callDelta) {
     BaseCollateralManagementParams memory params = _getBaseCollateralManagementParams();
     uint timeToExpiry = optionExpiry - block.timestamp;
     if (timeToExpiry < params.optionMinTimeToExpiry || timeToExpiry > params.optionMaxTimeToExpiry) {
       revert BCMTSA_OptionExpiryOutOfBounds();
     }
     (uint vol, uint forwardPrice) = _getFeedValues(optionStrike.toUint128(), optionExpiry.toUint64());
-    (callPrice,, callDelta) = Black76.pricesAndDelta(
+    return Black76.pricesAndDelta(
       Black76.Black76Inputs({
         timeToExpirySec: timeToExpiry.toUint64(),
         volatility: vol.toUint128(),
