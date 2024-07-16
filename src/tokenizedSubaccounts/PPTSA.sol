@@ -42,9 +42,9 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
 
   struct PPTSAParams {
     BaseCollateralManagementParams baseParams;
-    /// @dev The minimum amount of gain accepted for opening an option position (e.g. 0.01e18)
+    /// @dev The maximum amount of gain accepted for opening an option position (e.g. 0.01e18)
     uint maxMarkValueToStrikeDiffRatio;
-    /// @dev The maximum amount of gain accepted for opening an option position (e.g. 0.1e18)
+    /// @dev The minimum amount of gain accepted for opening an option position (e.g. 0.1e18)
     uint minMarkValueToStrikeDiffRatio;
     /// @dev requirement of distance between two strikes
     uint strikeDiff;
@@ -55,6 +55,7 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
     /// @dev the max tolerance we allow when calculating cost of a trade
     uint negMaxCashTolerance;
     /// @dev Minimum time before an action is expired
+    /// TODO: Move expiries to base class?
     uint minSignatureExpiry;
     /// @dev Maximum time before an action is expired
     uint maxSignatureExpiry;
@@ -204,7 +205,11 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
       revert PPT_InvalidAsset();
     }
 
-    (, uint baseBalance, int cashBalance) = _getSubAccountStats();
+    (uint openSpreads, uint baseBalance, int cashBalance) = _getSubAccountStats();
+
+    if (openSpreads != 0) {
+      revert PPT_WithdrawingWithOpenTrades();
+    }
 
     uint amount18 = ConvertDecimals.to18Decimals(withdrawalData.assetAmount, tsaAddresses.depositAsset.decimals());
     if (amount18 > baseBalance) {
@@ -287,9 +292,9 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
     PPTSAParams memory params = _getPPTSAStorage().ppParams;
     bool makerShouldBeSellingSpread = (params.isCallSpread == params.isLongSpread) ? isTaker : !isTaker;
     if (makerShouldBeSellingSpread && strikeAmount <= 0) {
-      revert PPT_InvalidStrikeAsTaker();
+      revert PPT_InvalidHighStrikeAmount();
     } else if (!makerShouldBeSellingSpread && strikeAmount >= 0) {
-      revert PPT_InvalidStrikeAsMaker();
+      revert PPT_InvalidHighStrikeAmount();
     }
   }
 
@@ -367,11 +372,11 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
         revert PPT_TotalCostOverTolerance();
       }
     } else {
-        if ($.ppParams.maxTotalCostTolerance > 1e18) {
-            revert PPT_InvalidCostTolerance();
-        } else if (totalCostOfTrade.abs() < markCost.abs().multiplyDecimal($.ppParams.maxTotalCostTolerance)) {
-            revert PPT_TotalCostBelowTolerance();
-        }
+      if ($.ppParams.maxTotalCostTolerance > 1e18) {
+        revert PPT_InvalidCostTolerance();
+      } else if (totalCostOfTrade.abs() < markCost.abs().multiplyDecimal($.ppParams.maxTotalCostTolerance)) {
+        revert PPT_TotalCostBelowTolerance();
+      }
     }
 
     uint markValueToStrikeDiffRatio =
@@ -469,7 +474,6 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
   error PPT_InvalidActionExpiry();
   error PPT_InvalidModule();
   error PPT_InvalidAsset();
-  error PPT_DepositingTooMuch();
   error PPT_WithdrawingUtilisedCollateral();
   error PPT_TradeTooLarge();
   error PPT_WrongInputSpread();
@@ -479,12 +483,10 @@ contract PrincipalProtectedTSA is BaseCollateralManagementTSA {
   error PPT_MarkValueNotWithinBounds();
   error PPT_TotalCostOverTolerance();
   error PPT_TotalCostBelowTolerance();
-  error PPT_InvalidMarkCost();
   error PPT_StrikePriceOutsideOfDiff();
   error PPT_InvalidTradeAmount();
   error PPT_TradeDataDoesNotMatchOrderHash();
   error PPT_WithdrawingWithOpenTrades();
-  error PPT_InvalidStrikeAsTaker();
-  error PPT_InvalidStrikeAsMaker();
+  error PPT_InvalidHighStrikeAmount();
   error PPT_InvalidCostTolerance();
 }

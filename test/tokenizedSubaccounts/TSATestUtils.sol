@@ -674,7 +674,7 @@ contract PPTSATestUtils is TSATestUtils {
     _verifyAndMatch(actions, signatures, encodedAction);
   }
 
-  function _setupRfq(int amount, uint price, uint expiry, uint strike, uint price2, uint strike2)
+  function _setupRfq(int amount, uint price, uint expiry, uint strike, uint price2, uint strike2, bool isCallSpread)
     internal
     returns (IRfqModule.RfqOrder memory order, IRfqModule.TakerOrder memory takerOrder)
   {
@@ -684,14 +684,14 @@ contract PPTSATestUtils is TSATestUtils {
     IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](2);
     trades[0] = IRfqModule.TradeData({
       asset: address(markets["weth"].option),
-      subId: OptionEncoding.toSubId(expiry, strike, true),
+      subId: OptionEncoding.toSubId(expiry, strike, isCallSpread),
       price: price,
       amount: amount
     });
 
     trades[1] = IRfqModule.TradeData({
       asset: address(markets["weth"].option),
-      subId: OptionEncoding.toSubId(expiry, strike2, true),
+      subId: OptionEncoding.toSubId(expiry, strike2, isCallSpread),
       price: price2,
       amount: -amount
     });
@@ -701,9 +701,17 @@ contract PPTSATestUtils is TSATestUtils {
     takerOrder = IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(trades)), maxFee: 0});
   }
 
-  function _tradeRfqAsTaker(int amount, uint price, uint expiry, uint strike, uint price2, uint strike2) internal {
+  function _tradeRfqAsTaker(
+    int amount,
+    uint price,
+    uint expiry,
+    uint strike,
+    uint price2,
+    uint strike2,
+    bool isCallSpread
+  ) internal {
     (IRfqModule.RfqOrder memory order, IRfqModule.TakerOrder memory takerOrder) =
-      _setupRfq(amount, price, expiry, strike, price2, strike2);
+      _setupRfq(amount, price, expiry, strike, price2, strike2, isCallSpread);
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     bytes[] memory signatures = new bytes[](2);
     // maker order
@@ -742,9 +750,17 @@ contract PPTSATestUtils is TSATestUtils {
     _verifyAndMatch(actions, signatures, abi.encode(fill));
   }
 
-  function _tradeRfqAsMaker(int amount, uint price, uint expiry, uint strike, uint price2, uint strike2) internal {
+  function _tradeRfqAsMaker(
+    int amount,
+    uint price,
+    uint expiry,
+    uint strike,
+    uint price2,
+    uint strike2,
+    bool isCallSpread
+  ) internal {
     (IRfqModule.RfqOrder memory order, IRfqModule.TakerOrder memory takerOrder) =
-      _setupRfq(amount, price, expiry, strike, price2, strike2);
+      _setupRfq(amount, price, expiry, strike, price2, strike2, isCallSpread);
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     bytes[] memory signatures = new bytes[](2);
 
@@ -760,7 +776,7 @@ contract PPTSATestUtils is TSATestUtils {
 
     (actions[1], signatures[1]) = _createActionAndSign(
       nonVaultSubacc,
-      ++tsaNonce,
+      ++nonVaultNonce,
       address(rfqModule),
       abi.encode(takerOrder),
       block.timestamp + 1 days,

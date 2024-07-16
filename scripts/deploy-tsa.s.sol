@@ -16,6 +16,7 @@ import {ITradeModule} from "../src/interfaces/ITradeModule.sol";
 import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
 import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
 import "../src/tokenizedSubaccounts/CCTSA.sol";
+import "../src/tokenizedSubaccounts/PPTSA.sol";
 import "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {TokenizedSubAccount} from "../src/tokenizedSubaccounts/TSA.sol";
 import "openzeppelin/proxy/transparent/ProxyAdmin.sol";
@@ -25,22 +26,51 @@ import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
 contract DeployTSA is Utils {
 
   CoveredCallTSA.CCTSAParams public defaultLrtccTSAParams = CoveredCallTSA.CCTSAParams({
+    baseParams: BaseCollateralManagementTSA.BaseCollateralManagementParams({
+        feeFactor: 0.01e18,
+        spotTransactionLeniency: 1.01e18,
+        worstSpotSellPrice: 0.99e18,
+        worstSpotBuyPrice: 1.01e18,
+        optionMinTimeToExpiry: 1 days,
+        optionMaxTimeToExpiry: 30 days
+    }),
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
-    worstSpotBuyPrice: 1.01e18,
-    worstSpotSellPrice: 0.99e18,
     spotTransactionLeniency: 1.01e18,
     optionVolSlippageFactor: 0.5e18,
     optionMaxDelta: 0.4e18,
-    optionMinTimeToExpiry: 1 days,
-    optionMaxTimeToExpiry: 30 days,
-    optionMaxNegCash: -100e18,
-    feeFactor: 0.01e18
+    optionMaxNegCash: -100e18
+  });
+
+  PrincipalProtectedTSA.PPTSAParams public defaultLrtppTSAParams = PrincipalProtectedTSA.PPTSAParams({
+    baseParams: BaseCollateralManagementTSA.BaseCollateralManagementParams({
+      feeFactor: 0.01e18,
+      spotTransactionLeniency: 1.01e18,
+      worstSpotSellPrice: 0.99e18,
+      worstSpotBuyPrice: 1.01e18,
+      optionMinTimeToExpiry: 1 days,
+      optionMaxTimeToExpiry: 30 days
+    }),
+    maxMarkValueToStrikeDiffRatio: 1e17,
+    minMarkValueToStrikeDiffRatio: 1e16,
+    strikeDiff: 400e18,
+    maxTotalCostTolerance: 2.5e18,
+    maxBuyPctOfTVL: 1e17,
+    negMaxCashTolerance: 1e17,
+    minSignatureExpiry: 5 minutes,
+    maxSignatureExpiry: 30 minutes,
+    isCallSpread: true,
+    isLongSpread: true
   });
 
 
   /// @dev main function
   function run() external {
+    // deployCoveredCall();
+    deployPrincipalProtected();
+  }
+
+  function deployCoveredCall() private {
 
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
     vm.startBroadcast(deployerPrivateKey);
@@ -103,6 +133,76 @@ contract DeployTSA is Utils {
     vm.serializeAddress(objKey, "shareHandler", address(shareHandler));
     vm.serializeAddress(objKey, "proxyAdmin", address(proxyAdmin));
     vm.serializeAddress(objKey, "implementation", address(lrtcctsaImplementation));
+    string memory finalObj = vm.serializeAddress(objKey, "DNWETH", address(proxy));
+
+    // build path
+    _writeToDeployments("tsa", finalObj);
+  }
+
+  // TODO: Should be combined with cover call vault for deployment script?
+  function deployPrincipalProtected() private {
+    uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+    vm.startBroadcast(deployerPrivateKey);
+
+    address deployer = vm.addr(deployerPrivateKey);
+    console2.log("deployer: ", deployer);
+
+    TokenizedSubAccount tsaImplementation = new TokenizedSubAccount();
+    ProxyAdmin proxyAdmin = new ProxyAdmin();
+    TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+      address(tsaImplementation),
+      address(proxyAdmin),
+      abi.encodeWithSelector(tsaImplementation.initialize.selector, "TSA", "TSA", address(0))
+    );
+
+    PrincipalProtectedTSA lrtpptsaImplementation = new PrincipalProtectedTSA();
+
+    proxyAdmin.upgradeAndCall(
+      ITransparentUpgradeableProxy(address(proxy)),
+      address(lrtpptsaImplementation),
+      abi.encodeWithSelector(
+        lrtpptsaImplementation.initialize.selector,
+        deployer,
+        BaseTSA.BaseTSAInitParams({
+          subAccounts: ISubAccounts(_getCoreContract("subAccounts")),
+          auction: DutchAuction(_getCoreContract("auction")),
+          cash: CashAsset(_getCoreContract("cash")),
+          wrappedDepositAsset: IWrappedERC20Asset(_getMarketAddress("sUSDe", "base")),
+          manager: ILiquidatableManager(_getCoreContract("srm")),
+          matching: IMatching(_getMatchingModule("matching")),
+          symbol: "sUSDe",
+          name: "sUSDe Principal Protected Bull Call Spread"
+        }),
+        PrincipalProtectedTSA.PPTSAInitParams({
+          baseFeed: ISpotFeed(_getMarketAddress("sUSDe", "spotFeed")),
+          depositModule: IDepositModule(_getMatchingModule("deposit")),
+          withdrawalModule: IWithdrawalModule(_getMatchingModule("withdrawal")),
+          tradeModule: ITradeModule(_getMatchingModule("trade")),
+          optionAsset: IOptionAsset(_getMarketAddress("ETH", "option")),
+          rfqModule: IRfqModule(_getMatchingModule("rfq"))
+        })
+      )
+    );
+
+    PrincipalProtectedTSA(address(proxy)).setTSAParams(
+      BaseTSA.TSAParams({
+        depositCap: 10000000e18,
+        minDepositValue: 0.01e18,
+        depositScale: 1e18,
+        withdrawScale: 1e18,
+        managementFee: 0,
+        feeRecipient: address(0)
+      })
+    );
+    PrincipalProtectedTSA(address(proxy)).setPPTSAParams(defaultLrtppTSAParams);
+
+    TSAShareHandler shareHandler = new TSAShareHandler();
+
+    string memory objKey = "tsa-deployment";
+
+    vm.serializeAddress(objKey, "shareHandler", address(shareHandler));
+    vm.serializeAddress(objKey, "proxyAdmin", address(proxyAdmin));
+    vm.serializeAddress(objKey, "implementation", address(lrtpptsaImplementation));
     string memory finalObj = vm.serializeAddress(objKey, "DNWETH", address(proxy));
 
     // build path

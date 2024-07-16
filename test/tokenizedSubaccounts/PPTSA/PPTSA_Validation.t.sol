@@ -183,7 +183,11 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     // add a trade
     uint expiry = block.timestamp + 1 weeks;
     _executeDeposit(3e18);
-    _tradeRfqAsTaker(1e18, 1e18, expiry, 800e18, 4.0e18, 400e18);
+    _tradeRfqAsTaker(1e18, 1e18, expiry, 2000e18, 4.0e18, 1600e18, true);
+
+    vm.warp(block.timestamp + 8 days);
+    _setSettlementPrice("weth", uint64(expiry), 1500e18);
+    srm.settleOptions(markets["weth"].option, tsa.subAccount());
 
     vm.startPrank(signer);
     // now try to withdraw all of the base asset. Should fail
@@ -207,7 +211,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     // Receive positive cash from selling options
     uint64 expiry = uint64(block.timestamp + 7 days);
-    _tradeRfqAsMaker(1e18, 1e18, expiry, 400e18, 4e18, 800e18);
+    _tradeRfqAsMaker(1e18, 1e18, expiry, 400e18, 4e18, 800e18, true);
 
     (uint openSpreads, uint base, int cash) = tsa.getSubAccountStats();
     assertEq(openSpreads, 1e18);
@@ -277,7 +281,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     vm.startPrank(signer);
 
     (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
-      _setupRfq(amount, price, expiry, strike, pirce2, strike2);
+      _setupRfq(amount, price, expiry, strike, pirce2, strike2, true);
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     bytes[] memory signatures = new bytes[](2);
 
@@ -322,7 +326,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     makerOrder.trades[1].asset = address(markets["weth"].option);
 
-    (IRfqModule.RfqOrder memory smallerMakerOrder,) = _setupRfq(amount, price, expiry, strike, pirce2, strike2);
+    (IRfqModule.RfqOrder memory smallerMakerOrder,) = _setupRfq(amount, price, expiry, strike, pirce2, strike2, true);
     IRfqModule.TradeData[] memory smallerTrades = new IRfqModule.TradeData[](1);
     smallerTrades[0] = makerOrder.trades[0];
     smallerMakerOrder.trades = smallerTrades;
@@ -336,13 +340,13 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     makerOrder.trades[1].subId = OptionEncoding.toSubId(expiry, strike, true);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     actions[1].data = abi.encode(takerOrder);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidStrikeAsTaker.selector);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
     tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
 
     makerOrder.trades[0].subId = OptionEncoding.toSubId(expiry, strike, true);
     makerOrder.trades[1].subId = OptionEncoding.toSubId(expiry, strike2, true);
     actions[1].data = abi.encode(makerOrder);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidStrikeAsMaker.selector);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
     tsa.signActionData(actions[1], "");
 
     // strike too high
@@ -374,7 +378,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     uint strike2 = 400e18;
 
     (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
-            _setupRfq(amount, price, expiry, strike, price2, strike2);
+      _setupRfq(amount, price, expiry, strike, price2, strike2, true);
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     bytes[] memory signatures = new bytes[](2);
 
@@ -400,9 +404,9 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     });
 
     amount = 10e18;
-    (makerOrder, takerOrder) = _setupRfq(amount, price, expiry, strike, price2, strike2);
+    (makerOrder, takerOrder) = _setupRfq(amount, price, expiry, strike, price2, strike2, true);
     actions[1].data = abi.encode(takerOrder);
-    _tradeRfqAsTaker(amount, price, expiry, strike, price2, strike2);
+    _tradeRfqAsTaker(amount, price, expiry, strike, price2, strike2, true);
     (uint openSpreads,,) = tsa.getSubAccountStats();
     assertEq(openSpreads, 10e18);
 
@@ -424,7 +428,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     uint strike2 = 400e18;
 
     (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
-            _setupRfq(amount, price, expiry, strike, price2, strike2);
+      _setupRfq(amount, price, expiry, strike, price2, strike2, true);
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     bytes[] memory signatures = new bytes[](2);
 
@@ -462,13 +466,13 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     params.isLongSpread = false;
     tsa.setPPTSAParams(params);
     price = 300e18;
-    (makerOrder, takerOrder) = _setupRfq(amount, price, expiry, strike2, price2, strike);
+    (makerOrder, takerOrder) = _setupRfq(amount, price, expiry, strike2, price2, strike, true);
     actions[1].data = abi.encode(takerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TotalCostBelowTolerance.selector);
     tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
 
-    params.maxTotalCostTolerance = 1e18+1;
+    params.maxTotalCostTolerance = 1e18 + 1;
     tsa.setPPTSAParams(params);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidCostTolerance.selector);
@@ -493,11 +497,11 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     uint price = 1e18;
     uint64 expiry = uint64(block.timestamp + 7 days);
     uint strike = 800e18;
-    uint pirce2 = 4e18;
+    uint price2 = 4e18;
     uint strike2 = 400e18;
 
     (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
-            _setupRfq(amount, price, expiry, strike, pirce2, strike2);
+      _setupRfq(amount, price, expiry, strike, price2, strike2, true);
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     bytes[] memory signatures = new bytes[](2);
 
