@@ -288,95 +288,73 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     uint price = 1e18;
     uint64 expiry = uint64(block.timestamp + 7 days);
     uint strike = 800e18;
-    uint pirce2 = 4e18;
+    uint price2 = 4e18;
     uint strike2 = 400e18;
     vm.startPrank(signer);
 
     (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
-      _setupRfq(amount, price, expiry, strike, pirce2, strike2, true);
-    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    bytes[] memory signatures = new bytes[](2);
-
-    (actions[0], signatures[0]) = _createActionAndSign(
-      nonVaultSubacc,
-      ++nonVaultNonce,
-      address(rfqModule),
-      abi.encode(makerOrder),
-      block.timestamp + 1 days,
-      nonVaultAddr,
-      nonVaultAddr,
-      nonVaultPk
-    );
-
-    actions[1] = IActionVerifier.Action({
-      subaccountId: tsaSubacc,
-      nonce: ++tsaNonce,
-      module: rfqModule,
-      data: abi.encode(takerOrder),
-      expiry: block.timestamp + 8 minutes,
-      owner: address(tsa),
-      signer: address(tsa)
-    });
+      _setupRfq(amount, price, expiry, strike, price2, strike2, true);
+    IActionVerifier.Action memory action = _createRfqAction(takerOrder);
 
     takerOrder.orderHash = "";
-    actions[1].data = abi.encode(takerOrder);
+    action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TradeDataDoesNotMatchOrderHash.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     makerOrder.trades[0].asset = address(markets["weth"].base);
     makerOrder.trades[1].asset = address(markets["weth"].base);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
-    actions[1].data = abi.encode(takerOrder);
+    action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     makerOrder.trades[0].asset = address(markets["weth"].option);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
-    actions[1].data = abi.encode(takerOrder);
+    action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     makerOrder.trades[1].asset = address(markets["weth"].option);
 
-    (IRfqModule.RfqOrder memory smallerMakerOrder,) = _setupRfq(amount, price, expiry, strike, pirce2, strike2, true);
+    (IRfqModule.RfqOrder memory smallerMakerOrder,) = _setupRfq(amount, price, expiry, strike, price2, strike2, true);
     IRfqModule.TradeData[] memory smallerTrades = new IRfqModule.TradeData[](1);
     smallerTrades[0] = makerOrder.trades[0];
     smallerMakerOrder.trades = smallerTrades;
     takerOrder.orderHash = keccak256(abi.encode(smallerTrades));
-    actions[1].data = abi.encode(takerOrder);
+    action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.signActionData(actions[1], abi.encode(smallerTrades));
+    tsa.signActionData(action, abi.encode(smallerTrades));
 
     // flip strikes
     makerOrder.trades[0].subId = OptionEncoding.toSubId(expiry, strike2, true);
     makerOrder.trades[1].subId = OptionEncoding.toSubId(expiry, strike, true);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
-    actions[1].data = abi.encode(takerOrder);
+    action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     makerOrder.trades[0].subId = OptionEncoding.toSubId(expiry, strike, true);
     makerOrder.trades[1].subId = OptionEncoding.toSubId(expiry, strike2, true);
-    actions[1].data = abi.encode(makerOrder);
+    action.data = abi.encode(makerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(actions[1], "");
+    tsa.signActionData(action, "");
 
     // strike too high
     strike2 = 100e18;
     makerOrder.trades[1].subId = OptionEncoding.toSubId(expiry, strike2, true);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
-    actions[1].data = abi.encode(takerOrder);
+    action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_StrikePriceOutsideOfDiff.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // trade amounts dont equal
     strike2 = 400e18;
     makerOrder.trades[1].subId = OptionEncoding.toSubId(expiry, strike2, true);
     makerOrder.trades[1].amount = -2e18;
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
-    actions[1].data = abi.encode(takerOrder);
+    action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidTradeAmount.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
   }
 
   function testValidateSpreadPriceRanges() public {
@@ -391,40 +369,18 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
       _setupRfq(amount, price, expiry, strike, price2, strike2, true);
-    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    bytes[] memory signatures = new bytes[](2);
-
-    (actions[0], signatures[0]) = _createActionAndSign(
-      nonVaultSubacc,
-      ++nonVaultNonce,
-      address(rfqModule),
-      abi.encode(makerOrder),
-      block.timestamp + 1 days,
-      nonVaultAddr,
-      nonVaultAddr,
-      nonVaultPk
-    );
-
-    actions[1] = IActionVerifier.Action({
-      subaccountId: tsaSubacc,
-      nonce: ++tsaNonce,
-      module: rfqModule,
-      data: abi.encode(takerOrder),
-      expiry: block.timestamp + 8 minutes,
-      owner: address(tsa),
-      signer: address(tsa)
-    });
+    IActionVerifier.Action memory action = _createRfqAction(takerOrder);
 
     amount = 10e18;
     (makerOrder, takerOrder) = _setupRfq(amount, price, expiry, strike, price2, strike2, true);
-    actions[1].data = abi.encode(takerOrder);
+    action.data = abi.encode(takerOrder);
     _tradeRfqAsTaker(amount, price, expiry, strike, price2, strike2, true);
     (uint openSpreads,,) = tsa.getSubAccountStats();
     assertEq(openSpreads, 10e18);
 
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TradeTooLarge.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
   }
 
   function testCostToleranceValidation() public {
@@ -443,33 +399,12 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
       _setupRfq(amount, price, expiry, strike, price2, strike2, true);
-    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    bytes[] memory signatures = new bytes[](2);
 
-    (actions[0], signatures[0]) = _createActionAndSign(
-      nonVaultSubacc,
-      ++nonVaultNonce,
-      address(rfqModule),
-      abi.encode(makerOrder),
-      block.timestamp + 1 days,
-      nonVaultAddr,
-      nonVaultAddr,
-      nonVaultPk
-    );
-
-    actions[1] = IActionVerifier.Action({
-      subaccountId: tsaSubacc,
-      nonce: ++tsaNonce,
-      module: rfqModule,
-      data: abi.encode(takerOrder),
-      expiry: block.timestamp + 8 minutes,
-      owner: address(tsa),
-      signer: address(tsa)
-    });
+    IActionVerifier.Action memory action = _createRfqAction(takerOrder);
 
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TotalCostOverTolerance.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     params.maxTotalCostTolerance = 1e18 - 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
@@ -495,36 +430,15 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
       _setupRfq(amount, price, expiry, strike, price2, strike2, true);
-    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    bytes[] memory signatures = new bytes[](2);
 
-    (actions[0], signatures[0]) = _createActionAndSign(
-      nonVaultSubacc,
-      ++nonVaultNonce,
-      address(rfqModule),
-      abi.encode(makerOrder),
-      block.timestamp + 1 days,
-      nonVaultAddr,
-      nonVaultAddr,
-      nonVaultPk
-    );
-
-    actions[1] = IActionVerifier.Action({
-      subaccountId: tsaSubacc,
-      nonce: ++tsaNonce,
-      module: rfqModule,
-      data: abi.encode(takerOrder),
-      expiry: block.timestamp + 8 minutes,
-      owner: address(tsa),
-      signer: address(tsa)
-    });
+    IActionVerifier.Action memory action = _createRfqAction(takerOrder);
 
     price = 300e18;
     (makerOrder, takerOrder) = _setupRfq(amount, price, expiry, strike2, price2, strike, true);
-    actions[1].data = abi.encode(takerOrder);
+    action.data = abi.encode(takerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TotalCostBelowTolerance.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     params.maxTotalCostTolerance = 1e18 + 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
@@ -533,13 +447,13 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     params.maxTotalCostTolerance = 5e17;
     tsa.setPPTSAParams(collateralManagementParams, params);
     vm.prank(signer);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     params.maxMarkValueToStrikeDiffRatio = 9e17;
     tsa.setPPTSAParams(collateralManagementParams, params);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_MarkValueNotWithinBounds.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
   }
 
   function testOptionMarkPriceValidations() public {
@@ -554,21 +468,28 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
       _setupRfq(amount, price, expiry, strike, price2, strike2, true);
-    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    bytes[] memory signatures = new bytes[](2);
 
-    (actions[0], signatures[0]) = _createActionAndSign(
-      nonVaultSubacc,
-      ++nonVaultNonce,
-      address(rfqModule),
-      abi.encode(makerOrder),
-      block.timestamp + 1 days,
-      nonVaultAddr,
-      nonVaultAddr,
-      nonVaultPk
-    );
+    IActionVerifier.Action memory action = _createRfqAction(takerOrder);
 
-    actions[1] = IActionVerifier.Action({
+    makerOrder.trades[0].subId = OptionEncoding.toSubId(expiry, strike, false);
+    takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
+    action.data = abi.encode(takerOrder);
+    vm.prank(signer);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_WrongInputSpread.selector);
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
+
+    makerOrder.trades[0].subId = OptionEncoding.toSubId(expiry, strike, true);
+    takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
+    action.data = abi.encode(takerOrder);
+    action.expiry = block.timestamp + 8 days + 8 minutes;
+    vm.warp(block.timestamp + 8 days);
+    vm.prank(signer);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_OptionExpiryOutOfBounds.selector);
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
+  }
+
+  function _createRfqAction(IRfqModule.TakerOrder memory takerOrder) internal returns (IActionVerifier.Action memory) {
+    return IActionVerifier.Action({
       subaccountId: tsaSubacc,
       nonce: ++tsaNonce,
       module: rfqModule,
@@ -577,21 +498,5 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
       owner: address(tsa),
       signer: address(tsa)
     });
-
-    makerOrder.trades[0].subId = OptionEncoding.toSubId(expiry, strike, false);
-    takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
-    actions[1].data = abi.encode(takerOrder);
-    vm.prank(signer);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_WrongInputSpread.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
-
-    makerOrder.trades[0].subId = OptionEncoding.toSubId(expiry, strike, true);
-    takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
-    actions[1].data = abi.encode(takerOrder);
-    actions[1].expiry = block.timestamp + 8 days + 8 minutes;
-    vm.warp(block.timestamp + 8 days);
-    vm.prank(signer);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_OptionExpiryOutOfBounds.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
   }
 }

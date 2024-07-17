@@ -9,7 +9,7 @@ import {DecimalMath} from "lyra-utils/decimals/DecimalMath.sol";
 import {SignedDecimalMath} from "lyra-utils/decimals/SignedDecimalMath.sol";
 import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 
-import {BaseOnChainSigningTSA, BaseTSA} from "./BaseOnChainSigningTSA.sol";
+import {BaseTSA} from "./BaseOnChainSigningTSA.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IOptionAsset} from "v2-core/src/interfaces/IOptionAsset.sol";
 import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
@@ -213,8 +213,9 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       revert PPT_WithdrawingWithOpenTrades();
     }
 
-    uint amount18 = ConvertDecimals.to18Decimals(withdrawalData.assetAmount, tsaAddresses.depositAsset.decimals());
-    if (amount18 > baseBalance) {
+    uint withdrawalAs18Decimals =
+      ConvertDecimals.to18Decimals(withdrawalData.assetAmount, tsaAddresses.depositAsset.decimals());
+    if (withdrawalAs18Decimals > baseBalance) {
       revert PPT_InvalidBaseBalance();
     }
 
@@ -222,7 +223,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       return;
     }
 
-    uint remainingBaseBalance = baseBalance - amount18;
+    uint remainingBaseBalance = baseBalance - withdrawalAs18Decimals;
     /*
     * If we have negative cash, we want to make sure we have enough of our base asset to cover our negative cash and then some.
     * This check looks at how much balance we would have left after the withdrawal,
@@ -414,10 +415,10 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
 
   function _validateTradeDetails(StrikeData memory lowerStrike, StrikeData memory higherStrike) internal view {
     PPTSAStorage storage $ = _getPPTSAStorage();
-    int markCost = lowerStrike.markPrice.multiplyDecimal(lowerStrike.tradeAmount)
+    int markCostOfTrade = lowerStrike.markPrice.multiplyDecimal(lowerStrike.tradeAmount)
       + higherStrike.markPrice.multiplyDecimal(higherStrike.tradeAmount);
 
-    int totalCostOfTrade = lowerStrike.tradePrice.toInt256().multiplyDecimal(lowerStrike.tradeAmount)
+    int actualCostOfTrade = lowerStrike.tradePrice.toInt256().multiplyDecimal(lowerStrike.tradeAmount)
       + higherStrike.tradePrice.toInt256().multiplyDecimal(higherStrike.tradeAmount);
 
     /*
@@ -430,10 +431,14 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
      * The same logic applies, but the maxTotalCostTolerance is a number under 1 (1e18).
      * if our projected cost is under that tolerance we revert since the trade is too cheap to be reasonable.
      */
-    if ($.isLongSpread && totalCostOfTrade.abs() > markCost.abs().multiplyDecimal($.ppParams.maxTotalCostTolerance)) {
+    if (
+      $.isLongSpread
+        && actualCostOfTrade.abs() > markCostOfTrade.abs().multiplyDecimal($.ppParams.maxTotalCostTolerance)
+    ) {
       revert PPT_TotalCostOverTolerance();
     } else if (
-      !$.isLongSpread && totalCostOfTrade.abs() < markCost.abs().multiplyDecimal($.ppParams.maxTotalCostTolerance)
+      !$.isLongSpread
+        && actualCostOfTrade.abs() < markCostOfTrade.abs().multiplyDecimal($.ppParams.maxTotalCostTolerance)
     ) {
       revert PPT_TotalCostBelowTolerance();
     }

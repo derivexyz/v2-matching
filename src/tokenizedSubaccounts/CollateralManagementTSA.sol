@@ -6,12 +6,10 @@ import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
 import {SafeCast} from "openzeppelin/utils/math/SafeCast.sol";
 import {DecimalMath} from "lyra-utils/decimals/DecimalMath.sol";
 import {SignedDecimalMath} from "lyra-utils/decimals/SignedDecimalMath.sol";
-import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 
 import {BaseOnChainSigningTSA} from "./BaseOnChainSigningTSA.sol";
 import {ITradeModule} from "../interfaces/ITradeModule.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
-import "v2-core/src/risk-managers/StandardManager.sol";
 import "../interfaces/IDepositModule.sol";
 
 abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
