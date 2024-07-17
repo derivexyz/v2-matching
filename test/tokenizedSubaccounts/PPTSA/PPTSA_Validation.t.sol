@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import "../TSATestUtils.sol";
 
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
-import "forge-std/console2.sol";
 
 contract PPTSA_ValidationTests is PPTSATestUtils {
   using SignedMath for int;
@@ -23,12 +22,12 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     collateralManagementParams.feeFactor = 0.05e18;
     params.minSignatureExpiry = 6 minutes;
 
-    // Only the owner can set the CCTSAParams.
+    // Only the owner can set the PPTSAParams.
     vm.prank(address(10));
     vm.expectRevert();
     tsa.setPPTSAParams(collateralManagementParams, params);
 
-    // The CCTSAParams are correctly set and retrieved.
+    // The PPTSAParams are correctly set and retrieved.
     tsa.setPPTSAParams(collateralManagementParams, params);
     assertEq(tsa.getCollateralManagementParams().feeFactor, 0.05e18);
     assertEq(tsa.getPPTSAParams().minSignatureExpiry, 6 minutes);
@@ -120,7 +119,6 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
   /////////////////
 
   // Todo: duplicate of CCTSA validation. Possible merge?
-  // tests some duplicated code in verify_action
   function testPPTLastActionHashIsRevoked() public {
     _depositToTSA(10e18);
 
