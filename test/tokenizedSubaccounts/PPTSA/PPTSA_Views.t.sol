@@ -8,7 +8,7 @@ contract PPTSA_ViewsTests is PPTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToPPTSA("weth");
+    upgradeToPPTSA("weth", true, true);
     setupPPTSA();
   }
 

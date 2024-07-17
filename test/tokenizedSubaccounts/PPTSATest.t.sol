@@ -10,7 +10,7 @@ contract PPTSATest is PPTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(markets["weth"].erc20));
-    upgradeToPPTSA("weth");
+    upgradeToPPTSA("weth", true, true);
     setupPPTSA();
   }
 
@@ -83,26 +83,20 @@ contract PPTSATest is PPTSATestUtils {
   }
 
   function testMakerTakerSpreadCombinations() public {
-    _depositToTSA(100e18);
-    _executeDeposit(100e18);
     int amount = 1e18;
     uint higherPrice = 50e18;
     uint64 expiry = uint64(block.timestamp + 7 days);
     uint highStrike = 2000e18;
-    // rename to low price
     uint lowerPrice = 250e18;
     uint lowStrike = 1600e18;
 
     PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
-    console2.log("Second test");
-    (uint openSpreads, uint baseBalance, int cashBalance) = tsa.getSubAccountStats();
-
-    params.isLongSpread = false;
+    _setupPPTSAWithDeposit(true, false);
     params.maxTotalCostTolerance = 5e17;
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
     // we are the taker buying a short call spread
     _tradeRfqAsTaker(-1 * amount, higherPrice, expiry, highStrike, lowerPrice, lowStrike, true);
-    (openSpreads, baseBalance, cashBalance) = tsa.getSubAccountStats();
+    (uint openSpreads, uint baseBalance, int cashBalance) = tsa.getSubAccountStats();
     assertEq(openSpreads, amount.abs());
     assertEq(baseBalance, 100e18);
     assertEq(cashBalance, 200e18);
@@ -114,9 +108,13 @@ contract PPTSATest is PPTSATestUtils {
     assertEq(baseBalance, 100e18);
     assertEq(cashBalance, 400e18);
 
-    params.isLongSpread = true;
+    _setupPPTSAWithDeposit(true, true);
     params.maxTotalCostTolerance = 2e18;
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    // adding some cash to avoid interest rates on negative cash
+    usdc.mint(address(this), 400e6);
+    usdc.approve(address(cash), 400e6);
+    cash.deposit(tsaSubacc, 400e6);
     // we are a maker buying a long call spread
     _tradeRfqAsMaker(-1 * amount, higherPrice, expiry, highStrike, lowerPrice, lowStrike, true);
     (openSpreads, baseBalance, cashBalance) = tsa.getSubAccountStats();
@@ -127,14 +125,13 @@ contract PPTSATest is PPTSATestUtils {
     // we are the taker buying a long call spread
     _tradeRfqAsTaker(amount, higherPrice, expiry, highStrike, lowerPrice, lowStrike, true);
     (openSpreads, baseBalance, cashBalance) = tsa.getSubAccountStats();
-    assertEq(openSpreads, 0);
+    assertEq(openSpreads, 2 * amount.abs());
     assertEq(baseBalance, 100e18);
     assertEq(cashBalance, 0);
 
-    params.isCallSpread = false;
-    params.isLongSpread = false;
+    _setupPPTSAWithDeposit(false, false);
     params.maxTotalCostTolerance = 5e17;
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
     // we are the taker buying a short put spread
     _tradeRfqAsTaker(amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, false);
     (openSpreads, baseBalance, cashBalance) = tsa.getSubAccountStats();
@@ -149,9 +146,12 @@ contract PPTSATest is PPTSATestUtils {
     assertEq(baseBalance, 100e18);
     assertEq(cashBalance, 400e18);
 
-    params.isLongSpread = true;
+    _setupPPTSAWithDeposit(false, true);
+    usdc.mint(address(this), 400e6);
+    usdc.approve(address(cash), 400e6);
+    cash.deposit(tsaSubacc, 400e6);
     params.maxTotalCostTolerance = 2e18;
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
     // we are a maker buying a long put spread
     _tradeRfqAsMaker(amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, false);
     (openSpreads, baseBalance, cashBalance) = tsa.getSubAccountStats();
@@ -162,8 +162,16 @@ contract PPTSATest is PPTSATestUtils {
     // we are the taker buying a long put spread
     _tradeRfqAsTaker(-1 * amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, false);
     (openSpreads, baseBalance, cashBalance) = tsa.getSubAccountStats();
-    assertEq(openSpreads, 0);
+    assertEq(openSpreads, 2 * amount.abs());
     assertEq(baseBalance, 100e18);
     assertEq(cashBalance, 0);
+  }
+
+  function _setupPPTSAWithDeposit(bool isCallSpread, bool isLongSpread) internal {
+    deployPredeposit(address(markets["weth"].erc20));
+    upgradeToPPTSA("weth", isCallSpread, isLongSpread);
+    setupPPTSA();
+    _depositToTSA(100e18);
+    _executeDeposit(100e18);
   }
 }

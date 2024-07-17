@@ -25,42 +25,36 @@ import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
 
 contract DeployTSA is Utils {
 
+  CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
+  .CollateralManagementParams({
+    feeFactor: 0.01e18,
+    spotTransactionLeniency: 1.01e18,
+    worstSpotSellPrice: 0.99e18,
+    worstSpotBuyPrice: 1.01e18
+  });
+
   CoveredCallTSA.CCTSAParams public defaultLrtccTSAParams = CoveredCallTSA.CCTSAParams({
-    baseParams: BaseCollateralManagementTSA.BaseCollateralManagementParams({
-        feeFactor: 0.01e18,
-        spotTransactionLeniency: 1.01e18,
-        worstSpotSellPrice: 0.99e18,
-        worstSpotBuyPrice: 1.01e18,
-        optionMinTimeToExpiry: 1 days,
-        optionMaxTimeToExpiry: 30 days
-    }),
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
     spotTransactionLeniency: 1.01e18,
     optionVolSlippageFactor: 0.5e18,
     optionMaxDelta: 0.4e18,
-    optionMaxNegCash: -100e18
+    optionMaxNegCash: -100e18,
+    optionMinTimeToExpiry: 1 days,
+    optionMaxTimeToExpiry: 30 days
   });
 
   PrincipalProtectedTSA.PPTSAParams public defaultLrtppTSAParams = PrincipalProtectedTSA.PPTSAParams({
-    baseParams: BaseCollateralManagementTSA.BaseCollateralManagementParams({
-      feeFactor: 0.01e18,
-      spotTransactionLeniency: 1.01e18,
-      worstSpotSellPrice: 0.99e18,
-      worstSpotBuyPrice: 1.01e18,
-      optionMinTimeToExpiry: 1 days,
-      optionMaxTimeToExpiry: 30 days
-    }),
     maxMarkValueToStrikeDiffRatio: 1e17,
     minMarkValueToStrikeDiffRatio: 1e16,
     strikeDiff: 400e18,
     maxTotalCostTolerance: 2.5e18,
-    maxBuyPctOfTVL: 1e17,
+    maxLossPercentOfTVL: 1e17,
     negMaxCashTolerance: 1e17,
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
-    isCallSpread: true,
-    isLongSpread: true
+    optionMinTimeToExpiry: 1 days,
+    optionMaxTimeToExpiry: 30 days
   });
 
 
@@ -124,7 +118,7 @@ contract DeployTSA is Utils {
         feeRecipient: address(0)
       })
     );
-    CoveredCallTSA(address(proxy)).setCCTSAParams(defaultLrtccTSAParams);
+    CoveredCallTSA(address(proxy)).setCCTSAParams(defaultCollateralManagementParams, defaultLrtccTSAParams);
 
     TSAShareHandler shareHandler = new TSAShareHandler();
 
@@ -179,7 +173,9 @@ contract DeployTSA is Utils {
           withdrawalModule: IWithdrawalModule(_getMatchingModule("withdrawal")),
           tradeModule: ITradeModule(_getMatchingModule("trade")),
           optionAsset: IOptionAsset(_getMarketAddress("ETH", "option")),
-          rfqModule: IRfqModule(_getMatchingModule("rfq"))
+          rfqModule: IRfqModule(_getMatchingModule("rfq")),
+          isCallSpread: true,
+          isLongSpread: true
         })
       )
     );
@@ -194,7 +190,7 @@ contract DeployTSA is Utils {
         feeRecipient: address(0)
       })
     );
-    PrincipalProtectedTSA(address(proxy)).setPPTSAParams(defaultLrtppTSAParams);
+    PrincipalProtectedTSA(address(proxy)).setPPTSAParams(defaultCollateralManagementParams, defaultLrtppTSAParams);
 
     TSAShareHandler shareHandler = new TSAShareHandler();
 

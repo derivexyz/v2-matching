@@ -12,7 +12,7 @@ import {
   CoveredCallTSA,
   BaseTSA,
   BaseOnChainSigningTSA,
-  BaseCollateralManagementTSA
+  CollateralManagementTSA
 } from "../../src/tokenizedSubaccounts/CCTSA.sol";
 import {PrincipalProtectedTSA} from "../../src/tokenizedSubaccounts/PPTSA.sol";
 
@@ -225,19 +225,21 @@ contract CCTSATestUtils is TSATestUtils {
   uint public tsaSubacc;
 
   CoveredCallTSA.CCTSAParams public defaultCCTSAParams = CoveredCallTSA.CCTSAParams({
-    baseParams: BaseCollateralManagementTSA.BaseCollateralManagementParams({
-      feeFactor: 0.01e18,
-      spotTransactionLeniency: 1.01e18,
-      worstSpotBuyPrice: 1.01e18,
-      worstSpotSellPrice: 0.99e18,
-      optionMinTimeToExpiry: 1 days,
-      optionMaxTimeToExpiry: 30 days
-    }),
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
     optionVolSlippageFactor: 0.5e18,
     optionMaxDelta: 0.4e18,
-    optionMaxNegCash: -100e18
+    optionMaxNegCash: -100e18,
+    optionMinTimeToExpiry: 1 days,
+    optionMaxTimeToExpiry: 30 days
+  });
+
+  CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
+    .CollateralManagementParams({
+    feeFactor: 0.01e18,
+    spotTransactionLeniency: 1.01e18,
+    worstSpotBuyPrice: 1.01e18,
+    worstSpotSellPrice: 0.99e18
   });
 
   function upgradeToCCTSA(string memory market) internal {
@@ -300,7 +302,7 @@ contract CCTSATestUtils is TSATestUtils {
       })
     );
 
-    tsa.setCCTSAParams(defaultCCTSAParams);
+    tsa.setCCTSAParams(defaultCollateralManagementParams, defaultCCTSAParams);
 
     tsa.setShareKeeper(address(this), true);
 
@@ -551,27 +553,27 @@ contract PPTSATestUtils is TSATestUtils {
   uint public tsaSubacc;
 
   PrincipalProtectedTSA.PPTSAParams public defaultPPTSAParams = PrincipalProtectedTSA.PPTSAParams({
-    baseParams: BaseCollateralManagementTSA.BaseCollateralManagementParams({
-      feeFactor: 0.01e18,
-      spotTransactionLeniency: 1.01e18,
-      worstSpotBuyPrice: 1.01e18,
-      worstSpotSellPrice: 0.99e18,
-      optionMinTimeToExpiry: 1 days,
-      optionMaxTimeToExpiry: 30 days
-    }),
     maxMarkValueToStrikeDiffRatio: 1e18,
     minMarkValueToStrikeDiffRatio: 1,
     strikeDiff: 400e18,
     maxTotalCostTolerance: 1e18,
-    maxBuyPctOfTVL: 2e17,
+    maxLossPercentOfTVL: 2e17,
     negMaxCashTolerance: 0.1e18,
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
-    isCallSpread: true,
-    isLongSpread: true
+    optionMinTimeToExpiry: 1 days,
+    optionMaxTimeToExpiry: 30 days
   });
 
-  function upgradeToPPTSA(string memory market) internal {
+  CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
+    .CollateralManagementParams({
+    feeFactor: 0.01e18,
+    spotTransactionLeniency: 1.01e18,
+    worstSpotBuyPrice: 1.01e18,
+    worstSpotSellPrice: 0.99e18
+  });
+
+  function upgradeToPPTSA(string memory market, bool doesCallSpreads, bool isLong) internal {
     IWrappedERC20Asset wrappedDepositAsset;
     ISpotFeed baseFeed;
     IOptionAsset optionAsset;
@@ -611,7 +613,9 @@ contract PPTSATestUtils is TSATestUtils {
           withdrawalModule: withdrawalModule,
           tradeModule: tradeModule,
           optionAsset: optionAsset,
-          rfqModule: rfqModule
+          rfqModule: rfqModule,
+          isCallSpread: doesCallSpreads,
+          isLongSpread: isLong
         })
       )
     );
@@ -632,7 +636,7 @@ contract PPTSATestUtils is TSATestUtils {
       })
     );
 
-    tsa.setPPTSAParams(defaultPPTSAParams);
+    tsa.setPPTSAParams(defaultCollateralManagementParams, defaultPPTSAParams);
 
     tsa.setShareKeeper(address(this), true);
 

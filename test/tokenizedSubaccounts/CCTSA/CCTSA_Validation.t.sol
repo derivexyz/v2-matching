@@ -60,87 +60,91 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
   function testAdmin() public {
     CoveredCallTSA.CCTSAParams memory params = defaultCCTSAParams;
-    params.baseParams.feeFactor = 0.05e18;
+    CollateralManagementTSA.CollateralManagementParams memory collateralManagementParams =
+      defaultCollateralManagementParams;
+    collateralManagementParams.feeFactor = 0.05e18;
     params.minSignatureExpiry = 6 minutes;
 
     // Only the owner can set the CCTSAParams.
     vm.prank(address(10));
     vm.expectRevert();
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
     // The CCTSAParams are correctly set and retrieved.
-    tsa.setCCTSAParams(params);
-    assertEq(tsa.getCCTSAParams().baseParams.feeFactor, 0.05e18);
+    tsa.setCCTSAParams(collateralManagementParams, params);
+    assertEq(tsa.getCollateralManagementParams().feeFactor, 0.05e18);
     assertEq(tsa.getCCTSAParams().minSignatureExpiry, 6 minutes);
   }
 
   function testParamLimits() public {
     // test each boundary one by one
     CoveredCallTSA.CCTSAParams memory params = defaultCCTSAParams;
+    CollateralManagementTSA.CollateralManagementParams memory collateralManagementParams =
+      defaultCollateralManagementParams;
 
     params.minSignatureExpiry = 1 minutes - 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
     params.minSignatureExpiry = defaultCCTSAParams.minSignatureExpiry;
     params.maxSignatureExpiry = defaultCCTSAParams.minSignatureExpiry - 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
     params.maxSignatureExpiry = defaultCCTSAParams.maxSignatureExpiry;
-    params.baseParams.worstSpotBuyPrice = 1e18 - 1;
+    collateralManagementParams.worstSpotBuyPrice = 1e18 - 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
-    params.baseParams.worstSpotBuyPrice = 1.2e18 + 1;
+    collateralManagementParams.worstSpotBuyPrice = 1.2e18 + 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
-    params.baseParams.worstSpotBuyPrice = defaultCCTSAParams.baseParams.worstSpotBuyPrice;
-    params.baseParams.worstSpotSellPrice = 1e18 + 1;
+    collateralManagementParams.worstSpotBuyPrice = defaultCollateralManagementParams.worstSpotBuyPrice;
+    collateralManagementParams.worstSpotSellPrice = 1e18 + 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
-    params.baseParams.worstSpotSellPrice = 0.8e18 - 1;
+    collateralManagementParams.worstSpotSellPrice = 0.8e18 - 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
-    params.baseParams.worstSpotSellPrice = defaultCCTSAParams.baseParams.worstSpotSellPrice;
-    params.baseParams.spotTransactionLeniency = 1e18 - 1;
+    collateralManagementParams.worstSpotSellPrice = defaultCollateralManagementParams.worstSpotSellPrice;
+    collateralManagementParams.spotTransactionLeniency = 1e18 - 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
-    params.baseParams.spotTransactionLeniency = 1.2e18 + 1;
+    collateralManagementParams.spotTransactionLeniency = 1.2e18 + 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
-    params.baseParams.spotTransactionLeniency = defaultCCTSAParams.baseParams.spotTransactionLeniency;
+    collateralManagementParams.spotTransactionLeniency = defaultCollateralManagementParams.spotTransactionLeniency;
     params.optionVolSlippageFactor = 1e18 + 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
     params.optionVolSlippageFactor = defaultCCTSAParams.optionVolSlippageFactor;
     params.optionMaxDelta = 0.5e18;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
     params.optionMaxDelta = defaultCCTSAParams.optionMaxDelta;
-    params.baseParams.optionMaxTimeToExpiry = defaultCCTSAParams.baseParams.optionMinTimeToExpiry - 1;
+    params.optionMaxTimeToExpiry = defaultCCTSAParams.optionMinTimeToExpiry - 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
-    params.baseParams.optionMaxTimeToExpiry = defaultCCTSAParams.baseParams.optionMaxTimeToExpiry;
+    params.optionMaxTimeToExpiry = defaultCCTSAParams.optionMaxTimeToExpiry;
     params.optionMaxNegCash = 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
     params.optionMaxNegCash = defaultCCTSAParams.optionMaxNegCash;
-    params.baseParams.feeFactor = 0.05e18 + 1;
+    collateralManagementParams.feeFactor = 0.05e18 + 1;
     vm.expectRevert(CoveredCallTSA.CCT_InvalidParams.selector);
-    tsa.setCCTSAParams(params);
+    tsa.setCCTSAParams(collateralManagementParams, params);
 
-    params.baseParams.feeFactor = defaultCCTSAParams.baseParams.feeFactor;
-    tsa.setCCTSAParams(params);
+    collateralManagementParams.feeFactor = defaultCollateralManagementParams.feeFactor;
+    tsa.setCCTSAParams(collateralManagementParams, params);
   }
 
   /////////////////
@@ -203,12 +207,12 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
     // cannot deposit more than is available
     IActionVerifier.Action memory action = _createDepositAction(2e18);
-    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_DepositingTooMuch.selector);
+    vm.expectRevert(CollateralManagementTSA.CMTSA_DepositingTooMuch.selector);
     tsa.signActionData(action, "");
 
     // reverts for invalid assets.
     action.data = _encodeDepositData(1e18, address(11111), address(0));
-    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_InvalidAsset.selector);
+    vm.expectRevert(CollateralManagementTSA.CMTSA_InvalidAsset.selector);
     tsa.signActionData(action, "");
 
     action.expiry = block.timestamp + defaultCCTSAParams.minSignatureExpiry - 1;
@@ -400,7 +404,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     });
 
     vm.prank(signer);
-    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_BuyingTooMuchCollateral.selector);
+    vm.expectRevert(CollateralManagementTSA.CMTSA_BuyingTooMuchCollateral.selector);
     tsa.signActionData(action, "");
 
     // fails for limit price too high
@@ -409,7 +413,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
     action.data = abi.encode(tradeData);
     vm.prank(signer);
-    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_SpotLimitPriceTooHigh.selector);
+    vm.expectRevert(CollateralManagementTSA.CMTSA_SpotLimitPriceTooHigh.selector);
     tsa.signActionData(action, "");
 
     // Can buy more than you have if it is within buffer limit
@@ -423,7 +427,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     assertEq(cash, -2e18);
 
     vm.prank(signer);
-    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_MustHavePositiveCash.selector);
+    vm.expectRevert(CollateralManagementTSA.CMTSA_MustHavePositiveCash.selector);
     tsa.signActionData(action, "");
   }
 
@@ -479,7 +483,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     });
 
     vm.prank(signer);
-    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_SellingTooMuchCollateral.selector);
+    vm.expectRevert(CollateralManagementTSA.CMTSA_SellingTooMuchCollateral.selector);
     tsa.signActionData(action, "");
 
     // fails for limit price too high
@@ -488,7 +492,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     action.data = abi.encode(tradeData);
 
     vm.prank(signer);
-    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_SpotLimitPriceTooLow.selector);
+    vm.expectRevert(CollateralManagementTSA.CMTSA_SpotLimitPriceTooLow.selector);
     tsa.signActionData(action, "");
 
     // Can sell more than you have if it is within buffer limit
@@ -502,7 +506,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
     // Fails explicitly when there is a positive cash balance
     vm.prank(signer);
-    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_MustHaveNegativeCash.selector);
+    vm.expectRevert(CollateralManagementTSA.CMTSA_MustHaveNegativeCash.selector);
     tsa.signActionData(action, "");
   }
 
@@ -572,15 +576,15 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
     // Cannot trade options with expiry out of bounds
     tradeData.subId =
-      OptionEncoding.toSubId(block.timestamp + defaultCCTSAParams.baseParams.optionMinTimeToExpiry - 1, 2200e18, true);
+      OptionEncoding.toSubId(block.timestamp + defaultCCTSAParams.optionMinTimeToExpiry - 1, 2200e18, true);
     action.data = abi.encode(tradeData);
-    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_OptionExpiryOutOfBounds.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_OptionExpiryOutOfBounds.selector);
     tsa.signActionData(action, "");
 
     tradeData.subId =
-      OptionEncoding.toSubId(block.timestamp + defaultCCTSAParams.baseParams.optionMaxTimeToExpiry + 1, 2200e18, true);
+      OptionEncoding.toSubId(block.timestamp + defaultCCTSAParams.optionMaxTimeToExpiry + 1, 2200e18, true);
     action.data = abi.encode(tradeData);
-    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_OptionExpiryOutOfBounds.selector);
+    vm.expectRevert(CoveredCallTSA.CCT_OptionExpiryOutOfBounds.selector);
     tsa.signActionData(action, "");
 
     tradeData.subId = OptionEncoding.toSubId(expiry, 2200e18, true);
@@ -683,7 +687,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     _setFixedSVIDataForExpiry("weth", uint64(expiry));
 
     vm.prank(signer);
-    vm.expectRevert(BaseCollateralManagementTSA.BCMTSA_FeeTooHigh.selector);
+    vm.expectRevert(CollateralManagementTSA.CMTSA_FeeTooHigh.selector);
     tsa.signActionData(action, "");
   }
 }

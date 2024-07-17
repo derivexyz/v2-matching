@@ -21,14 +21,14 @@ import {IMatching} from "../interfaces/IMatching.sol";
 import {
   StandardManager, IStandardManager, IVolFeed, IForwardFeed
 } from "v2-core/src/risk-managers/StandardManager.sol";
-import "./BaseCollateralManagementTSA.sol";
+import "./CollateralManagementTSA.sol";
 
 /// @title CoveredCallTSA
 /// @notice TSA that accepts any deposited collateral, and sells covered calls on it. Assumes options sold are
 /// directionally similar to the collateral (i.e. LRT selling ETH covered calls).
 /// @dev Only one "hash" can be valid at a time, so the state of the contract can be checked easily, without needing to
 /// worry about multiple different transactions all executing simultaneously.
-contract CoveredCallTSA is BaseCollateralManagementTSA {
+contract CoveredCallTSA is CollateralManagementTSA {
   using IntLib for int;
   using SafeCast for int;
   using SafeCast for uint;
@@ -44,7 +44,6 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
   }
 
   struct CCTSAParams {
-    BaseCollateralManagementParams baseParams;
     /// @dev Minimum time before an action is expired
     uint minSignatureExpiry;
     /// @dev Maximum time before an action is expired
@@ -55,6 +54,10 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
     uint optionMaxDelta;
     /// @dev Maximum amount of negative cash allowed to be held to open any more option positions. (e.g. -100e18)
     int optionMaxNegCash;
+    /// @dev Lower bound for option expiry
+    uint optionMinTimeToExpiry;
+    /// @dev Upper bound for option expiry
+    uint optionMaxTimeToExpiry;
   }
 
   /// @custom:storage-location erc7201:lyra.storage.CoveredCallTSA
@@ -62,8 +65,10 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
     IDepositModule depositModule;
     IWithdrawalModule withdrawalModule;
     ITradeModule tradeModule;
-    BaseCollateralManagementAddresses baseCollateralAddresses;
+    IOptionAsset optionAsset;
+    ISpotFeed baseFeed;
     CCTSAParams ccParams;
+    CollateralManagementParams collateralManagementParams;
     /// @dev Only one hash is considered valid at a time, and it is revoked when a new one comes in.
     bytes32 lastSeenHash;
   }
@@ -93,8 +98,8 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
     $.depositModule = ccInitParams.depositModule;
     $.withdrawalModule = ccInitParams.withdrawalModule;
     $.tradeModule = ccInitParams.tradeModule;
-    $.baseCollateralAddresses =
-      BaseCollateralManagementAddresses({optionAsset: ccInitParams.optionAsset, baseFeed: ccInitParams.baseFeed});
+    $.optionAsset = ccInitParams.optionAsset;
+    $.baseFeed = ccInitParams.baseFeed;
 
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
@@ -104,39 +109,29 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
   ///////////
   // Admin //
   ///////////
-  function setCCTSAParams(CCTSAParams memory newParams) external onlyOwner {
+  function setCCTSAParams(CollateralManagementParams memory newCollateralMngmtParams, CCTSAParams memory newParams)
+    external
+    onlyOwner
+  {
     if (
       newParams.minSignatureExpiry < 1 minutes || newParams.minSignatureExpiry > newParams.maxSignatureExpiry
-        || (newParams.baseParams.worstSpotBuyPrice < 1e18 || newParams.baseParams.worstSpotBuyPrice > 1.2e18)
-        || (newParams.baseParams.worstSpotSellPrice > 1e18 || newParams.baseParams.worstSpotSellPrice < 0.8e18)
-        || (newParams.baseParams.spotTransactionLeniency < 1e18 || newParams.baseParams.spotTransactionLeniency > 1.2e18)
-        || newParams.optionVolSlippageFactor > 1e18 || newParams.optionMaxDelta >= 0.5e18
-        || newParams.baseParams.optionMaxTimeToExpiry <= newParams.baseParams.optionMinTimeToExpiry
-        || newParams.optionMaxNegCash > 0 || newParams.baseParams.feeFactor > 0.05e18
+        || newCollateralMngmtParams.worstSpotBuyPrice < 1e18 || newCollateralMngmtParams.worstSpotBuyPrice > 1.2e18
+        || newCollateralMngmtParams.worstSpotSellPrice > 1e18 || newCollateralMngmtParams.worstSpotSellPrice < 0.8e18
+        || newCollateralMngmtParams.spotTransactionLeniency < 1e18
+        || newCollateralMngmtParams.spotTransactionLeniency > 1.2e18 || newParams.optionVolSlippageFactor > 1e18
+        || newParams.optionMaxDelta >= 0.5e18 || newParams.optionMaxTimeToExpiry <= newParams.optionMinTimeToExpiry
+        || newParams.optionMaxNegCash > 0 || newCollateralMngmtParams.feeFactor > 0.05e18
     ) {
       revert CCT_InvalidParams();
     }
     _getCCTSAStorage().ccParams = newParams;
+    _getCCTSAStorage().collateralManagementParams = newCollateralMngmtParams;
 
-    emit CCTSAParamsSet(newParams);
+    emit CCTSAParamsSet(newParams, newCollateralMngmtParams);
   }
 
-  function _getBaseCollateralManagementParams()
-    internal
-    view
-    override
-    returns (BaseCollateralManagementParams storage $)
-  {
-    return _getCCTSAStorage().ccParams.baseParams;
-  }
-
-  function _getBaseCollateralManagementAddresses()
-    internal
-    view
-    override
-    returns (BaseCollateralManagementAddresses memory $)
-  {
-    return _getCCTSAStorage().baseCollateralAddresses;
+  function _getCollateralManagementParams() internal view override returns (CollateralManagementParams storage $) {
+    return _getCCTSAStorage().collateralManagementParams;
   }
 
   ///////////////////////
@@ -211,7 +206,7 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
 
     if (tradeData.asset == address(tsaAddresses.wrappedDepositAsset)) {
       _tradeCollateral(tradeData);
-    } else if (tradeData.asset == address(_getCCTSAStorage().baseCollateralAddresses.optionAsset)) {
+    } else if (tradeData.asset == address(_getCCTSAStorage().optionAsset)) {
       if (tradeData.isBid) {
         revert CCT_CanOnlyOpenShortOptions();
       }
@@ -267,6 +262,42 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
     }
   }
 
+  function _getOptionPrice(uint optionExpiry, uint optionStrike)
+    internal
+    view
+    returns (uint callPrice, uint putPrice, uint callDelta)
+  {
+    CCTSAStorage storage $ = _getCCTSAStorage();
+    uint timeToExpiry = optionExpiry - block.timestamp;
+    if (timeToExpiry < $.ccParams.optionMinTimeToExpiry || timeToExpiry > $.ccParams.optionMaxTimeToExpiry) {
+      revert CCT_OptionExpiryOutOfBounds();
+    }
+    (uint vol, uint forwardPrice) = _getFeedValues(optionStrike.toUint128(), optionExpiry.toUint64());
+    return Black76.pricesAndDelta(
+      Black76.Black76Inputs({
+        timeToExpirySec: timeToExpiry.toUint64(),
+        volatility: vol.toUint128(),
+        fwdPrice: forwardPrice.toUint128(),
+        strikePrice: optionStrike.toUint128(),
+        discount: 1e18
+      })
+    );
+  }
+
+  function _getFeedValues(uint128 strike, uint64 expiry) internal view returns (uint vol, uint forwardPrice) {
+    CCTSAStorage storage $ = _getCCTSAStorage();
+
+    StandardManager srm = StandardManager(address(getBaseTSAAddresses().manager));
+    IStandardManager.AssetDetail memory assetDetails = srm.assetDetails($.optionAsset);
+    (, IForwardFeed fwdFeed, IVolFeed volFeed) = srm.getMarketFeeds(assetDetails.marketId);
+    (vol,) = volFeed.getVol(strike, expiry);
+    (forwardPrice,) = fwdFeed.getForwardPrice(expiry);
+  }
+
+  ///////////////////
+  // Account Value //
+  ///////////////////
+
   /// @notice Get the number of short calls, base balance and cash balance of the subaccount. Ignores any assets held
   /// on this contract itself (pending deposits and erc20 held but not deposited to subaccount)
   function _getSubAccountStats() internal view returns (uint numShortCalls, uint baseBalance, int cashBalance) {
@@ -274,7 +305,7 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
 
     ISubAccounts.AssetBalance[] memory balances = tsaAddresses.subAccounts.getAccountBalances(subAccount());
     for (uint i = 0; i < balances.length; i++) {
-      if (balances[i].asset == _getCCTSAStorage().baseCollateralAddresses.optionAsset) {
+      if (balances[i].asset == _getCCTSAStorage().optionAsset) {
         int balance = balances[i].balance;
         if (balance > 0) {
           revert CCT_InvalidOptionBalance();
@@ -287,6 +318,10 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
       }
     }
     return (numShortCalls, baseBalance, cashBalance);
+  }
+
+  function _getBasePrice() internal view override returns (uint spotPrice) {
+    (spotPrice,) = _getCCTSAStorage().baseFeed.getSpot();
   }
 
   ///////////
@@ -309,6 +344,10 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
     return _getCCTSAStorage().ccParams;
   }
 
+  function getCollateralManagementParams() public view returns (CollateralManagementParams memory) {
+    return _getCollateralManagementParams();
+  }
+
   function lastSeenHash() public view returns (bytes32) {
     return _getCCTSAStorage().lastSeenHash;
   }
@@ -319,19 +358,13 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
     returns (ISpotFeed, IDepositModule, IWithdrawalModule, ITradeModule, IOptionAsset)
   {
     CCTSAStorage storage $ = _getCCTSAStorage();
-    return (
-      $.baseCollateralAddresses.baseFeed,
-      $.depositModule,
-      $.withdrawalModule,
-      $.tradeModule,
-      $.baseCollateralAddresses.optionAsset
-    );
+    return ($.baseFeed, $.depositModule, $.withdrawalModule, $.tradeModule, $.optionAsset);
   }
 
   ///////////////////
   // Events/Errors //
   ///////////////////
-  event CCTSAParamsSet(CCTSAParams params);
+  event CCTSAParamsSet(CCTSAParams params, CollateralManagementParams collateralManagementParams);
 
   error CCT_InvalidParams();
   error CCT_InvalidActionExpiry();
@@ -349,4 +382,5 @@ contract CoveredCallTSA is BaseCollateralManagementTSA {
   error CCT_InvalidOptionBalance();
   error CCT_InvalidDesiredAmount();
   error CCT_CanOnlyOpenShortOptions();
+  error CCT_OptionExpiryOutOfBounds();
 }

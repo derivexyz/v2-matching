@@ -11,99 +11,108 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
   function setUp() public override {
     super.setUp();
-    deployPredeposit(address(0));
-    upgradeToPPTSA("weth");
+    deployPredeposit(address(markets["weth"].erc20));
+    upgradeToPPTSA("weth", true, true);
     setupPPTSA();
   }
 
   function testPPTAdmin() public {
     PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
-    params.baseParams.feeFactor = 0.05e18;
+    CollateralManagementTSA.CollateralManagementParams memory collateralManagementParams =
+      defaultCollateralManagementParams;
+    collateralManagementParams.feeFactor = 0.05e18;
     params.minSignatureExpiry = 6 minutes;
 
     // Only the owner can set the CCTSAParams.
     vm.prank(address(10));
     vm.expectRevert();
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
     // The CCTSAParams are correctly set and retrieved.
-    tsa.setPPTSAParams(params);
-    assertEq(tsa.getPPTSAParams().baseParams.feeFactor, 0.05e18);
+    tsa.setPPTSAParams(collateralManagementParams, params);
+    assertEq(tsa.getCollateralManagementParams().feeFactor, 0.05e18);
     assertEq(tsa.getPPTSAParams().minSignatureExpiry, 6 minutes);
   }
 
   function testPPTParamLimits() public {
     // test each boundary one by one
     PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
+    CollateralManagementTSA.CollateralManagementParams memory collateralManagementParams =
+      defaultCollateralManagementParams;
 
     params.minSignatureExpiry = 1 minutes - 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
     params.minSignatureExpiry = defaultPPTSAParams.minSignatureExpiry;
     params.maxSignatureExpiry = defaultPPTSAParams.minSignatureExpiry - 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
     params.maxSignatureExpiry = defaultPPTSAParams.maxSignatureExpiry;
-    params.baseParams.worstSpotBuyPrice = 1e18 - 1;
+    collateralManagementParams.worstSpotBuyPrice = 1e18 - 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
-    params.baseParams.worstSpotBuyPrice = 1.2e18 + 1;
+    collateralManagementParams.worstSpotBuyPrice = 1.2e18 + 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
-    params.baseParams.worstSpotBuyPrice = defaultPPTSAParams.baseParams.worstSpotBuyPrice;
-    params.baseParams.worstSpotSellPrice = 1e18 + 1;
+    collateralManagementParams.worstSpotBuyPrice = defaultCollateralManagementParams.worstSpotBuyPrice;
+    collateralManagementParams.worstSpotSellPrice = 1e18 + 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
-    params.baseParams.worstSpotSellPrice = 0.8e18 - 1;
+    collateralManagementParams.worstSpotSellPrice = 0.8e18 - 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
-    params.baseParams.worstSpotSellPrice = defaultPPTSAParams.baseParams.worstSpotSellPrice;
-    params.baseParams.spotTransactionLeniency = 1e18 - 1;
+    collateralManagementParams.worstSpotSellPrice = defaultCollateralManagementParams.worstSpotSellPrice;
+    collateralManagementParams.spotTransactionLeniency = 1e18 - 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
-    params.baseParams.spotTransactionLeniency = 1.2e18 + 1;
+    collateralManagementParams.spotTransactionLeniency = 1.2e18 + 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
-    params.baseParams.spotTransactionLeniency = defaultPPTSAParams.baseParams.spotTransactionLeniency;
+    collateralManagementParams.spotTransactionLeniency = defaultCollateralManagementParams.spotTransactionLeniency;
     params.maxTotalCostTolerance = 1e17;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
     params.maxTotalCostTolerance = defaultPPTSAParams.maxTotalCostTolerance;
     params.maxTotalCostTolerance = 6e18;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
     params.maxTotalCostTolerance = defaultPPTSAParams.maxTotalCostTolerance;
-    params.maxBuyPctOfTVL = 0;
+    params.maxLossPercentOfTVL = 0;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
-    params.maxBuyPctOfTVL = defaultPPTSAParams.maxBuyPctOfTVL;
-    params.maxBuyPctOfTVL = 1e18 + 1;
+    params.maxLossPercentOfTVL = defaultPPTSAParams.maxLossPercentOfTVL;
+    params.maxLossPercentOfTVL = 1e18 + 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
-    params.maxBuyPctOfTVL = defaultPPTSAParams.maxBuyPctOfTVL;
+    params.maxLossPercentOfTVL = defaultPPTSAParams.maxLossPercentOfTVL;
     params.negMaxCashTolerance = 1e16 - 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
-    params.maxBuyPctOfTVL = defaultPPTSAParams.maxBuyPctOfTVL;
+    params.maxLossPercentOfTVL = defaultPPTSAParams.maxLossPercentOfTVL;
     params.negMaxCashTolerance = 1e18 + 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
     params.negMaxCashTolerance = defaultPPTSAParams.negMaxCashTolerance;
-    tsa.setPPTSAParams(params);
+    params.optionMaxTimeToExpiry = defaultPPTSAParams.optionMinTimeToExpiry - 1;
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
+    tsa.setPPTSAParams(collateralManagementParams, params);
+
+    params.optionMaxTimeToExpiry = defaultPPTSAParams.optionMaxTimeToExpiry;
+    tsa.setPPTSAParams(collateralManagementParams, params);
   }
 
   /////////////////
@@ -184,6 +193,11 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     uint expiry = block.timestamp + 1 weeks;
     _executeDeposit(3e18);
     _tradeRfqAsTaker(1e18, 1e18, expiry, 2000e18, 4.0e18, 1600e18, true);
+
+    action = _createWithdrawalAction(3e18);
+    vm.prank(signer);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_WithdrawingWithOpenTrades.selector);
+    tsa.signActionData(action, "");
 
     vm.warp(block.timestamp + 8 days);
     _setSettlementPrice("weth", uint64(expiry), 1500e18);
@@ -315,7 +329,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     makerOrder.trades[1].asset = address(markets["weth"].base);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     actions[1].data = abi.encode(takerOrder);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidAsset.selector);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
     tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
 
     makerOrder.trades[0].asset = address(markets["weth"].option);
@@ -419,7 +433,9 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     _depositToTSA(10e18);
     _executeDeposit(10e18);
     PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
-    tsa.setPPTSAParams(params);
+    CollateralManagementTSA.CollateralManagementParams memory collateralManagementParams =
+      defaultCollateralManagementParams;
+    tsa.setPPTSAParams(collateralManagementParams, params);
     int amount = 1e18;
     uint price = 411e18;
     uint64 expiry = uint64(block.timestamp + 7 days);
@@ -458,13 +474,53 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
 
     params.maxTotalCostTolerance = 1e18 - 1;
-    tsa.setPPTSAParams(params);
-    vm.prank(signer);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidCostTolerance.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
+    tsa.setPPTSAParams(collateralManagementParams, params);
+  }
 
-    params.isLongSpread = false;
-    tsa.setPPTSAParams(params);
+  function testShortSpreadCostToleranceValidations() public {
+    deployPredeposit(address(markets["weth"].erc20));
+    upgradeToPPTSA("weth", true, false);
+    setupPPTSA();
+    _depositToTSA(10e18);
+    _executeDeposit(10e18);
+    PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
+    CollateralManagementTSA.CollateralManagementParams memory collateralManagementParams =
+      defaultCollateralManagementParams;
+    tsa.setPPTSAParams(collateralManagementParams, params);
+    int amount = 1e18;
+    uint price = 411e18;
+    uint64 expiry = uint64(block.timestamp + 7 days);
+    uint strike = 800e18;
+    uint price2 = 4e18;
+    uint strike2 = 400e18;
+
+    (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
+      _setupRfq(amount, price, expiry, strike, price2, strike2, true);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
+    bytes[] memory signatures = new bytes[](2);
+
+    (actions[0], signatures[0]) = _createActionAndSign(
+      nonVaultSubacc,
+      ++nonVaultNonce,
+      address(rfqModule),
+      abi.encode(makerOrder),
+      block.timestamp + 1 days,
+      nonVaultAddr,
+      nonVaultAddr,
+      nonVaultPk
+    );
+
+    actions[1] = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++tsaNonce,
+      module: rfqModule,
+      data: abi.encode(takerOrder),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+
     price = 300e18;
     (makerOrder, takerOrder) = _setupRfq(amount, price, expiry, strike2, price2, strike, true);
     actions[1].data = abi.encode(takerOrder);
@@ -473,18 +529,16 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
 
     params.maxTotalCostTolerance = 1e18 + 1;
-    tsa.setPPTSAParams(params);
-    vm.prank(signer);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidCostTolerance.selector);
-    tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
+    tsa.setPPTSAParams(collateralManagementParams, params);
 
     params.maxTotalCostTolerance = 5e17;
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
     vm.prank(signer);
     tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
 
     params.maxMarkValueToStrikeDiffRatio = 9e17;
-    tsa.setPPTSAParams(params);
+    tsa.setPPTSAParams(collateralManagementParams, params);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_MarkValueNotWithinBounds.selector);
     tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
@@ -539,7 +593,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     actions[1].expiry = block.timestamp + 8 days + 8 minutes;
     vm.warp(block.timestamp + 8 days);
     vm.prank(signer);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_OptionExpired.selector);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_OptionExpiryOutOfBounds.selector);
     tsa.signActionData(actions[1], abi.encode(makerOrder.trades));
   }
 }
