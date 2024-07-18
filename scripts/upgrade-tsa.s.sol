@@ -123,7 +123,7 @@ contract DeployTSA is Utils {
     vm.startBroadcast(deployerPrivateKey);
 
     string memory marketName = vm.envString("MARKET_NAME");
-    string memory tsaName = string.concat(marketName, "C");
+    string memory tsaName = string.concat(marketName, "Bull");
 
     address deployer = vm.addr(deployerPrivateKey);
     console2.log("deployer: ", deployer);
@@ -131,7 +131,7 @@ contract DeployTSA is Utils {
     ProxyAdmin proxyAdmin = ProxyAdmin(_getMarketAddress(tsaName, "proxyAdmin"));
     TransparentUpgradeableProxy proxy = TransparentUpgradeableProxy(payable(_getMarketAddress(tsaName, "proxy")));
 
-    PrincipalProtectedTSA lrtpptsaImplementation = PrincipalProtectedTSA(_getMarketAddress(tsaName, "implementation"));
+    PrincipalProtectedTSA lrtpptsaImplementation = new PrincipalProtectedTSA();
 
     proxyAdmin.upgradeAndCall(
       ITransparentUpgradeableProxy(address(proxy)),
@@ -147,7 +147,7 @@ contract DeployTSA is Utils {
           manager: ILiquidatableManager(_getCoreContract("srm")),
           matching: IMatching(_getMatchingModule("matching")),
           symbol: tsaName,
-          name: string.concat(marketName, " Principal Protected Bull Call Spread")
+          name: string.concat(marketName, "Principal Protected Bull Call Spread")
         }),
         PrincipalProtectedTSA.PPTSAInitParams({
           baseFeed: ISpotFeed(_getMarketAddress(marketName, "spotFeed")),

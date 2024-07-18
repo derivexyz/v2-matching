@@ -392,14 +392,14 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
 
     /*
     * The following check is to ensure that if we were to execute this trade,
-    * we would not lose more than a certain percentage of our TVL.
+    * it would not be too large in respect to our TVL.
     *
-    * Max loss of open options is the maximum loss we could have if all of our open options were to expire worthless.
-    * totalTradeMaxLoss is the maximum loss we could have if we were to execute this trade.
+    * Max loss of open options is the maximum loss the taker would have if all spreads expire worthless.
+    * totalTradeMaxLoss is the maximum loss the taker could have if we were to execute this trade.
     * Both of these numbers are in respect to the cashBalance, so they are represented in our cash asset (ex: USDC)
     * We then take our current balance of our base asset, and convert it into a cash number.
     * After multiplying it by a percentage (maxLossPercentOfTVL),
-    * we ensure we aren't losing too much of our TVL with this new trade.
+    * we ensure this trade isn't too large in respect to our TVL.
     */
     if (
       maxLossOfOpenOptions + totalTradeMaxLoss
@@ -450,6 +450,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
      * This check ensures that the (markPrice difference) / (strike Difference) ratio is within a certain range.
      * Typically, the range will be between ~.4 and ~.6, but this can be adjusted in the params.
      * If the ratio is too high then we are buying a spread that is too expensive in respect to the strikes.
+     * If too low, the trade is not as risky. This is to force the vault to only make realistic slightly-risky trades.
      */
     if (
       markValueToStrikeDiffRatio < $.ppParams.minMarkValueToStrikeDiffRatio
