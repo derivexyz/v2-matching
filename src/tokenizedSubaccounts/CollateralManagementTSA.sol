@@ -63,7 +63,7 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
 
     // We don't worry too much about the fee in the calculations, as we trust the exchange won't cause issues. We make
     // sure max fee doesn't exceed 0.5% of spot though.
-    _verifyFee(tradeData.worstFee, basePrice);
+    _verifyCollateralTradeFee(tradeData.worstFee, basePrice);
 
     if (tradeData.limitPrice.toUint256() > basePrice.multiplyDecimal(baseParams.worstSpotBuyPrice)) {
       revert CMTSA_SpotLimitPriceTooHigh();
@@ -87,7 +87,7 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
 
     uint basePrice = _getBasePrice();
 
-    _verifyFee(tradeData.worstFee, basePrice);
+    _verifyCollateralTradeFee(tradeData.worstFee, basePrice);
 
     if (tradeData.limitPrice.toUint256() < basePrice.multiplyDecimal(baseParams.worstSpotSellPrice)) {
       revert CMTSA_SpotLimitPriceTooLow();
@@ -103,7 +103,7 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
     }
   }
 
-  function _verifyFee(uint worstFee, uint basePrice) internal view {
+  function _verifyCollateralTradeFee(uint worstFee, uint basePrice) internal view {
     CollateralManagementParams storage baseParams = _getCollateralManagementParams();
 
     if (worstFee > basePrice.multiplyDecimal(baseParams.feeFactor)) {

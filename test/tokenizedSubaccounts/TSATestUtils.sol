@@ -557,12 +557,14 @@ contract PPTSATestUtils is TSATestUtils {
     minMarkValueToStrikeDiffRatio: 1,
     strikeDiff: 400e18,
     maxTotalCostTolerance: 1e18,
-    maxLossPercentOfTVL: 2e17,
+    maxLossOrGainPercentOfTVL: 2e17,
     negMaxCashTolerance: 0.1e18,
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
     optionMinTimeToExpiry: 1 days,
-    optionMaxTimeToExpiry: 30 days
+    optionMaxTimeToExpiry: 30 days,
+    maxNegCash: -100e18,
+    rfqFeeFactor: 0.02e18
   });
 
   CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
@@ -831,5 +833,13 @@ contract PPTSATestUtils is TSATestUtils {
     markets["weth"].erc20.approve(address(tsa), amount);
     uint depositId = tsa.initiateDeposit(amount, address(this));
     tsa.processDeposit(depositId);
+  }
+
+  function _setupPPTSAWithDeposit(bool isCallSpread, bool isLongSpread) internal {
+    deployPredeposit(address(markets["weth"].erc20));
+    upgradeToPPTSA("weth", isCallSpread, isLongSpread);
+    setupPPTSA();
+    _depositToTSA(100e18);
+    _executeDeposit(100e18);
   }
 }

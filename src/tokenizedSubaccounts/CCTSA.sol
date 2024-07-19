@@ -233,7 +233,7 @@ contract CoveredCallTSA is CollateralManagementTSA {
       revert CCT_CannotSellOptionsWithNegativeCash();
     }
 
-    _verifyFee(tradeData.worstFee, _getBasePrice());
+    _verifyCollateralTradeFee(tradeData.worstFee, _getBasePrice());
     _validateOptionDetails(tradeData.subId.toUint96(), tradeData.limitPrice.toUint256());
   }
 

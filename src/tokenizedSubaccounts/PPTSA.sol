@@ -17,6 +17,7 @@ import {IDepositModule} from "../interfaces/IDepositModule.sol";
 import {IWithdrawalModule} from "../interfaces/IWithdrawalModule.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 import {IRfqModule} from "../interfaces/IRfqModule.sol";
+import "forge-std/console2.sol";
 
 import {
   StandardManager, IStandardManager, IVolFeed, IForwardFeed
@@ -53,7 +54,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     /// @dev the max tolerance we allow when calculating cost of a trade
     uint maxTotalCostTolerance;
     /// @dev used as tolerance for how much TVL we could possibly lose from one RFQ
-    uint maxLossPercentOfTVL;
+    uint maxLossOrGainPercentOfTVL;
     /// @dev the max tolerance we allow when calculating cost of a trade
     uint negMaxCashTolerance;
     /// @dev Minimum time before an action is expired
@@ -64,6 +65,10 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     uint optionMinTimeToExpiry;
     /// @dev Upper bound for option expiry
     uint optionMaxTimeToExpiry;
+    /// @dev Maximum amount of negative cash allowed to be held to open any more option positions. (e.g. -100e18)
+    int maxNegCash;
+    /// @dev Percentage of an rfq price that can be taken as a fee.
+    uint rfqFeeFactor;
   }
 
   /// @custom:storage-location erc7201:lyra.storage.PrincipalProtectedTSA
@@ -141,12 +146,12 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
         || newCollateralMgmtParams.spotTransactionLeniency > 1.2e18
         || pptsaParams.minMarkValueToStrikeDiffRatio > pptsaParams.maxMarkValueToStrikeDiffRatio
         || pptsaParams.maxMarkValueToStrikeDiffRatio > 1e18 || pptsaParams.maxMarkValueToStrikeDiffRatio < 1e16
-        || pptsaParams.strikeDiff > 2e21 || pptsaParams.strikeDiff < 1e20
         || pptsaParams.optionMaxTimeToExpiry <= pptsaParams.optionMinTimeToExpiry
         || newCollateralMgmtParams.feeFactor > 0.05e18 || pptsaParams.maxTotalCostTolerance < 2e17
-        || pptsaParams.maxTotalCostTolerance > 5e18 || pptsaParams.maxLossPercentOfTVL < 1e14
-        || pptsaParams.maxLossPercentOfTVL > 1e18 || pptsaParams.negMaxCashTolerance < 1e16
-        || pptsaParams.negMaxCashTolerance > 1e18 || ($.isLongSpread && pptsaParams.maxTotalCostTolerance < 1e18)
+        || pptsaParams.maxTotalCostTolerance > 5e18 || pptsaParams.maxLossOrGainPercentOfTVL < 1e14
+        || pptsaParams.maxNegCash > 0 || pptsaParams.rfqFeeFactor > 0.1e18 || pptsaParams.maxLossOrGainPercentOfTVL > 1e18
+        || pptsaParams.negMaxCashTolerance < 1e16 || pptsaParams.negMaxCashTolerance > 1e18
+        || ($.isLongSpread && pptsaParams.maxTotalCostTolerance < 1e18)
         || (!$.isLongSpread && pptsaParams.maxTotalCostTolerance > 1e18)
     ) {
       revert PPT_InvalidParams();
@@ -289,9 +294,6 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       makerTrades = abi.decode(extraData, (IRfqModule.TradeData[]));
     }
 
-    if (makerTrades.length != 2) {
-      revert PPT_InvalidParams();
-    }
     (StrikeData memory lowerStrike, StrikeData memory higherStrike) = _validateAndSortStrikes(makerTrades);
     _verifyHigherStrikeAmount(higherStrike.tradeAmount, extraData.length != 0);
 
@@ -325,6 +327,9 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     view
     returns (StrikeData memory lowerStrike, StrikeData memory higherStrike)
   {
+    if (makerTrades.length != 2) {
+      revert PPT_InvalidParams();
+    }
     StrikeData memory strike1 = _validateAndCreateIndividualStrike(makerTrades[0]);
     StrikeData memory strike2 = _validateAndCreateIndividualStrike(makerTrades[1]);
 
@@ -382,30 +387,44 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       revert PPT_InvalidTradeAmount();
     }
 
-    (uint openSpreads, uint baseBalance,) = _getSubAccountStats();
+    (uint openSpreads, uint baseBalance, int cashBalance) = _getSubAccountStats();
 
-    _verifyFee(maxFee, _getBasePrice());
+    if (cashBalance < $.ppParams.maxNegCash) {
+      revert PPT_CannotTradeWithTooMuchNegativeCash();
+    }
+
+    uint totalTradeAmount = higherStrike.tradeAmount.abs() + lowerStrike.tradeAmount.abs();
+    _verifyRFQFee(maxFee, _getBasePrice());
     _validateTradeDetails(lowerStrike, higherStrike);
 
     uint maxLossOfOpenOptions = openSpreads.multiplyDecimal(strikeDiff);
-    uint totalTradeMaxLoss = higherStrike.tradeAmount.abs().multiplyDecimal(strikeDiff);
+    uint totalTradeMaxLossOrGain = higherStrike.tradeAmount.abs().multiplyDecimal(strikeDiff);
+    uint baseBalanceAtSpotPrice = baseBalance.multiplyDecimal(_getBasePrice());
 
     /*
     * The following check is to ensure that if we were to execute this trade,
     * it would not be too large in respect to our TVL.
     *
     * Max loss of open options is the maximum loss the taker would have if all spreads expire worthless.
-    * totalTradeMaxLoss is the maximum loss the taker could have if we were to execute this trade.
+    * totalTradeMaxLossOrGain is the maximum loss the taker could have if we were to execute this trade.
     * Both of these numbers are in respect to the cashBalance, so they are represented in our cash asset (ex: USDC)
     * We then take our current balance of our base asset, and convert it into a cash number.
-    * After multiplying it by a percentage (maxLossPercentOfTVL),
+    * After multiplying it by a percentage (maxLossOrGainPercentOfTVL),
     * we ensure this trade isn't too large in respect to our TVL.
     */
     if (
-      maxLossOfOpenOptions + totalTradeMaxLoss
-        > baseBalance.multiplyDecimal(_getBasePrice()).multiplyDecimal($.ppParams.maxLossPercentOfTVL)
+      maxLossOfOpenOptions + totalTradeMaxLossOrGain
+        > baseBalanceAtSpotPrice.multiplyDecimal($.ppParams.maxLossOrGainPercentOfTVL)
     ) {
       revert PPT_TradeTooLarge();
+    }
+  }
+
+  function _verifyRFQFee(uint worstTradeFee, uint totalLegAmount) internal view {
+    PPTSAStorage storage $ = _getPPTSAStorage();
+    uint maxAllowedTradeFee = totalLegAmount.multiplyDecimal($.ppParams.rfqFeeFactor).multiplyDecimal(_getBasePrice());
+    if (worstTradeFee > maxAllowedTradeFee) {
+      revert PPT_TradeFeeTooHigh();
     }
   }
 
@@ -562,6 +581,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   error PPT_InvalidModule();
   error PPT_InvalidAsset();
   error PPT_WithdrawingUtilisedCollateral();
+  error PPT_CannotTradeWithTooMuchNegativeCash();
   error PPT_TradeTooLarge();
   error PPT_WrongInputSpread();
   error PPT_InvalidBaseBalance();
@@ -575,4 +595,5 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   error PPT_WithdrawingWithOpenTrades();
   error PPT_InvalidHighStrikeAmount();
   error PPT_OptionExpiryOutOfBounds();
+  error PPT_TradeFeeTooHigh();
 }

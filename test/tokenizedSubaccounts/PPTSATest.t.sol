@@ -166,12 +166,4 @@ contract PPTSATest is PPTSATestUtils {
     assertEq(baseBalance, 100e18);
     assertEq(cashBalance, 0);
   }
-
-  function _setupPPTSAWithDeposit(bool isCallSpread, bool isLongSpread) internal {
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToPPTSA("weth", isCallSpread, isLongSpread);
-    setupPPTSA();
-    _depositToTSA(100e18);
-    _executeDeposit(100e18);
-  }
 }
