@@ -5,9 +5,11 @@ import "../TSATestUtils.sol";
 import "forge-std/console2.sol";
 
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
+import {DecimalMath} from "lyra-utils/decimals/DecimalMath.sol";
 
 contract PPTSA_ValidationTests is PPTSATestUtils {
   using SignedMath for int;
+  using DecimalMath for uint;
 
   function setUp() public override {
     super.setUp();
@@ -337,7 +339,11 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
       amount: -amount
     });
 
-    IRfqModule.RfqOrder memory order = IRfqModule.RfqOrder({maxFee: 100_000e18, trades: trades});
+    IRfqModule.RfqOrder memory order = IRfqModule.RfqOrder({
+      // +1 over expected max possible fee
+      maxFee: (amount.abs().multiplyDecimal(4000e18).multiplyDecimal(defaultPPTSAParams.rfqFeeFactor) + 1),
+      trades: trades
+    });
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: tsaSubacc,

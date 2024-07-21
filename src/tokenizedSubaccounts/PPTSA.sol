@@ -138,6 +138,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       pptsaParams.minSignatureExpiry < 1 minutes || pptsaParams.minSignatureExpiry > pptsaParams.maxSignatureExpiry
         || pptsaParams.minMarkValueToStrikeDiffRatio > pptsaParams.maxMarkValueToStrikeDiffRatio
         || pptsaParams.maxMarkValueToStrikeDiffRatio > 1e18 || pptsaParams.maxMarkValueToStrikeDiffRatio < 1e16
+        || pptsaParams.strikeDiff == 0
         || pptsaParams.optionMaxTimeToExpiry <= pptsaParams.optionMinTimeToExpiry
         || pptsaParams.maxTotalCostTolerance > 5e18 || pptsaParams.maxLossOrGainPercentOfTVL < 1e14
         || pptsaParams.maxNegCash > 0 || pptsaParams.rfqFeeFactor > 0.1e18 || pptsaParams.maxLossOrGainPercentOfTVL > 1e18
@@ -359,7 +360,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     });
 
     if (
-      makerTrades[0].asset != makerTrades[1].asset || makerTrades[0].asset != address(_getPPTSAStorage().optionAsset)
+      makerTrades[0].asset != makerTrades[1].asset || makerTrades[0].asset != address($.optionAsset)
         || strike1.expiry != strike2.expiry
     ) {
       revert PPT_InvalidParams();
@@ -384,11 +385,11 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     view
     returns (uint optionExpiry, uint optionStrike, bool isCall)
   {
+    PPTSAStorage storage $ = _getPPTSAStorage();
     (optionExpiry, optionStrike, isCall) = OptionEncoding.fromSubId(subId.toUint96());
     if (
-      optionExpiry < block.timestamp + _getPPTSAStorage().ppParams.optionMinTimeToExpiry
-        || optionExpiry > block.timestamp + _getPPTSAStorage().ppParams.optionMaxTimeToExpiry
-        || _getPPTSAStorage().isCallSpread != isCall
+      optionExpiry < block.timestamp + $.ppParams.optionMinTimeToExpiry
+        || optionExpiry > block.timestamp + $.ppParams.optionMaxTimeToExpiry || $.isCallSpread != isCall
     ) {
       revert PPT_InvalidOptionDetails();
     }
@@ -399,8 +400,6 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     view
     returns (uint)
   {
-    PPTSAStorage storage $ = _getPPTSAStorage();
-
     uint timeToExpiry = optionExpiry - block.timestamp;
     (uint callPrice, uint putPrice,) = Black76.pricesAndDelta(
       Black76.Black76Inputs({
@@ -417,7 +416,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   function _verifyRfqExecute(StrikeData memory lowerStrike, StrikeData memory higherStrike, uint maxFee) internal view {
     PPTSAStorage storage $ = _getPPTSAStorage();
     uint strikeDiff = higherStrike.strike - lowerStrike.strike;
-    if (strikeDiff != _getPPTSAStorage().ppParams.strikeDiff) {
+    if (strikeDiff != $.ppParams.strikeDiff) {
       revert PPT_StrikePriceOutsideOfDiff();
     }
 
@@ -432,7 +431,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       revert PPT_CannotTradeWithTooMuchNegativeCash();
     }
 
-    _verifyRFQFee(maxFee, _getBasePrice());
+    _verifyRFQFee(maxFee, lowerStrike.tradeAmount.abs() + higherStrike.tradeAmount.abs());
     _validateTradeDetails(lowerStrike, higherStrike);
 
     uint maxLossOfOpenOptions = openSpreads.multiplyDecimal(strikeDiff);

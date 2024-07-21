@@ -105,6 +105,11 @@ contract PPTSA_Admin is PPTSATestUtils {
     tsa.setPPTSAParams(params);
 
     params.maxLossOrGainPercentOfTVL = defaultPPTSAParams.maxLossOrGainPercentOfTVL;
+    params.strikeDiff = 0;
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
+    tsa.setPPTSAParams(params);
+
+    params.strikeDiff = defaultPPTSAParams.strikeDiff;
     params.negMaxCashTolerance = 1e18 + 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
     tsa.setPPTSAParams(params);
