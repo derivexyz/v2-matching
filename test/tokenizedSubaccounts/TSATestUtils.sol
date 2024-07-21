@@ -302,7 +302,8 @@ contract CCTSATestUtils is TSATestUtils {
       })
     );
 
-    tsa.setCCTSAParams(defaultCollateralManagementParams, defaultCCTSAParams);
+    tsa.setCCTSAParams(defaultCCTSAParams);
+    tsa.setCollateralManagementParams(defaultCollateralManagementParams);
 
     tsa.setShareKeeper(address(this), true);
 
@@ -638,7 +639,8 @@ contract PPTSATestUtils is TSATestUtils {
       })
     );
 
-    tsa.setPPTSAParams(defaultCollateralManagementParams, defaultPPTSAParams);
+    tsa.setPPTSAParams(defaultPPTSAParams);
+    tsa.setCollateralManagementParams(defaultCollateralManagementParams);
 
     tsa.setShareKeeper(address(this), true);
 

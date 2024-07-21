@@ -93,7 +93,7 @@ contract PPTSATest is PPTSATestUtils {
     PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
     _setupPPTSAWithDeposit(true, false);
     params.maxTotalCostTolerance = 5e17;
-    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    tsa.setPPTSAParams(params);
     // we are the taker buying a short call spread
     _tradeRfqAsTaker(-1 * amount, higherPrice, expiry, highStrike, lowerPrice, lowStrike, true);
     (uint openSpreads, uint baseBalance, int cashBalance) = tsa.getSubAccountStats();
@@ -110,7 +110,7 @@ contract PPTSATest is PPTSATestUtils {
 
     _setupPPTSAWithDeposit(true, true);
     params.maxTotalCostTolerance = 2e18;
-    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    tsa.setPPTSAParams(params);
     // adding some cash to avoid interest rates on negative cash
     usdc.mint(address(this), 400e6);
     usdc.approve(address(cash), 400e6);
@@ -131,7 +131,7 @@ contract PPTSATest is PPTSATestUtils {
 
     _setupPPTSAWithDeposit(false, false);
     params.maxTotalCostTolerance = 5e17;
-    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    tsa.setPPTSAParams(params);
     // we are the taker buying a short put spread
     _tradeRfqAsTaker(amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, false);
     (openSpreads, baseBalance, cashBalance) = tsa.getSubAccountStats();
@@ -151,7 +151,7 @@ contract PPTSATest is PPTSATestUtils {
     usdc.approve(address(cash), 400e6);
     cash.deposit(tsaSubacc, 400e6);
     params.maxTotalCostTolerance = 2e18;
-    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    tsa.setPPTSAParams(params);
     // we are a maker buying a long put spread
     _tradeRfqAsMaker(amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, false);
     (openSpreads, baseBalance, cashBalance) = tsa.getSubAccountStats();

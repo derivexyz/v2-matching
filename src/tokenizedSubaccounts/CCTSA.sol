@@ -109,25 +109,35 @@ contract CoveredCallTSA is CollateralManagementTSA {
   ///////////
   // Admin //
   ///////////
-  function setCCTSAParams(CollateralManagementParams memory newCollateralMngmtParams, CCTSAParams memory newParams)
-    external
-    onlyOwner
-  {
+  function setCCTSAParams(CCTSAParams memory newParams) external onlyOwner {
     if (
       newParams.minSignatureExpiry < 1 minutes || newParams.minSignatureExpiry > newParams.maxSignatureExpiry
-        || newCollateralMngmtParams.worstSpotBuyPrice < 1e18 || newCollateralMngmtParams.worstSpotBuyPrice > 1.2e18
-        || newCollateralMngmtParams.worstSpotSellPrice > 1e18 || newCollateralMngmtParams.worstSpotSellPrice < 0.8e18
-        || newCollateralMngmtParams.spotTransactionLeniency < 1e18
-        || newCollateralMngmtParams.spotTransactionLeniency > 1.2e18 || newParams.optionVolSlippageFactor > 1e18
-        || newParams.optionMaxDelta >= 0.5e18 || newParams.optionMaxTimeToExpiry <= newParams.optionMinTimeToExpiry
-        || newParams.optionMaxNegCash > 0 || newCollateralMngmtParams.feeFactor > 0.05e18
+        || newParams.optionVolSlippageFactor > 1e18 || newParams.optionMaxDelta >= 0.5e18
+        || newParams.optionMaxTimeToExpiry <= newParams.optionMinTimeToExpiry || newParams.optionMaxNegCash > 0
     ) {
       revert CCT_InvalidParams();
     }
     _getCCTSAStorage().ccParams = newParams;
-    _getCCTSAStorage().collateralManagementParams = newCollateralMngmtParams;
 
-    emit CCTSAParamsSet(newParams, newCollateralMngmtParams);
+    emit CCTSAParamsSet(newParams);
+  }
+
+  function setCollateralManagementParams(CollateralManagementParams memory newCollateralMgmtParams)
+    external
+    override
+    onlyOwner
+  {
+    if (
+      newCollateralMgmtParams.worstSpotBuyPrice < 1e18 || newCollateralMgmtParams.worstSpotBuyPrice > 1.2e18
+        || newCollateralMgmtParams.worstSpotSellPrice > 1e18 || newCollateralMgmtParams.worstSpotSellPrice < 0.8e18
+        || newCollateralMgmtParams.spotTransactionLeniency < 1e18
+        || newCollateralMgmtParams.spotTransactionLeniency > 1.2e18 || newCollateralMgmtParams.feeFactor > 0.05e18
+    ) {
+      revert CCT_InvalidParams();
+    }
+    _getCCTSAStorage().collateralManagementParams = newCollateralMgmtParams;
+
+    emit CMTSAParamsSet(newCollateralMgmtParams);
   }
 
   function _getCollateralManagementParams() internal view override returns (CollateralManagementParams storage $) {
@@ -240,7 +250,6 @@ contract CoveredCallTSA is CollateralManagementTSA {
   /////////////////
   // Option Math //
   /////////////////
-
   function _validateOptionDetails(uint96 subId, uint limitPrice) internal view {
     CCTSAStorage storage $ = _getCCTSAStorage();
 
@@ -251,7 +260,22 @@ contract CoveredCallTSA is CollateralManagementTSA {
     if (block.timestamp >= expiry) {
       revert CCT_OptionExpired();
     }
-    (uint callPrice,, uint callDelta) = _getOptionPrice(expiry, strike);
+    uint timeToExpiry = expiry - block.timestamp;
+    if (timeToExpiry < $.ccParams.optionMinTimeToExpiry || timeToExpiry > $.ccParams.optionMaxTimeToExpiry) {
+      revert CCT_OptionExpiryOutOfBounds();
+    }
+
+    (uint vol, uint forwardPrice) = _getFeedValues(strike.toUint128(), expiry.toUint64());
+
+    (uint callPrice,, uint callDelta) = Black76.pricesAndDelta(
+      Black76.Black76Inputs({
+        timeToExpirySec: timeToExpiry.toUint64(),
+        volatility: (vol.multiplyDecimal($.ccParams.optionVolSlippageFactor)).toUint128(),
+        fwdPrice: forwardPrice.toUint128(),
+        strikePrice: strike.toUint128(),
+        discount: 1e18
+      })
+    );
 
     if (callDelta > $.ccParams.optionMaxDelta) {
       revert CCT_OptionDeltaTooHigh();
@@ -260,28 +284,6 @@ contract CoveredCallTSA is CollateralManagementTSA {
     if (limitPrice <= callPrice) {
       revert CCT_OptionPriceTooLow();
     }
-  }
-
-  function _getOptionPrice(uint optionExpiry, uint optionStrike)
-    internal
-    view
-    returns (uint callPrice, uint putPrice, uint callDelta)
-  {
-    CCTSAStorage storage $ = _getCCTSAStorage();
-    uint timeToExpiry = optionExpiry - block.timestamp;
-    if (timeToExpiry < $.ccParams.optionMinTimeToExpiry || timeToExpiry > $.ccParams.optionMaxTimeToExpiry) {
-      revert CCT_OptionExpiryOutOfBounds();
-    }
-    (uint vol, uint forwardPrice) = _getFeedValues(optionStrike.toUint128(), optionExpiry.toUint64());
-    return Black76.pricesAndDelta(
-      Black76.Black76Inputs({
-        timeToExpirySec: timeToExpiry.toUint64(),
-        volatility: vol.toUint128(),
-        fwdPrice: forwardPrice.toUint128(),
-        strikePrice: optionStrike.toUint128(),
-        discount: 1e18
-      })
-    );
   }
 
   function _getFeedValues(uint128 strike, uint64 expiry) internal view returns (uint vol, uint forwardPrice) {
@@ -364,7 +366,7 @@ contract CoveredCallTSA is CollateralManagementTSA {
   ///////////////////
   // Events/Errors //
   ///////////////////
-  event CCTSAParamsSet(CCTSAParams params, CollateralManagementParams collateralManagementParams);
+  event CCTSAParamsSet(CCTSAParams params);
 
   error CCT_InvalidParams();
   error CCT_InvalidActionExpiry();

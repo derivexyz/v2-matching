@@ -128,7 +128,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     usdc.mint(address(this), 400_000e6);
     usdc.approve(address(cash), 400_000e6);
     cash.deposit(tsaSubacc, 400_000e6);
-    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    tsa.setPPTSAParams(params);
     _tradeRfqAsTaker(-1 * amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, true);
     (makerOrder, takerOrder) = _setupRfq(-1 * amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, true);
     action = _createRfqAction(takerOrder);
@@ -146,7 +146,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     usdc.mint(address(this), 400_000e6);
     usdc.approve(address(cash), 400_000e6);
     cash.deposit(tsaSubacc, 400_000e6);
-    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    tsa.setPPTSAParams(params);
     _tradeRfqAsTaker(amount, lowerPrice, expiry, lowStrike, higherPrice, highStrike, false);
     (makerOrder, takerOrder) = _setupRfq(amount, lowerPrice, expiry, lowStrike, higherPrice, highStrike, false);
     action = _createRfqAction(takerOrder);
@@ -164,7 +164,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     usdc.mint(address(this), 400_000e6);
     usdc.approve(address(cash), 400_000e6);
     cash.deposit(tsaSubacc, 400_000e6);
-    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    tsa.setPPTSAParams(params);
     _tradeRfqAsTaker(-1 * amount, lowerPrice, expiry, lowStrike, higherPrice, highStrike, false);
     (makerOrder, takerOrder) = _setupRfq(-1 * amount, lowerPrice, expiry, lowStrike, higherPrice, highStrike, false);
     action = _createRfqAction(takerOrder);
@@ -183,7 +183,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
     CollateralManagementTSA.CollateralManagementParams memory collateralManagementParams =
       defaultCollateralManagementParams;
-    tsa.setPPTSAParams(collateralManagementParams, params);
+    tsa.setPPTSAParams(params);
+    tsa.setCollateralManagementParams(collateralManagementParams);
     int amount = 1e18;
     uint price = 411e18;
     uint64 expiry = uint64(block.timestamp + 7 days);
@@ -202,7 +203,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     params.maxTotalCostTolerance = 1e18 - 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(collateralManagementParams, params);
+    tsa.setPPTSAParams(params);
+    tsa.setCollateralManagementParams(collateralManagementParams);
   }
 
   function testShortSpreadCostToleranceValidations() public {
@@ -214,7 +216,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
     CollateralManagementTSA.CollateralManagementParams memory collateralManagementParams =
       defaultCollateralManagementParams;
-    tsa.setPPTSAParams(collateralManagementParams, params);
+    tsa.setPPTSAParams(params);
+    tsa.setCollateralManagementParams(collateralManagementParams);
     int amount = 1e18;
     uint price = 411e18;
     uint64 expiry = uint64(block.timestamp + 7 days);
@@ -236,15 +239,18 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     params.maxTotalCostTolerance = 1e18 + 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(collateralManagementParams, params);
+    tsa.setPPTSAParams(params);
+    tsa.setCollateralManagementParams(collateralManagementParams);
 
     params.maxTotalCostTolerance = 5e17;
-    tsa.setPPTSAParams(collateralManagementParams, params);
+    tsa.setPPTSAParams(params);
+    tsa.setCollateralManagementParams(collateralManagementParams);
     vm.prank(signer);
     tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     params.maxMarkValueToStrikeDiffRatio = 9e17;
-    tsa.setPPTSAParams(collateralManagementParams, params);
+    tsa.setPPTSAParams(params);
+    tsa.setCollateralManagementParams(collateralManagementParams);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_MarkValueNotWithinBounds.selector);
     tsa.signActionData(action, abi.encode(makerOrder.trades));
@@ -269,7 +275,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     action.data = abi.encode(takerOrder);
     vm.prank(signer);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_WrongInputSpread.selector);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidOptionDetails.selector);
     tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     makerOrder.trades[0].subId = OptionEncoding.toSubId(expiry, strike, true);
@@ -278,7 +284,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     action.expiry = block.timestamp + 8 days + 8 minutes;
     vm.warp(block.timestamp + 8 days);
     vm.prank(signer);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_OptionExpiryOutOfBounds.selector);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidOptionDetails.selector);
     tsa.signActionData(action, abi.encode(makerOrder.trades));
   }
 
@@ -358,7 +364,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
     _setupPPTSAWithDeposit(true, false);
     params.maxTotalCostTolerance = 5e17;
-    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    tsa.setPPTSAParams(params);
 
     // we are the taker buying a short call spread
     (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
@@ -379,7 +385,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     _setupPPTSAWithDeposit(true, true);
     params.maxTotalCostTolerance = 2e18;
-    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    tsa.setPPTSAParams(params);
     // we are a taker buying a long call spread
     (makerOrder, takerOrder) = _setupRfq(-1 * amount, higherPrice, expiry, highStrike, lowerPrice, lowStrike, true);
     action = _createRfqAction(takerOrder);
@@ -397,7 +403,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     _setupPPTSAWithDeposit(false, false);
     params.maxTotalCostTolerance = 5e17;
-    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    tsa.setPPTSAParams(params);
     // we are the taker buying a short put spread
     (makerOrder, takerOrder) = _setupRfq(-1 * amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, false);
     action = _createRfqAction(takerOrder);
@@ -415,7 +421,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     _setupPPTSAWithDeposit(false, true);
     params.maxTotalCostTolerance = 2e18;
-    tsa.setPPTSAParams(defaultCollateralManagementParams, params);
+    tsa.setPPTSAParams(params);
     // we are the taker buying a long put spread
     (makerOrder, takerOrder) = _setupRfq(amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, false);
     action = _createRfqAction(takerOrder);

@@ -33,6 +33,7 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
   ///////////////////
   //     Admin     //
   ///////////////////
+  function setCollateralManagementParams(CollateralManagementParams memory newCollateralMgmtParams) external virtual;
 
   function _getCollateralManagementParams() internal view virtual returns (CollateralManagementParams storage $);
 
@@ -162,6 +163,11 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
   }
 
   function _getBasePrice() internal view virtual returns (uint spotPrice);
+
+  ///////////////////
+  // Events/Errors //
+  ///////////////////
+  event CMTSAParamsSet(CollateralManagementParams collateralManagementParams);
 
   error CMTSA_DepositingTooMuch();
   error CMTSA_PositionInsolvent();

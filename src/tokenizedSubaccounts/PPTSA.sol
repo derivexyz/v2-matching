@@ -132,21 +132,13 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   ///////////
   // Admin //
   ///////////
-  function setPPTSAParams(CollateralManagementParams memory newCollateralMgmtParams, PPTSAParams memory pptsaParams)
-    external
-    onlyOwner
-  {
+  function setPPTSAParams(PPTSAParams memory pptsaParams) external onlyOwner {
     PPTSAStorage storage $ = _getPPTSAStorage();
     if (
       pptsaParams.minSignatureExpiry < 1 minutes || pptsaParams.minSignatureExpiry > pptsaParams.maxSignatureExpiry
-        || newCollateralMgmtParams.worstSpotBuyPrice < 1e18 || newCollateralMgmtParams.worstSpotBuyPrice > 1.2e18
-        || newCollateralMgmtParams.worstSpotSellPrice > 1e18 || newCollateralMgmtParams.worstSpotSellPrice < 0.8e18
-        || newCollateralMgmtParams.spotTransactionLeniency < 1e18
-        || newCollateralMgmtParams.spotTransactionLeniency > 1.2e18
         || pptsaParams.minMarkValueToStrikeDiffRatio > pptsaParams.maxMarkValueToStrikeDiffRatio
         || pptsaParams.maxMarkValueToStrikeDiffRatio > 1e18 || pptsaParams.maxMarkValueToStrikeDiffRatio < 1e16
         || pptsaParams.optionMaxTimeToExpiry <= pptsaParams.optionMinTimeToExpiry
-        || newCollateralMgmtParams.feeFactor > 0.05e18 || pptsaParams.maxTotalCostTolerance < 2e17
         || pptsaParams.maxTotalCostTolerance > 5e18 || pptsaParams.maxLossOrGainPercentOfTVL < 1e14
         || pptsaParams.maxNegCash > 0 || pptsaParams.rfqFeeFactor > 0.1e18 || pptsaParams.maxLossOrGainPercentOfTVL > 1e18
         || pptsaParams.negMaxCashTolerance < 1e16 || pptsaParams.negMaxCashTolerance > 1e18
@@ -156,9 +148,26 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       revert PPT_InvalidParams();
     }
     _getPPTSAStorage().ppParams = pptsaParams;
+
+    emit PPTSAParamsSet(pptsaParams);
+  }
+
+  function setCollateralManagementParams(CollateralManagementParams memory newCollateralMgmtParams)
+    external
+    override
+    onlyOwner
+  {
+    if (
+      newCollateralMgmtParams.worstSpotBuyPrice < 1e18 || newCollateralMgmtParams.worstSpotBuyPrice > 1.2e18
+        || newCollateralMgmtParams.worstSpotSellPrice > 1e18 || newCollateralMgmtParams.worstSpotSellPrice < 0.8e18
+        || newCollateralMgmtParams.spotTransactionLeniency < 1e18
+        || newCollateralMgmtParams.spotTransactionLeniency > 1.2e18 || newCollateralMgmtParams.feeFactor > 0.05e18
+    ) {
+      revert PPT_InvalidParams();
+    }
     _getPPTSAStorage().collateralManagementParams = newCollateralMgmtParams;
 
-    emit PPTSAParamsSet(pptsaParams, newCollateralMgmtParams);
+    emit CMTSAParamsSet(newCollateralMgmtParams);
   }
 
   function _getCollateralManagementParams() internal view override returns (CollateralManagementParams storage $) {
@@ -227,7 +236,6 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       return;
     }
 
-    uint remainingBaseBalance = baseBalance - withdrawalAs18Decimals;
     /*
     * If we have negative cash, we want to make sure we have enough of our base asset to cover our negative cash and then some.
     * This check looks at how much balance we would have left after the withdrawal,
@@ -244,12 +252,8 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     * Then we multiply 400 by negMaxCashTolerance (let's say .1), so we would need to have 40 USDC left over.
     * This is less than the 100 USDC debt we have, so we would revert.
     */
-    if (
-      cashBalance.abs()
-        > remainingBaseBalance.multiplyDecimal(_getBasePrice()).multiplyDecimal(
-          _getPPTSAStorage().ppParams.negMaxCashTolerance
-        )
-    ) {
+    uint remainingBaseBalance = (baseBalance - withdrawalAs18Decimals).multiplyDecimal(_getBasePrice());
+    if (cashBalance.abs() > remainingBaseBalance.multiplyDecimal(_getPPTSAStorage().ppParams.negMaxCashTolerance)) {
       revert PPT_WithdrawingUtilisedCollateral();
     }
   }
@@ -311,8 +315,8 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   ///      1       |       0      |    1    |   0
   ///      1       |       1      |    0    |   0
   ///      1       |       1      |    1    |   1
-  function _verifyHigherStrikeAmount(int strikeAmount, bool isTaker) internal pure {
-    PPTSAStorage memory $ = _getPPTSAStorage();
+  function _verifyHigherStrikeAmount(int strikeAmount, bool isTaker) internal view {
+    PPTSAStorage storage $ = _getPPTSAStorage();
     bool makerShouldBeSellingSpread = ($.isCallSpread == $.isLongSpread) ? isTaker : !isTaker;
     if (makerShouldBeSellingSpread && strikeAmount <= 0) {
       revert PPT_InvalidHighStrikeAmount();
@@ -326,11 +330,33 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     view
     returns (StrikeData memory lowerStrike, StrikeData memory higherStrike)
   {
+    PPTSAStorage storage $ = _getPPTSAStorage();
     if (makerTrades.length != 2) {
       revert PPT_InvalidParams();
     }
-    StrikeData memory strike1 = _validateAndCreateIndividualStrike(makerTrades[0]);
-    StrikeData memory strike2 = _validateAndCreateIndividualStrike(makerTrades[1]);
+    (IForwardFeed fwdFeed, IVolFeed volFeed) = _getFeeds();
+    (uint optionExpiry, uint optionStrike, bool isCall) = _validateAndRetrieveSubIdDetails(makerTrades[0].subId);
+
+    (uint vol,) = volFeed.getVol(optionStrike.toUint128(), optionExpiry.toUint64());
+    (uint fwrdPrice,) = fwdFeed.getForwardPrice(optionExpiry.toUint64());
+    uint markPrice = _retrieveOptionDetails(optionExpiry, optionStrike, isCall, vol, fwrdPrice);
+    StrikeData memory strike1 = StrikeData({
+      strike: optionStrike,
+      expiry: optionExpiry,
+      markPrice: markPrice.toInt256(),
+      tradePrice: makerTrades[0].price,
+      tradeAmount: makerTrades[0].amount
+    });
+
+    (optionExpiry, optionStrike, isCall) = _validateAndRetrieveSubIdDetails(makerTrades[1].subId);
+    markPrice = _retrieveOptionDetails(optionExpiry, optionStrike, isCall, vol, fwrdPrice);
+    StrikeData memory strike2 = StrikeData({
+      strike: optionStrike,
+      expiry: optionExpiry,
+      markPrice: markPrice.toInt256(),
+      tradePrice: makerTrades[1].price,
+      tradeAmount: makerTrades[1].amount
+    });
 
     if (
       makerTrades[0].asset != makerTrades[1].asset || makerTrades[0].asset != address(_getPPTSAStorage().optionAsset)
@@ -345,33 +371,47 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     return (strike1, strike2);
   }
 
-  function _validateAndCreateIndividualStrike(IRfqModule.TradeData memory trade)
+  function _getFeeds() internal view returns (IForwardFeed, IVolFeed) {
+    PPTSAStorage storage $ = _getPPTSAStorage();
+    StandardManager srm = StandardManager(address(getBaseTSAAddresses().manager));
+    IStandardManager.AssetDetail memory assetDetails = srm.assetDetails($.optionAsset);
+    (, IForwardFeed fwdFeed, IVolFeed volFeed) = srm.getMarketFeeds(assetDetails.marketId);
+    return (fwdFeed, volFeed);
+  }
+
+  function _validateAndRetrieveSubIdDetails(uint subId)
     internal
     view
-    returns (StrikeData memory)
+    returns (uint optionExpiry, uint optionStrike, bool isCall)
+  {
+    (optionExpiry, optionStrike, isCall) = OptionEncoding.fromSubId(subId.toUint96());
+    if (
+      optionExpiry < block.timestamp + _getPPTSAStorage().ppParams.optionMinTimeToExpiry
+        || optionExpiry > block.timestamp + _getPPTSAStorage().ppParams.optionMaxTimeToExpiry
+        || _getPPTSAStorage().isCallSpread != isCall
+    ) {
+      revert PPT_InvalidOptionDetails();
+    }
+  }
+
+  function _retrieveOptionDetails(uint optionExpiry, uint optionStrike, bool isCall, uint vol, uint fwrdPrice)
+    internal
+    view
+    returns (uint)
   {
     PPTSAStorage storage $ = _getPPTSAStorage();
-    (uint optionExpiry, uint optionStrike, bool isCall) = OptionEncoding.fromSubId(trade.subId.toUint96());
 
-    if (
-      optionExpiry < block.timestamp + $.ppParams.optionMinTimeToExpiry
-        || optionExpiry > block.timestamp + $.ppParams.optionMaxTimeToExpiry
-    ) {
-      revert PPT_OptionExpiryOutOfBounds();
-    }
-
-    (uint callPrice, uint putPrice,) = _getOptionPrice(optionExpiry, optionStrike);
-    uint markPrice = isCall ? callPrice : putPrice;
-    if ($.isCallSpread != isCall) {
-      revert PPT_WrongInputSpread();
-    }
-    return StrikeData({
-      strike: optionStrike,
-      expiry: optionExpiry,
-      markPrice: markPrice.toInt256(),
-      tradePrice: trade.price,
-      tradeAmount: trade.amount
-    });
+    uint timeToExpiry = optionExpiry - block.timestamp;
+    (uint callPrice, uint putPrice,) = Black76.pricesAndDelta(
+      Black76.Black76Inputs({
+        timeToExpirySec: timeToExpiry.toUint64(),
+        volatility: vol.toUint128(),
+        fwdPrice: fwrdPrice.toUint128(),
+        strikePrice: optionStrike.toUint128(),
+        discount: 1e18
+      })
+    );
+    return isCall ? callPrice : putPrice;
   }
 
   function _verifyRfqExecute(StrikeData memory lowerStrike, StrikeData memory higherStrike, uint maxFee) internal view {
@@ -477,35 +517,6 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     }
   }
 
-  function _getOptionPrice(uint optionExpiry, uint optionStrike)
-    internal
-    view
-    returns (uint callPrice, uint putPrice, uint callDelta)
-  {
-    uint timeToExpiry = optionExpiry - block.timestamp;
-    (uint vol, uint forwardPrice) = _getFeedValues(optionStrike.toUint128(), optionExpiry.toUint64());
-
-    return Black76.pricesAndDelta(
-      Black76.Black76Inputs({
-        timeToExpirySec: timeToExpiry.toUint64(),
-        volatility: vol.toUint128(),
-        fwdPrice: forwardPrice.toUint128(),
-        strikePrice: optionStrike.toUint128(),
-        discount: 1e18
-      })
-    );
-  }
-
-  function _getFeedValues(uint128 strike, uint64 expiry) internal view returns (uint vol, uint forwardPrice) {
-    PPTSAStorage storage $ = _getPPTSAStorage();
-
-    StandardManager srm = StandardManager(address(getBaseTSAAddresses().manager));
-    IStandardManager.AssetDetail memory assetDetails = srm.assetDetails($.optionAsset);
-    (, IForwardFeed fwdFeed, IVolFeed volFeed) = srm.getMarketFeeds(assetDetails.marketId);
-    (vol,) = volFeed.getVol(strike, expiry);
-    (forwardPrice,) = fwdFeed.getForwardPrice(expiry);
-  }
-
   ///////////////////
   // Account Value //
   ///////////////////
@@ -519,7 +530,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
         // we can just add the positive balances.
         // We just validate that spreads are either open or how much they can lose,
         // so we only care about one side of the balances.
-        openSpreads += balances[i].balance.toUint256();
+        openSpreads += uint(balances[i].balance);
       } else if (balances[i].asset == tsaAddresses.wrappedDepositAsset) {
         baseBalance = balances[i].balance.abs();
       } else if (balances[i].asset == tsaAddresses.cash) {
@@ -572,7 +583,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   ///////////////////
   // Events/Errors //
   ///////////////////
-  event PPTSAParamsSet(PPTSAParams params, CollateralManagementParams collateralManagementParams);
+  event PPTSAParamsSet(PPTSAParams params);
 
   error PPT_InvalidParams();
   error PPT_InvalidActionExpiry();
@@ -581,7 +592,6 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   error PPT_WithdrawingUtilisedCollateral();
   error PPT_CannotTradeWithTooMuchNegativeCash();
   error PPT_TradeTooLarge();
-  error PPT_WrongInputSpread();
   error PPT_InvalidBaseBalance();
   error PPT_InvalidDesiredAmount();
   error PPT_MarkValueNotWithinBounds();
@@ -592,6 +602,6 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   error PPT_TradeDataDoesNotMatchOrderHash();
   error PPT_WithdrawingWithOpenTrades();
   error PPT_InvalidHighStrikeAmount();
-  error PPT_OptionExpiryOutOfBounds();
+  error PPT_InvalidOptionDetails();
   error PPT_TradeFeeTooHigh();
 }
