@@ -339,7 +339,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
 
     (uint vol,) = volFeed.getVol(optionStrike.toUint128(), optionExpiry.toUint64());
     (uint fwrdPrice,) = fwdFeed.getForwardPrice(optionExpiry.toUint64());
-    uint markPrice = _retrieveOptionDetails(optionExpiry, optionStrike, isCall, vol, fwrdPrice);
+    uint markPrice = _retrieveMarkPrice(optionExpiry, optionStrike, isCall, vol, fwrdPrice);
     StrikeData memory strike1 = StrikeData({
       strike: optionStrike,
       expiry: optionExpiry,
@@ -349,7 +349,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     });
 
     (optionExpiry, optionStrike, isCall) = _validateAndRetrieveSubIdDetails(makerTrades[1].subId);
-    markPrice = _retrieveOptionDetails(optionExpiry, optionStrike, isCall, vol, fwrdPrice);
+    markPrice = _retrieveMarkPrice(optionExpiry, optionStrike, isCall, vol, fwrdPrice);
     StrikeData memory strike2 = StrikeData({
       strike: optionStrike,
       expiry: optionExpiry,
@@ -394,7 +394,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     }
   }
 
-  function _retrieveOptionDetails(uint optionExpiry, uint optionStrike, bool isCall, uint vol, uint fwrdPrice)
+  function _retrieveMarkPrice(uint optionExpiry, uint optionStrike, bool isCall, uint vol, uint fwrdPrice)
     internal
     view
     returns (uint)
