@@ -138,8 +138,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       pptsaParams.minSignatureExpiry < 1 minutes || pptsaParams.minSignatureExpiry > pptsaParams.maxSignatureExpiry
         || pptsaParams.minMarkValueToStrikeDiffRatio > pptsaParams.maxMarkValueToStrikeDiffRatio
         || pptsaParams.maxMarkValueToStrikeDiffRatio > 1e18 || pptsaParams.maxMarkValueToStrikeDiffRatio < 1e16
-        || pptsaParams.strikeDiff == 0
-        || pptsaParams.optionMaxTimeToExpiry <= pptsaParams.optionMinTimeToExpiry
+        || pptsaParams.strikeDiff == 0 || pptsaParams.optionMaxTimeToExpiry <= pptsaParams.optionMinTimeToExpiry
         || pptsaParams.maxTotalCostTolerance > 5e18 || pptsaParams.maxLossOrGainPercentOfTVL < 1e14
         || pptsaParams.maxNegCash > 0 || pptsaParams.rfqFeeFactor > 0.1e18 || pptsaParams.maxLossOrGainPercentOfTVL > 1e18
         || pptsaParams.negMaxCashTolerance < 1e16 || pptsaParams.negMaxCashTolerance > 1e18
