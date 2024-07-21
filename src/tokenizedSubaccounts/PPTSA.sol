@@ -44,17 +44,17 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   }
 
   struct PPTSAParams {
-    /// @dev The maximum amount of gain accepted for opening an option position (e.g. 0.01e18)
+    /// @dev The maximum ratio of mtm vs strike diff. Used to not buy spreads that are too low risk.  (e.g. 0.1e18)
     uint maxMarkValueToStrikeDiffRatio;
-    /// @dev The minimum amount of gain accepted for opening an option position (e.g. 0.1e18)
+    /// @dev The minimum ratio of mtm vs strike diff. Used to not buy spreads that are too high risk. (e.g. 0.01e18)
     uint minMarkValueToStrikeDiffRatio;
     /// @dev requirement of distance between two strikes
     uint strikeDiff;
-    /// @dev the max tolerance we allow when calculating cost of a trade
+    /// @dev the max tolerance we allow when calculating cost of a trade compared to mtm.
     uint maxTotalCostTolerance;
-    /// @dev used as tolerance for how much TVL we could possibly lose from one RFQ
+    /// @dev used as tolerance for how much TVL we could possibly use from one RFQ
     uint maxLossOrGainPercentOfTVL;
-    /// @dev the max tolerance we allow when calculating cost of a trade
+    /// @dev the max negative cash tolerance we allow when withdrawing.
     uint negMaxCashTolerance;
     /// @dev Minimum time before an action is expired
     uint minSignatureExpiry;
@@ -66,7 +66,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     uint optionMaxTimeToExpiry;
     /// @dev Maximum amount of negative cash allowed to be held to open any more option positions. (e.g. -100e18)
     int maxNegCash;
-    /// @dev Percentage of an rfq price that can be taken as a fee.
+    /// @dev Max percentage of an rfq price that can be taken as a fee.
     uint rfqFeeFactor;
   }
 
@@ -140,7 +140,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
         || pptsaParams.maxMarkValueToStrikeDiffRatio > 1e18 || pptsaParams.maxMarkValueToStrikeDiffRatio < 1e16
         || pptsaParams.strikeDiff == 0 || pptsaParams.optionMaxTimeToExpiry <= pptsaParams.optionMinTimeToExpiry
         || pptsaParams.maxTotalCostTolerance > 5e18 || pptsaParams.maxLossOrGainPercentOfTVL < 1e14
-        || pptsaParams.maxNegCash > 0 || pptsaParams.rfqFeeFactor > 0.1e18 || pptsaParams.maxLossOrGainPercentOfTVL > 1e18
+        || pptsaParams.maxNegCash > 0 || pptsaParams.rfqFeeFactor > 1e18 || pptsaParams.maxLossOrGainPercentOfTVL > 1e18
         || pptsaParams.negMaxCashTolerance < 1e16 || pptsaParams.negMaxCashTolerance > 1e18
         || ($.isLongSpread && pptsaParams.maxTotalCostTolerance < 1e18)
         || (!$.isLongSpread && pptsaParams.maxTotalCostTolerance > 1e18)
@@ -307,8 +307,8 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   /// The following table determines whether or not the high strike should be sold or bought
   ///
   /// isCallSpread | isLongSpread | isTaker | makerShouldBeSellingSpread
-  ///      0       |       0      |    0    |   0 (higherStrike should be < 0)
-  ///      0       |       0      |    1    |   1 (higherStrike should be > 0)
+  ///      0       |       0      |    0    |   0 (higherStrike amount should be < 0)
+  ///      0       |       0      |    1    |   1 (higherStrike amount should be > 0)
   ///      0       |       1      |    0    |   1
   ///      0       |       1      |    1    |   0
   ///      1       |       0      |    0    |   1

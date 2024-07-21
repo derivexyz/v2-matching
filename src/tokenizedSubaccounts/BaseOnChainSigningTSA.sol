@@ -21,7 +21,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   bytes32 private constant BaseSigningTSAStorageLocation =
     0x9f245ffe322048fbfccbbec5cbd54060b7369b5a75ba744e76b5291974322100;
 
-  function _getBaseSigningTSAStorage() internal pure returns (BaseSigningTSAStorage storage $) {
+  function _getBaseSigningTSAStorage() private pure returns (BaseSigningTSAStorage storage $) {
     assembly {
       $.slot := BaseSigningTSAStorageLocation
     }
@@ -89,7 +89,6 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     checkBlocked
     returns (bytes4 magicValue)
   {
-    // contains hash of one particular action
     if (_isValidSignature(_hash, _signature)) {
       return MAGICVALUE;
     }
