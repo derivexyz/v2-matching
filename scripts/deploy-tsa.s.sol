@@ -27,10 +27,10 @@ contract DeployTSA is Utils {
 
   CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
   .CollateralManagementParams({
-    feeFactor: 0.01e18,
-    spotTransactionLeniency: 1.01e18,
-    worstSpotSellPrice: 0.99e18,
-    worstSpotBuyPrice: 1.01e18
+    feeFactor: 10000000000000000,
+    spotTransactionLeniency: 1050000000000000000,
+    worstSpotSellPrice: 985000000000000000,
+    worstSpotBuyPrice: 1015000000000000000
   });
 
   CoveredCallTSA.CCTSAParams public defaultLrtccTSAParams = CoveredCallTSA.CCTSAParams({
@@ -45,16 +45,18 @@ contract DeployTSA is Utils {
   });
 
   PrincipalProtectedTSA.PPTSAParams public defaultLrtppTSAParams = PrincipalProtectedTSA.PPTSAParams({
-    maxMarkValueToStrikeDiffRatio: 1e17,
-    minMarkValueToStrikeDiffRatio: 1e16,
-    strikeDiff: 400e18,
-    maxTotalCostTolerance: 2.5e18,
-    maxLossPercentOfTVL: 1e17,
-    negMaxCashTolerance: 1e17,
-    minSignatureExpiry: 5 minutes,
-    maxSignatureExpiry: 30 minutes,
-    optionMinTimeToExpiry: 1 days,
-    optionMaxTimeToExpiry: 30 days
+    maxMarkValueToStrikeDiffRatio  : 700000000000000000,
+    minMarkValueToStrikeDiffRatio  : 100000000000000000,
+    strikeDiff  : 200000000000000000000,
+    maxTotalCostTolerance  : 2000000000000000000,
+    maxLossOrGainPercentOfTVL  : 20000000000000000,
+    negMaxCashTolerance  : 20000000000000000,
+    minSignatureExpiry  : 300,
+    maxSignatureExpiry  : 1800,
+    optionMinTimeToExpiry  : 21000,
+    optionMaxTimeToExpiry  : 691200,
+    maxNegCash  : -100000000000000000000000,
+    rfqFeeFactor  : 1000000000000000000
   });
 
 
@@ -118,7 +120,9 @@ contract DeployTSA is Utils {
         feeRecipient: address(0)
       })
     );
-    CoveredCallTSA(address(proxy)).setCCTSAParams(defaultCollateralManagementParams, defaultLrtccTSAParams);
+    CoveredCallTSA cctsa = CoveredCallTSA(address(proxy));
+    cctsa.setCCTSAParams(defaultLrtccTSAParams);
+    cctsa.setCollateralManagementParams(defaultCollateralManagementParams);
 
     TSAShareHandler shareHandler = new TSAShareHandler();
 
@@ -150,6 +154,7 @@ contract DeployTSA is Utils {
     );
 
     PrincipalProtectedTSA lrtpptsaImplementation = new PrincipalProtectedTSA();
+    console2.log("implementation address: ", address(lrtpptsaImplementation));
 
     proxyAdmin.upgradeAndCall(
       ITransparentUpgradeableProxy(address(proxy)),
@@ -190,7 +195,9 @@ contract DeployTSA is Utils {
         feeRecipient: address(0)
       })
     );
-    PrincipalProtectedTSA(address(proxy)).setPPTSAParams(defaultCollateralManagementParams, defaultLrtppTSAParams);
+    PrincipalProtectedTSA pptsa = PrincipalProtectedTSA(address(proxy));
+    pptsa.setPPTSAParams(defaultLrtppTSAParams);
+    pptsa.setCollateralManagementParams(defaultCollateralManagementParams);
 
     TSAShareHandler shareHandler = new TSAShareHandler();
 

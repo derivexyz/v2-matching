@@ -429,9 +429,11 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     if (cashBalance < $.ppParams.maxNegCash) {
       revert PPT_CannotTradeWithTooMuchNegativeCash();
     }
+    int actualCostOfTrade = lowerStrike.tradePrice.toInt256().multiplyDecimal(lowerStrike.tradeAmount)
+      + higherStrike.tradePrice.toInt256().multiplyDecimal(higherStrike.tradeAmount);
 
-    _verifyRFQFee(maxFee, lowerStrike.tradeAmount.abs() + higherStrike.tradeAmount.abs());
-    _validateTradeDetails(lowerStrike, higherStrike);
+    _verifyRFQFee(maxFee, actualCostOfTrade.abs());
+    _validateTradeDetails(lowerStrike, higherStrike, actualCostOfTrade);
 
     uint maxLossOfOpenOptions = openSpreads.multiplyDecimal(strikeDiff);
     uint totalTradeMaxLossOrGain = higherStrike.tradeAmount.abs().multiplyDecimal(strikeDiff);
@@ -456,9 +458,9 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     }
   }
 
-  function _verifyRFQFee(uint worstTradeFee, uint totalLegAmount) internal view {
+  function _verifyRFQFee(uint worstTradeFee, uint totalTradeCost) internal view {
     PPTSAStorage storage $ = _getPPTSAStorage();
-    uint maxAllowedTradeFee = totalLegAmount.multiplyDecimal($.ppParams.rfqFeeFactor).multiplyDecimal(_getBasePrice());
+    uint maxAllowedTradeFee = totalTradeCost.multiplyDecimal($.ppParams.rfqFeeFactor);
     if (worstTradeFee > maxAllowedTradeFee) {
       revert PPT_TradeFeeTooHigh();
     }
@@ -468,13 +470,13 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   // Option Math //
   /////////////////
 
-  function _validateTradeDetails(StrikeData memory lowerStrike, StrikeData memory higherStrike) internal view {
+  function _validateTradeDetails(StrikeData memory lowerStrike, StrikeData memory higherStrike, int actualCostOfTrade)
+    internal
+    view
+  {
     PPTSAStorage storage $ = _getPPTSAStorage();
     int markCostOfTrade = lowerStrike.markPrice.multiplyDecimal(lowerStrike.tradeAmount)
       + higherStrike.markPrice.multiplyDecimal(higherStrike.tradeAmount);
-
-    int actualCostOfTrade = lowerStrike.tradePrice.toInt256().multiplyDecimal(lowerStrike.tradeAmount)
-      + higherStrike.tradePrice.toInt256().multiplyDecimal(higherStrike.tradeAmount);
 
     /*
      * We want to ensure that if we are trading spreads, the cost we're trading isn't too far off from the mark cost.

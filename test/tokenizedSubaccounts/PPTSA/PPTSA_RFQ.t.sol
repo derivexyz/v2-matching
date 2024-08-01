@@ -341,7 +341,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     IRfqModule.RfqOrder memory order = IRfqModule.RfqOrder({
       // +1 over expected max possible fee
-      maxFee: (amount.abs().multiplyDecimal(4000e18).multiplyDecimal(defaultPPTSAParams.rfqFeeFactor) + 1),
+      maxFee: ((higherPrice - lowerPrice).multiplyDecimal(defaultPPTSAParams.rfqFeeFactor) + 1),
       trades: trades
     });
 
