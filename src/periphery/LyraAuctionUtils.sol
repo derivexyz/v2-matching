@@ -49,6 +49,13 @@ contract LyraAuctionUtils {
       PMRM(manager).lib().getMarginAndMarkToMarket(portfolio, false, PMRM(manager).getScenarios());
   }
 
+  function startInsolventAuction(uint accountId, uint worstScenario) external {
+    if (auction.isAuctionLive(accountId)) {
+      auction.terminateAuction(accountId);
+    }
+    auction.startAuction(accountId, worstScenario);
+  }
+
   function advancedBid(
     uint worstScenarioId,
     uint accountId,

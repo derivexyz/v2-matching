@@ -39,21 +39,21 @@ contract DeployNewAuction is Utils {
     DutchAuction auction = new DutchAuction(subAccounts, securityModule, cash);
     LyraAuctionUtils auctionUtils = new LyraAuctionUtils(subAccounts, auction, srm);
 
-    BaseManager(srm).setLiquidation(auction);
-    BaseManager(ethPMRM).setLiquidation(auction);
-    BaseManager(btcPMRM).setLiquidation(auction);
+//    BaseManager(srm).setLiquidation(auction);
+//    BaseManager(ethPMRM).setLiquidation(auction);
+//    BaseManager(btcPMRM).setLiquidation(auction);
 
     auction.setWhitelistManager(srm, true);
     auction.setWhitelistManager(ethPMRM, true);
     auction.setWhitelistManager(btcPMRM, true);
 
-    CashAsset(address(cash)).setLiquidationModule(auction);
+//    CashAsset(address(cash)).setLiquidationModule(auction);
 
     LiquidateModule liquidateModule = new LiquidateModule(matching, auction);
-    Matching(address(matching)).setAllowedModule(address(liquidateModule), true);
+//    Matching(address(matching)).setAllowedModule(address(liquidateModule), true);
 
     // TODO: securityModule.setWhitelistModule(old, false)
-    SecurityModule(address(securityModule)).setWhitelistModule(address(auction), true);
+//    SecurityModule(address(securityModule)).setWhitelistModule(address(auction), true);
 
     console2.log("auction address: ", address(auction));
     console2.log("auction utils address: ", address(auctionUtils));
