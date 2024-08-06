@@ -120,6 +120,11 @@ contract PPTSA_Admin is PPTSATestUtils {
     tsa.setPPTSAParams(params);
 
     params.optionMaxTimeToExpiry = defaultPPTSAParams.optionMaxTimeToExpiry;
+    params.minMarkValueToStrikeDiffRatio = 0;
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
+    tsa.setPPTSAParams(params);
+
+    params.minMarkValueToStrikeDiffRatio = defaultPPTSAParams.minMarkValueToStrikeDiffRatio;
     tsa.setPPTSAParams(params);
     tsa.setCollateralManagementParams(collateralManagementParams);
   }

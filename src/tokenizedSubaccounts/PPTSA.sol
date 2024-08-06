@@ -137,8 +137,9 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     if (
       pptsaParams.minSignatureExpiry < 1 minutes || pptsaParams.minSignatureExpiry > pptsaParams.maxSignatureExpiry
         || pptsaParams.minMarkValueToStrikeDiffRatio > pptsaParams.maxMarkValueToStrikeDiffRatio
-        || pptsaParams.maxMarkValueToStrikeDiffRatio > 1e18 || pptsaParams.maxMarkValueToStrikeDiffRatio < 1e16
-        || pptsaParams.strikeDiff == 0 || pptsaParams.optionMaxTimeToExpiry <= pptsaParams.optionMinTimeToExpiry
+        || pptsaParams.minMarkValueToStrikeDiffRatio == 0 || pptsaParams.maxMarkValueToStrikeDiffRatio > 1e18
+        || pptsaParams.maxMarkValueToStrikeDiffRatio < 1e16 || pptsaParams.strikeDiff == 0
+        || pptsaParams.optionMaxTimeToExpiry <= pptsaParams.optionMinTimeToExpiry
         || pptsaParams.maxTotalCostTolerance > 5e18 || pptsaParams.maxLossOrGainPercentOfTVL < 1e14
         || pptsaParams.maxNegCash > 0 || pptsaParams.rfqFeeFactor > 1e18 || pptsaParams.maxLossOrGainPercentOfTVL > 1e18
         || pptsaParams.negMaxCashTolerance < 1e16 || pptsaParams.negMaxCashTolerance > 1e18
@@ -147,7 +148,15 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     ) {
       revert PPT_InvalidParams();
     }
-    _getPPTSAStorage().ppParams = pptsaParams;
+
+    if (pptsaParams.strikeDiff != $.ppParams.strikeDiff) {
+      (uint openPositiveSpreads,,) = _getSubAccountStats();
+      if (openPositiveSpreads != 0) {
+        revert PPT_CannotChangeStrikeDiffWithOpenSpreads();
+      }
+    }
+
+    $.ppParams = pptsaParams;
 
     emit PPTSAParamsSet(pptsaParams);
   }
@@ -181,6 +190,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     internal
     virtual
     override
+    checkBlocked
   {
     PPTSAStorage storage $ = _getPPTSAStorage();
 
@@ -220,9 +230,9 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       revert PPT_InvalidAsset();
     }
 
-    (uint openSpreads, uint baseBalance, int cashBalance) = _getSubAccountStats();
+    (uint openPositiveSpreads, uint baseBalance, int cashBalance) = _getSubAccountStats();
 
-    if (openSpreads != 0) {
+    if (openPositiveSpreads != 0) {
       revert PPT_WithdrawingWithOpenTrades();
     }
 
@@ -252,8 +262,8 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     * Then we multiply 400 by negMaxCashTolerance (let's say .1), so we would need to have 40 USDC left over.
     * This is less than the 100 USDC debt we have, so we would revert.
     */
-    uint remainingBaseBalance = (baseBalance - withdrawalAs18Decimals).multiplyDecimal(_getBasePrice());
-    if (cashBalance.abs() > remainingBaseBalance.multiplyDecimal(_getPPTSAStorage().ppParams.negMaxCashTolerance)) {
+    uint remainingBaseValue = (baseBalance - withdrawalAs18Decimals).multiplyDecimal(_getBasePrice());
+    if (cashBalance.abs() > remainingBaseValue.multiplyDecimal(_getPPTSAStorage().ppParams.negMaxCashTolerance)) {
       revert PPT_WithdrawingUtilisedCollateral();
     }
   }
@@ -332,7 +342,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   {
     PPTSAStorage storage $ = _getPPTSAStorage();
     if (makerTrades.length != 2) {
-      revert PPT_InvalidParams();
+      revert PPT_InvalidTradeLength();
     }
     (IForwardFeed fwdFeed, IVolFeed volFeed) = _getFeeds();
     (uint optionExpiry, uint optionStrike, bool isCall) = _validateAndRetrieveSubIdDetails(makerTrades[0].subId);
@@ -362,7 +372,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       makerTrades[0].asset != makerTrades[1].asset || makerTrades[0].asset != address($.optionAsset)
         || strike1.expiry != strike2.expiry
     ) {
-      revert PPT_InvalidParams();
+      revert PPT_InvalidMakerTradeDetails();
     }
 
     if (strike1.strike > strike2.strike) {
@@ -424,7 +434,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
       revert PPT_InvalidTradeAmount();
     }
 
-    (uint openSpreads, uint baseBalance, int cashBalance) = _getSubAccountStats();
+    (uint openPositiveSpreads, uint baseBalance, int cashBalance) = _getSubAccountStats();
 
     if (cashBalance < $.ppParams.maxNegCash) {
       revert PPT_CannotTradeWithTooMuchNegativeCash();
@@ -435,9 +445,9 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     _verifyRFQFee(maxFee, actualCostOfTrade.abs());
     _validateTradeDetails(lowerStrike, higherStrike, actualCostOfTrade);
 
-    uint maxLossOfOpenOptions = openSpreads.multiplyDecimal(strikeDiff);
+    uint maxLossOfOpenOptions = openPositiveSpreads.multiplyDecimal(strikeDiff);
     uint totalTradeMaxLossOrGain = higherStrike.tradeAmount.abs().multiplyDecimal(strikeDiff);
-    uint baseBalanceAtSpotPrice = baseBalance.multiplyDecimal(_getBasePrice());
+    uint baseValue = baseBalance.multiplyDecimal(_getBasePrice());
 
     /*
     * The following check is to ensure that if we were to execute this trade,
@@ -451,8 +461,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     * we ensure this trade isn't too large in respect to our TVL.
     */
     if (
-      maxLossOfOpenOptions + totalTradeMaxLossOrGain
-        > baseBalanceAtSpotPrice.multiplyDecimal($.ppParams.maxLossOrGainPercentOfTVL)
+      maxLossOfOpenOptions + totalTradeMaxLossOrGain > baseValue.multiplyDecimal($.ppParams.maxLossOrGainPercentOfTVL)
     ) {
       revert PPT_TradeTooLarge();
     }
@@ -521,23 +530,32 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   // Account Value //
   ///////////////////
 
-  function _getSubAccountStats() internal view returns (uint openSpreads, uint baseBalance, int cashBalance) {
+  function _getSubAccountStats() internal view returns (uint openPositiveSpreads, uint baseBalance, int cashBalance) {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
     ISubAccounts.AssetBalance[] memory balances = tsaAddresses.subAccounts.getAccountBalances(subAccount());
+    int signedBaseBalance = 0;
+    uint openNegativeSpreads = 0;
     for (uint i = 0; i < balances.length; i++) {
-      if (balances[i].asset == _getPPTSAStorage().optionAsset && balances[i].balance > 0) {
-        // since we validate that we have a 1:1 ratio between buying and selling between two different strikes,
-        // we can just add the positive balances.
-        // We just validate that spreads are either open or how much they can lose,
-        // so we only care about one side of the balances.
-        openSpreads += uint(balances[i].balance);
+      if (balances[i].asset == _getPPTSAStorage().optionAsset) {
+        if (balances[i].balance > 0) {
+          openPositiveSpreads += uint(balances[i].balance);
+        } else {
+          openNegativeSpreads += balances[i].balance.abs();
+        }
       } else if (balances[i].asset == tsaAddresses.wrappedDepositAsset) {
-        baseBalance = balances[i].balance.abs();
+        signedBaseBalance = balances[i].balance;
       } else if (balances[i].asset == tsaAddresses.cash) {
         cashBalance = balances[i].balance;
       }
     }
-    return (openSpreads, baseBalance, cashBalance);
+    if (openNegativeSpreads != openPositiveSpreads) {
+      revert PPT_InvalidSpreadBalance();
+    }
+    if (signedBaseBalance < 0) {
+      revert PPT_NegativeBaseBalance();
+    }
+
+    return (openPositiveSpreads, signedBaseBalance.abs(), cashBalance);
   }
 
   function _getBasePrice() internal view override returns (uint spotPrice) {
@@ -551,7 +569,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     return _getAccountValue(includePending);
   }
 
-  function getSubAccountStats() public view returns (uint openSpreads, uint baseBalance, int cashBalance) {
+  function getSubAccountStats() public view returns (uint openPositiveSpreads, uint baseBalance, int cashBalance) {
     return _getSubAccountStats();
   }
 
@@ -585,6 +603,11 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
   ///////////////////
   event PPTSAParamsSet(PPTSAParams params);
 
+  error PPT_CannotChangeStrikeDiffWithOpenSpreads();
+  error PPT_NegativeBaseBalance();
+  error PPT_InvalidSpreadBalance();
+  error PPT_InvalidMakerTradeDetails();
+  error PPT_InvalidTradeLength();
   error PPT_InvalidParams();
   error PPT_InvalidActionExpiry();
   error PPT_InvalidModule();

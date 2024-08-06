@@ -4,9 +4,12 @@ pragma solidity ^0.8.0;
 import "../TSATestUtils.sol";
 
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
+import "lyra-utils/decimals/SignedDecimalMath.sol";
+import "v2-core/test/assets/cashAsset/mocks/MockInterestRateModel.sol";
 
 contract PPTSA_ValidationTests is PPTSATestUtils {
   using SignedMath for int;
+  using SignedDecimalMath for int;
 
   function setUp() public override {
     super.setUp();
@@ -56,5 +59,98 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     tsa.signActionData(action, "");
 
     vm.stopPrank();
+  }
+
+  function testPPTWithdrawAuctionValidations() public {
+    // use a mock interest rate model for straightforward interest calcs.
+    MockInterestRateModel mockModel = new MockInterestRateModel(0);
+    cash.setInterestRateModel(mockModel);
+    _depositToTSA(20e18);
+    _executeDeposit(20e18);
+    auction.setSMAccount(securityModule.accountId());
+    // withdraw a large amount of cash so we go insolvent
+    vm.prank(subAccounts.ownerOf(tsaSubacc));
+    cash.withdraw(tsaSubacc, 10_000e6, address(1234));
+
+    vm.warp(block.timestamp + 1);
+    _setSpotPrice("weth", 0, 1e18);
+    auction.startAuction(tsaSubacc, 0);
+
+    // cant act while in auction
+    IActionVerifier.Action memory action = _createWithdrawalAction(3e18);
+    vm.prank(signer);
+    vm.expectRevert(BaseTSA.BTSA_Blocked.selector);
+    tsa.signActionData(action, "");
+
+    // clear auction and have half of assets auctioned off
+    uint newSubacc = subAccounts.createAccount(address(this), srm);
+    usdc.mint(address(this), 1e18);
+    usdc.approve(address(cash), 1e18);
+    cash.deposit(newSubacc, 1e18);
+
+    auction.bid(tsaSubacc, newSubacc, 0.5e18, 0, 0);
+
+    usdc.mint(address(cash), 1e18);
+    cash.disableWithdrawFee();
+    vm.warp(block.timestamp + 1);
+    _setSpotPrice("weth", 200_000e18, 1e18);
+    auction.terminateAuction(tsaSubacc);
+
+    // half of base has been auctioned off, and we still have half negative cash
+    int borrowInterestRate = int(mockModel.getBorrowInterestFactor(0, 0));
+    (, uint base, int cashBalance) = tsa.getSubAccountStats();
+    assertEq(base, 10e18);
+    // dividing by interest rate to ignore interest accrued.
+    assertEq(cashBalance.divideDecimal(1e18 + borrowInterestRate), -5_000e18);
+
+    // assert can still do withdrawals, but not too large
+    _executeWithdrawal(1e18);
+    (, base,) = tsa.getSubAccountStats();
+    assertEq(base, 9e18);
+
+    // try to withdraw too much
+    action = _createWithdrawalAction(9e18);
+    vm.prank(signer);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_WithdrawingUtilisedCollateral.selector);
+    tsa.signActionData(action, "");
+  }
+
+  function testPPTCannotWithdrawWithNegativeBaseBalance() public {
+    deployPredeposit(address(usdc));
+    upgradeToPPTSA("usdc", true, true);
+    PrincipalProtectedTSA ppTSA = PrincipalProtectedTSA(address(proxy));
+    setupPPTSA();
+    ppTSA.setShareKeeper(address(this), true);
+
+    // send some weth to the tsa to make sure it fail insolvency checks
+    vm.prank(address(markets["weth"].base));
+    subAccounts.assetAdjustment(
+      ISubAccounts.AssetAdjustment({
+        acc: tsaSubacc,
+        asset: markets["weth"].base,
+        subId: 0,
+        amount: 10e18,
+        assetData: bytes32(0)
+      }),
+      true,
+      ""
+    );
+    vm.prank(address(matching));
+    cash.withdraw(tsaSubacc, 1e6, address(1234));
+    bytes memory withdrawalData = _encodeWithdrawData(1e18, address(cash));
+
+    IActionVerifier.Action memory action = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++tsaNonce,
+      module: withdrawalModule,
+      data: withdrawalData,
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+
+    vm.prank(signer);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_NegativeBaseBalance.selector);
+    tsa.signActionData(action, "");
   }
 }

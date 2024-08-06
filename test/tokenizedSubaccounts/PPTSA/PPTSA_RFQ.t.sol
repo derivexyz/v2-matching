@@ -6,6 +6,7 @@ import "forge-std/console2.sol";
 
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 import {DecimalMath} from "lyra-utils/decimals/DecimalMath.sol";
+import "v2-core/src/interfaces/ISubAccounts.sol";
 
 contract PPTSA_ValidationTests is PPTSATestUtils {
   using SignedMath for int;
@@ -43,14 +44,14 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     makerOrder.trades[1].asset = address(markets["weth"].base);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     action.data = abi.encode(takerOrder);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidMakerTradeDetails.selector);
     tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // Should fail when the assets between both legs are not the same
     makerOrder.trades[0].asset = address(markets["weth"].option);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     action.data = abi.encode(takerOrder);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidMakerTradeDetails.selector);
     tsa.signActionData(action, abi.encode(makerOrder.trades));
 
     makerOrder.trades[1].asset = address(markets["weth"].option);
@@ -62,7 +63,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     smallerMakerOrder.trades = smallerTrades;
     takerOrder.orderHash = keccak256(abi.encode(smallerTrades));
     action.data = abi.encode(takerOrder);
-    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidTradeLength.selector);
     tsa.signActionData(action, abi.encode(smallerTrades));
 
     // Should fail when we're a taker buying long call spreads with a negative high strike amount
@@ -442,6 +443,74 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
     tsa.signActionData(action, "");
+  }
+
+  function testCannotRFQWithIncorrectAmountOfExistingSpreads() public {
+    int amount = 1e18;
+    uint higherPrice = 50e18;
+    uint64 expiry = uint64(block.timestamp + 7 days);
+    uint highStrike = 2000e18;
+    uint lowerPrice = 250e18;
+    uint lowStrike = 1600e18;
+
+    _setupPPTSAWithDeposit(true, true);
+    _tradeRfqAsMaker(-1 * amount, higherPrice, expiry, highStrike, lowerPrice, lowStrike, true);
+    (uint openSpreads, uint baseBalance, int cashBalance) = tsa.getSubAccountStats();
+    assertEq(openSpreads, amount.abs());
+    assertEq(baseBalance, 100e18);
+    assertEq(cashBalance, -200e18);
+
+    IAllowances.AssetAllowance[] memory assetAllowances = new IAllowances.AssetAllowance[](1);
+    assetAllowances[0] = IAllowances.AssetAllowance({asset: markets["weth"].option, positive: 1e18, negative: 1e18});
+    vm.prank(address(subAccounts.manager(nonVaultSubacc)));
+    subAccounts.setAssetAllowances(nonVaultSubacc, signer, assetAllowances);
+
+    assetAllowances[0] = IAllowances.AssetAllowance({asset: markets["weth"].option, positive: 1e18, negative: 1e18});
+    vm.prank(address(subAccounts.manager(tsaSubacc)));
+    subAccounts.setAssetAllowances(tsaSubacc, signer, assetAllowances);
+
+    // transfer some option asset from a non vault account to the vault
+    vm.prank(signer);
+    ISubAccounts.AssetTransfer memory assetTransfer = ISubAccounts.AssetTransfer({
+      asset: markets["weth"].option,
+      amount: 0.01e18,
+      fromAcc: tsaSubacc,
+      toAcc: nonVaultSubacc,
+      assetData: bytes32(0),
+      subId: OptionEncoding.toSubId(expiry, highStrike, true)
+    });
+    subAccounts.submitTransfer(assetTransfer, "");
+
+    // now try to trade it will fail
+    (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
+      _setupRfq(amount, higherPrice, expiry, highStrike, lowerPrice, lowStrike, true);
+    IActionVerifier.Action memory action = _createRfqAction(takerOrder);
+    vm.prank(signer);
+    vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidSpreadBalance.selector);
+    tsa.signActionData(action, abi.encode(makerOrder.trades));
+  }
+
+  function testCannotChangeStrikeDiffWithOpenSpreads() public {
+    int amount = 1e18;
+    uint higherPrice = 50e18;
+    uint64 expiry = uint64(block.timestamp + 7 days);
+    uint highStrike = 2000e18;
+    uint lowerPrice = 250e18;
+    uint lowStrike = 1600e18;
+    _setupPPTSAWithDeposit(true, true);
+    _tradeRfqAsMaker(-1 * amount, higherPrice, expiry, highStrike, lowerPrice, lowStrike, true);
+    (uint openSpreads,,) = tsa.getSubAccountStats();
+    assertEq(openSpreads, amount.abs());
+
+    defaultPPTSAParams.strikeDiff = 100e18;
+    vm.expectRevert(PrincipalProtectedTSA.PPT_CannotChangeStrikeDiffWithOpenSpreads.selector);
+    tsa.setPPTSAParams(defaultPPTSAParams);
+
+    vm.warp(block.timestamp + 8 days);
+    _setSettlementPrice("weth", expiry, 2500e18);
+    srm.settleOptions(markets["weth"].option, tsa.subAccount());
+
+    tsa.setPPTSAParams(defaultPPTSAParams);
   }
 
   function _createRfqAction(IRfqModule.TakerOrder memory takerOrder) internal returns (IActionVerifier.Action memory) {
