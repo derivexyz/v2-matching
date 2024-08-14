@@ -1,6 +1,5 @@
 pragma solidity 0.8.20;
 
-import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "v2-core/scripts/types.sol";
 import "forge-std/console2.sol";
@@ -9,8 +8,9 @@ import "v2-core/src/risk-managers/StandardManager.sol";
 import "v2-core/src/risk-managers/SRMPortfolioViewer.sol";
 import "v2-core/src/risk-managers/PMRM.sol";
 import "openzeppelin/access/Ownable2Step.sol";
+import "./ForkBase.t.sol";
 
-contract LyraForkTest is Test {
+contract LyraForkTest is ForkBase {
   function setUp() external {}
 
   function testFork() external skipped {
@@ -61,10 +61,5 @@ contract LyraForkTest is Test {
     string memory chainDir = string.concat(vm.toString(block.chainid), "/");
     string memory file = string.concat(fileName, ".json");
     return vm.readFile(string.concat(deploymentDir, chainDir, file));
-  }
-
-  modifier skipped() {
-    vm.skip(true);
-    _;
   }
 }

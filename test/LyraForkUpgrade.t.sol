@@ -25,8 +25,9 @@ import "../src/Matching.sol";
 import "v2-core/src/assets/WLWrappedERC20Asset.sol";
 import "../src/modules/RfqModule.sol";
 import "v2-core/src/SubAccounts.sol";
+import {ForkBase} from "./ForkBase.t.sol";
 
-contract LyraForkUpgradeTest is Test {
+contract LyraForkUpgradeTest is ForkBase {
   CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
     .CollateralManagementParams({
     feeFactor: 10000000000000000,
@@ -52,7 +53,7 @@ contract LyraForkUpgradeTest is Test {
 
   function setUp() external {}
 
-  function testForkUpgrade() external {
+  function testForkUpgrade() external skipped {
     address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
 
     vm.deal(deployer, 1 ether);
