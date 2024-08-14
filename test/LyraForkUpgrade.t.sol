@@ -20,7 +20,11 @@ import "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {TokenizedSubAccount} from "../src/tokenizedSubaccounts/TSA.sol";
 import "openzeppelin/proxy/transparent/ProxyAdmin.sol";
 import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
-
+import "v2-core/src/l2/LyraERC20.sol";
+import "../src/Matching.sol";
+import "v2-core/src/assets/WLWrappedERC20Asset.sol";
+import "../src/modules/RfqModule.sol";
+import "v2-core/src/SubAccounts.sol";
 
 
 contract LyraForkUpgradeTest is Test {
@@ -58,7 +62,6 @@ contract LyraForkUpgradeTest is Test {
     vm.startPrank(deployer);
     string memory tsaName = "sUSDeBULL";
 
-    StandardManager srm = StandardManager(_getContract("core", "srm"));
     ProxyAdmin proxyAdmin = ProxyAdmin(_getContract(tsaName, "proxyAdmin"));
 
     PrincipalProtectedTSA implementation = PrincipalProtectedTSA(_getContract(tsaName, "implementation"));
@@ -106,12 +109,165 @@ contract LyraForkUpgradeTest is Test {
     );
     pptsa.setPPTSAParams(defaultLrtppTSAParams);
     pptsa.setCollateralManagementParams(defaultCollateralManagementParams);
+    pptsa.setShareKeeper(deployer, true);
+    pptsa.setSigner(deployer, true);
+    vm.stopPrank();
+    _verifyAndMatchDeposit(pptsa);
+    _verifyTakerTrade(pptsa);
+    _verifyMakerTrade(pptsa);
+    _verifyWithdraw(pptsa);
+  }
 
+  function _verifyAndMatchDeposit(PrincipalProtectedTSA pptsa) internal {
+    address susde = _getContract("shared", "susde");
+    address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
+    Matching matching = Matching(_getContract("matching", "matching"));
+    LyraERC20 susdeCoin = LyraERC20(susde);
+    address proxyAddress = _getContract("sUSDeBULL", "proxy");
+
+    vm.prank(proxyAddress);
+    susdeCoin.approve(deployer, 11e18);
+    vm.startPrank(deployer);
+    susdeCoin.transferFrom(proxyAddress, deployer, 10e18);
+
+    WLWrappedERC20Asset wrappedDepositAsset = WLWrappedERC20Asset(_getContract("sUSDe", "base"));
+    wrappedDepositAsset.wrappedAsset().approve(address(pptsa), 11e18);
+    wrappedDepositAsset.setWhitelistEnabled(false);
+    uint depositId = pptsa.initiateDeposit(1e18, deployer);
+    pptsa.processDeposit(depositId);
+
+    bytes memory depositData =
+              abi.encode(IDepositModule.DepositData({
+        amount: 10e18,
+        asset: _getContract("sUSDe", "base"),
+        managerForNewAccount: address(0)}));
+
+    IActionVerifier.Action memory action = IActionVerifier.Action({
+      subaccountId: pptsa.subAccount(),
+      nonce: 1,
+      module: IDepositModule(_getContract("matching", "deposit")),
+      data: depositData,
+      expiry: block.timestamp + 8 minutes,
+      owner: address(pptsa),
+      signer: address(pptsa)
+    });
+
+    pptsa.signActionData(action, "");
+    bytes memory encodedAction = abi.encode(action);
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](1);
+    bytes[] memory signatures = new bytes[](1);
+    actions[0] = action;
+
+    matching.setTradeExecutor(deployer, true);
+    vm.stopPrank();
+    vm.prank(deployer);
+    matching.verifyAndMatch(actions, signatures, encodedAction);
+  }
+
+  function _verifyTakerTrade(PrincipalProtectedTSA pptsa) internal {
+    address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
+    OptionAsset optionAsset = OptionAsset(_getContract("ETH", "option"));
+    RfqModule rfqModule = RfqModule(_getContract("matching", "rfq"));
+
+    uint higherPrice = 3.6e18;
+    uint highStrike = 2900e18;
+    uint lowerPrice = 30e18;
+    uint lowStrike = 2700e18;
+
+    IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](2);
+    trades[0] = IRfqModule.TradeData({
+      asset: address(optionAsset),
+      subId: OptionEncoding.toSubId(uint64(1723708800), highStrike, true), // TODO: Fix to next friday 8 AM UTC
+      price: higherPrice,
+      amount: .0001e18
+    });
+
+    trades[1] = IRfqModule.TradeData({
+      asset: address(optionAsset),
+      subId: OptionEncoding.toSubId(uint64(1723708800), lowStrike, true),
+      price: lowerPrice,
+      amount: -.0001e18
+    });
+
+    IRfqModule.TakerOrder memory takerOrder = IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(trades)), maxFee: 0});
+
+    // taker order
+    IActionVerifier.Action memory action = IActionVerifier.Action({
+      subaccountId: pptsa.subAccount(),
+      nonce: 2,
+      module: rfqModule,
+      data: abi.encode(takerOrder),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(pptsa),
+      signer: address(pptsa)
+    });
+    vm.prank(deployer);
+    pptsa.signActionData(action, abi.encode(trades));
+  }
+
+  function _verifyMakerTrade(PrincipalProtectedTSA pptsa) internal {
+    address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
+    OptionAsset optionAsset = OptionAsset(_getContract("ETH", "option"));
+    RfqModule rfqModule = RfqModule(_getContract("matching", "rfq"));
+
+    uint higherPrice = 3.6e18;
+    uint highStrike = 2900e18;
+    uint lowerPrice = 30e18;
+    uint lowStrike = 2700e18;
+
+    IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](2);
+    trades[0] = IRfqModule.TradeData({
+      asset: address(optionAsset),
+      subId: OptionEncoding.toSubId(uint64(1723708800), highStrike, true), // TODO: Fix to next friday 8 AM UTC
+      price: higherPrice,
+      amount: -.0001e18
+    });
+
+    trades[1] = IRfqModule.TradeData({
+      asset: address(optionAsset),
+      subId: OptionEncoding.toSubId(uint64(1723708800), lowStrike, true),
+      price: lowerPrice,
+      amount: .0001e18
+    });
+
+    IRfqModule.RfqOrder memory makerOrder = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
+
+    IActionVerifier.Action memory action = IActionVerifier.Action({
+      subaccountId: pptsa.subAccount(),
+      nonce: 3,
+      module: IMatchingModule(address(rfqModule)),
+      data: abi.encode(makerOrder),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(pptsa),
+      signer: address(pptsa)
+    });
+    vm.prank(deployer);
+    pptsa.signActionData(action, "");
+  }
+
+  function _verifyWithdraw(PrincipalProtectedTSA pptsa) internal {
+    address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
+    IWithdrawalModule.WithdrawalData memory data = IWithdrawalModule.WithdrawalData({
+      asset:  _getContract("sUSDe", "base"),
+      assetAmount: 10e18
+    });
+
+    IActionVerifier.Action memory action = IActionVerifier.Action({
+      subaccountId: pptsa.subAccount(),
+      nonce: 5,
+      module: IWithdrawalModule(_getContract("matching", "withdrawal")),
+      data: abi.encode(data),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(pptsa),
+      signer: address(pptsa)
+    });
+    vm.prank(deployer);
+    pptsa.signActionData(action, "");
   }
 
   function _getContract(string memory file, string memory name) internal view returns (address) {
-    string memory file = _readDeploymentFile(file);
-    return abi.decode(vm.parseJson(file, string.concat(".", name)), (address));
+    string memory deploymentFile = _readDeploymentFile(file);
+    return abi.decode(vm.parseJson(deploymentFile, string.concat(".", name)), (address));
   }
 
   ///@dev read deployment file from deployments/
