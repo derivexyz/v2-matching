@@ -26,11 +26,9 @@ import "v2-core/src/assets/WLWrappedERC20Asset.sol";
 import "../src/modules/RfqModule.sol";
 import "v2-core/src/SubAccounts.sol";
 
-
 contract LyraForkUpgradeTest is Test {
-
   CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
-  .CollateralManagementParams({
+    .CollateralManagementParams({
     feeFactor: 10000000000000000,
     spotTransactionLeniency: 1050000000000000000,
     worstSpotSellPrice: 985000000000000000,
@@ -38,26 +36,25 @@ contract LyraForkUpgradeTest is Test {
   });
 
   PrincipalProtectedTSA.PPTSAParams public defaultLrtppTSAParams = PrincipalProtectedTSA.PPTSAParams({
-    maxMarkValueToStrikeDiffRatio  : 700000000000000000,
-    minMarkValueToStrikeDiffRatio  : 100000000000000000,
-    strikeDiff  : 200000000000000000000,
-    maxTotalCostTolerance  : 2000000000000000000,
-    maxLossOrGainPercentOfTVL  : 20000000000000000,
-    negMaxCashTolerance  : 20000000000000000,
-    minSignatureExpiry  : 300,
-    maxSignatureExpiry  : 1800,
-    optionMinTimeToExpiry  : 21000,
-    optionMaxTimeToExpiry  : 691200,
-    maxNegCash  : -100000000000000000000000,
-    rfqFeeFactor  : 1000000000000000000
+    maxMarkValueToStrikeDiffRatio: 700000000000000000,
+    minMarkValueToStrikeDiffRatio: 100000000000000000,
+    strikeDiff: 200000000000000000000,
+    maxTotalCostTolerance: 2000000000000000000,
+    maxLossOrGainPercentOfTVL: 20000000000000000,
+    negMaxCashTolerance: 20000000000000000,
+    minSignatureExpiry: 300,
+    maxSignatureExpiry: 1800,
+    optionMinTimeToExpiry: 21000,
+    optionMaxTimeToExpiry: 691200,
+    maxNegCash: -100000000000000000000000,
+    rfqFeeFactor: 1000000000000000000
   });
-
 
   function setUp() external {}
 
   function testForkUpgrade() external {
     address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
-    
+
     vm.deal(deployer, 1 ether);
     vm.startPrank(deployer);
     string memory tsaName = "sUSDeBULL";
@@ -136,11 +133,9 @@ contract LyraForkUpgradeTest is Test {
     uint depositId = pptsa.initiateDeposit(1e18, deployer);
     pptsa.processDeposit(depositId);
 
-    bytes memory depositData =
-              abi.encode(IDepositModule.DepositData({
-        amount: 10e18,
-        asset: _getContract("sUSDe", "base"),
-        managerForNewAccount: address(0)}));
+    bytes memory depositData = abi.encode(
+      IDepositModule.DepositData({amount: 10e18, asset: _getContract("sUSDe", "base"), managerForNewAccount: address(0)})
+    );
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: pptsa.subAccount(),
@@ -179,17 +174,18 @@ contract LyraForkUpgradeTest is Test {
       asset: address(optionAsset),
       subId: OptionEncoding.toSubId(uint64(1723708800), highStrike, true), // TODO: Fix to next friday 8 AM UTC
       price: higherPrice,
-      amount: .0001e18
+      amount: 0.0001e18
     });
 
     trades[1] = IRfqModule.TradeData({
       asset: address(optionAsset),
       subId: OptionEncoding.toSubId(uint64(1723708800), lowStrike, true),
       price: lowerPrice,
-      amount: -.0001e18
+      amount: -0.0001e18
     });
 
-    IRfqModule.TakerOrder memory takerOrder = IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(trades)), maxFee: 0});
+    IRfqModule.TakerOrder memory takerOrder =
+      IRfqModule.TakerOrder({orderHash: keccak256(abi.encode(trades)), maxFee: 0});
 
     // taker order
     IActionVerifier.Action memory action = IActionVerifier.Action({
@@ -220,14 +216,14 @@ contract LyraForkUpgradeTest is Test {
       asset: address(optionAsset),
       subId: OptionEncoding.toSubId(uint64(1723708800), highStrike, true), // TODO: Fix to next friday 8 AM UTC
       price: higherPrice,
-      amount: -.0001e18
+      amount: -0.0001e18
     });
 
     trades[1] = IRfqModule.TradeData({
       asset: address(optionAsset),
       subId: OptionEncoding.toSubId(uint64(1723708800), lowStrike, true),
       price: lowerPrice,
-      amount: .0001e18
+      amount: 0.0001e18
     });
 
     IRfqModule.RfqOrder memory makerOrder = IRfqModule.RfqOrder({maxFee: 0, trades: trades});
@@ -247,10 +243,8 @@ contract LyraForkUpgradeTest is Test {
 
   function _verifyWithdraw(PrincipalProtectedTSA pptsa) internal {
     address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
-    IWithdrawalModule.WithdrawalData memory data = IWithdrawalModule.WithdrawalData({
-      asset:  _getContract("sUSDe", "base"),
-      assetAmount: 10e18
-    });
+    IWithdrawalModule.WithdrawalData memory data =
+      IWithdrawalModule.WithdrawalData({asset: _getContract("sUSDe", "base"), assetAmount: 10e18});
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: pptsa.subAccount(),
