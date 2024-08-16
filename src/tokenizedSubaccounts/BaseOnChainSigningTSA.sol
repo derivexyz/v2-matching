@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import "./BaseTSA.sol";
-
 import "openzeppelin/utils/cryptography/ECDSA.sol";
 
 /// @title BaseOnChainSigningTSA
@@ -46,13 +45,14 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   /////////////
   // Signing //
   /////////////
-  function signActionData(IMatching.Action memory action) external virtual onlySigner {
+
+  function signActionData(IMatching.Action memory action, bytes memory extraData) external virtual onlySigner {
     bytes32 hash = getActionTypedDataHash(action);
 
     if (action.signer != address(this)) {
       revert BOCST_InvalidAction();
     }
-    _verifyAction(action, hash);
+    _verifyAction(action, hash, extraData);
     _getBaseSigningTSAStorage().signedData[hash] = true;
 
     emit ActionSigned(msg.sender, hash, action);
@@ -72,7 +72,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     emit SignatureRevoked(msg.sender, hash);
   }
 
-  function _verifyAction(IMatching.Action memory action, bytes32 actionHash) internal virtual;
+  function _verifyAction(IMatching.Action memory action, bytes32 actionHash, bytes memory extraData) internal virtual;
 
   function getActionTypedDataHash(IMatching.Action memory action) public view returns (bytes32) {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
