@@ -26,6 +26,8 @@ import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
 // INSTRUCTIONS //
 //////////////////
 
+// Used for deploying new vaults directly with implementation (skipping pre-deposit)
+
 // 0. git submodule update --init --recursive --force + forge build --force
 // 1. Adjust params in the script setup section
 // 2. Choose between Covered Call or PP TSA in the run() function
