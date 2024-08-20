@@ -59,10 +59,10 @@ contract DeployTSA is Utils {
             vaultType: VaultType.PrincipalProtected,
             depositAssetName: "weETH",
             optionAssetName: "ETH",
-            vaultSymbol: "weETHCS",
-            vaultName: "weETH Covered Call Spread",
+            vaultSymbol: "weETHBULL",
+            vaultName: "weETH Principal Protected Bull Call Spread",
             ppTSAisCallSpread: true,
-            ppTSAisLongSpread: false
+            ppTSAisLongSpread: true
         });
 
     BaseTSA.TSAParams public defaultBaseTSAParams =
@@ -100,32 +100,33 @@ contract DeployTSA is Utils {
             /////////////////////////////
             // Long Call Spread - BULL //
             /////////////////////////////
-            // maxMarkValueToStrikeDiffRatio: 700000000000000000, // Long Call Spread - BULL (0.7)
-            // minMarkValueToStrikeDiffRatio: 100000000000000000, // Long Call Spread - BULL (0.1)
-            // strikeDiff: 200000000000000000000, // Check with Nick for prod ($200)
-            // maxTotalCostTolerance: 2000000000000000000, (2x)
-            // maxLossOrGainPercentOfTVL: 20000000000000000 (0.02)
+            maxMarkValueToStrikeDiffRatio: 700000000000000000, // (0.7)
+            minMarkValueToStrikeDiffRatio: 100000000000000000, // (0.1)
+            strikeDiff: 200e18, // ($200)
+            maxTotalCostTolerance: 150e16, // (1.5x)
+            maxLossOrGainPercentOfTVL: 1e16, // (0.01)
             //////////////////////////////
             // Covered Call Spread - CS //
             //////////////////////////////
-            maxMarkValueToStrikeDiffRatio: 200000000000000000, // Covered Call Spread - CS (0.2)
-            minMarkValueToStrikeDiffRatio: 5000000000000000, // Covered Call Spread - CS (0.005)
-            strikeDiff: 100000000000000000000, // Check with Nick for prod ($100)
-            maxTotalCostTolerance: 300000000000000000, // (0.3)
-            maxLossOrGainPercentOfTVL: 100000000000000000, // (0.1)
+            // maxMarkValueToStrikeDiffRatio: 200000000000000000, // (0.2)
+            // minMarkValueToStrikeDiffRatio: 5000000000000000, // (0.005)
+            // strikeDiff: 100e18, // ($100)
+            // maxTotalCostTolerance: 30e16, // (0.3)
+            // maxLossOrGainPercentOfTVL: 10e16, // (0.1)
             /////////////////////
             // Staging vs Prod //
             /////////////////////
-            optionMinTimeToExpiry: 21000, // (4 days: 345,600 in prod)
+            // optionMinTimeToExpiry: 21000, // (6hrs: staging)
+            optionMinTimeToExpiry: 345600, // (4 days: prod)
             ///////////////////////////
             // Usually stay the same //
             ///////////////////////////
-            negMaxCashTolerance: 20000000000000000,
+            negMaxCashTolerance: 2e16,
             minSignatureExpiry: 300,
             maxSignatureExpiry: 1800,
             optionMaxTimeToExpiry: 691200, // 8 days
-            maxNegCash: -100000000000000000000000, // ($100,000)
-            rfqFeeFactor: 1000000000000000000
+            maxNegCash: -100_000e18, // ($100,000)
+            rfqFeeFactor: 1e18
         });
 
     /// @dev main function
