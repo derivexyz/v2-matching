@@ -19,7 +19,7 @@ contract DeployBaseAsset is Utils {
 
     address deployer = vm.addr(deployerPrivateKey);
     console2.log("Deployer: ", deployer);
-    LyraERC20 erc20 = new LyraERC20(name, ticker, 18);
+    LyraERC20 erc20 = new LyraERC20(name, ticker, decimals);
     console2.log("ERC20 address: ", address(erc20));
 
     _writeToDeployments(string.concat("erc20-", ticker), string.concat("{\"erc20\": \"", vm.toString(address(erc20)), "\"}"));
