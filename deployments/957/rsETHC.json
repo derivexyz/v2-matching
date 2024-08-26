@@ -1,5 +1,6 @@
 {
   "proxy": "0xd35bb8582809b4BDa4F8bCCE1bde48559f63eCbf",
-  "implementation": "0xcb2768F3d7341CDc5d48f1c66dd3F52d95fd9eb7",
+  "old_implementation": "0xcb2768F3d7341CDc5d48f1c66dd3F52d95fd9eb7",
+  "implementation": "0x5eC5c920366A0B3563645053E104139A57D64C9e",
   "proxyAdmin": "0x0993B80488b3bE3Ff44bfcCAB4333900D9Aaa355"
 }
