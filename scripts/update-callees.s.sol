@@ -12,7 +12,7 @@ import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {PerpAsset} from "v2-core/src/assets/PerpAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {ICashAsset} from "v2-core/src/interfaces/ICashAsset.sol";
-import {LyraRateFeedStatic} from "v2-core/src/feeds/LyraRateFeedStatic.sol";
+import {LyraRateFeedStatic} from "v2-core/src/feeds/static/LyraRateFeedStatic.sol";
 
 import {WrappedERC20Asset} from "v2-core/src/assets/WrappedERC20Asset.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
