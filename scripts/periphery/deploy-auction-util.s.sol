@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import "forge-std/console2.sol";
-import {Utils} from "./utils.sol";
-import "../src/periphery/LyraAuctionUtils.sol";
+import {Utils} from "../utils.sol";
+import "../../src/periphery/LyraAuctionUtils.sol";
 
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";

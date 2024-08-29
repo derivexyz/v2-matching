@@ -2,16 +2,16 @@
 pragma solidity ^0.8.0;
 
 import "forge-std/console2.sol";
-import {Utils} from "./utils.sol";
-import "../src/periphery/LyraSettlementUtils.sol";
+import {Utils} from "../utils.sol";
+import "../../src/periphery/LyraSettlementUtils.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {ISecurityModule} from "v2-core/src/interfaces/ISecurityModule.sol";
 import {ICashAsset} from "v2-core/src/interfaces/ICashAsset.sol";
-import {IMatching} from "../src/interfaces/IMatching.sol";
+import {IMatching} from "../../src/interfaces/IMatching.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
-import {LyraAuctionUtils} from "../src/periphery/LyraAuctionUtils.sol";
-import {LiquidateModule} from "../src/modules/LiquidateModule.sol";
-import {Matching} from "../src/Matching.sol";
+import {LyraAuctionUtils} from "../../src/periphery/LyraAuctionUtils.sol";
+import {LiquidateModule} from "../../src/modules/LiquidateModule.sol";
+import {Matching} from "../../src/Matching.sol";
 
 import {BaseManager} from "v2-core/src/risk-managers/BaseManager.sol";
 import {CashAsset} from "v2-core/src/assets/CashAsset.sol";

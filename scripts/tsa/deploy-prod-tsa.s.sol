@@ -1,42 +1,79 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.0;
 
-import "forge-std/console2.sol";
-import {Utils} from "./utils.sol";
-import "../src/periphery/LyraSettlementUtils.sol";
-import {BaseTSA} from "../src/tokenizedSubaccounts/BaseTSA.sol";
+import "forge-std/console.sol";
+import {Utils} from "../utils.sol";
+import "../../src/periphery/LyraSettlementUtils.sol";
+import {BaseTSA} from "../../src/tokenizedSubaccounts/BaseTSA.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {CashAsset} from "v2-core/src/assets/CashAsset.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
 import {ILiquidatableManager} from "v2-core/src/interfaces/ILiquidatableManager.sol";
-import {IMatching} from "../src/interfaces/IMatching.sol";
-import {IDepositModule} from "../src/interfaces/IDepositModule.sol";
-import {IWithdrawalModule} from "../src/interfaces/IWithdrawalModule.sol";
-import {ITradeModule} from "../src/interfaces/ITradeModule.sol";
+import {IMatching} from "../../src/interfaces/IMatching.sol";
+import {IDepositModule} from "../../src/interfaces/IDepositModule.sol";
+import {IWithdrawalModule} from "../../src/interfaces/IWithdrawalModule.sol";
+import {ITradeModule} from "../../src/interfaces/ITradeModule.sol";
 import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
 import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
-import "../src/tokenizedSubaccounts/CCTSA.sol";
-import "../src/tokenizedSubaccounts/PPTSA.sol";
+import "../../src/tokenizedSubaccounts/CCTSA.sol";
+import "../../src/tokenizedSubaccounts/PPTSA.sol";
 import "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {TokenizedSubAccount} from "../src/tokenizedSubaccounts/TSA.sol";
+import {TokenizedSubAccount} from "../../src/tokenizedSubaccounts/TSA.sol";
 import "openzeppelin/proxy/transparent/ProxyAdmin.sol";
-import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
+import {TSAShareHandler} from "../../src/tokenizedSubaccounts/TSAShareHandler.sol";
 
 
 contract DeployTSA is Utils {
+
+  enum VaultType {
+    CoveredCall,
+    PrincipalProtected
+  }
+
+  struct DeploySettings {
+    VaultType vaultType;
+    string depositAssetName;
+    string optionAssetName;
+    string vaultSymbol;
+    string vaultName;
+    bool ppTSAisCallSpread;
+    bool ppTSAisLongSpread;
+  }
+
+  //////////////////////////////////////////
+  // Settings - MUST CHANGE BEFORE DEPLOY //
+  //////////////////////////////////////////
+
+  DeploySettings public settings = DeploySettings({
+    vaultType: VaultType.CoveredCall,
+    depositAssetName: "weETH",
+    optionAssetName: "ETH",
+    vaultSymbol: "weETHBULL",
+    vaultName: "weETH Principal Protected Bull Call Spread",
+    ppTSAisCallSpread: true,
+    ppTSAisLongSpread: true
+  });
+
+  BaseTSA.TSAParams public defaultBaseTSAParams = BaseTSA.TSAParams({
+    depositCap: 10000000e18,
+    minDepositValue: 0,
+    depositScale: 1e18,
+    withdrawScale: 1e18,
+    managementFee: 0,
+    feeRecipient: address(0)
+  });
 
   CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
   .CollateralManagementParams({
     feeFactor: 10000000000000000,
     spotTransactionLeniency: 1050000000000000000,
-    worstSpotSellPrice: 985000000000000000,
-    worstSpotBuyPrice: 1015000000000000000
+    worstSpotSellPrice: 980000000000000000,
+    worstSpotBuyPrice: 1020000000000000000
   });
 
   CoveredCallTSA.CCTSAParams public defaultLrtccTSAParams = CoveredCallTSA.CCTSAParams({
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
-    spotTransactionLeniency: 1.01e18,
     optionVolSlippageFactor: 0.5e18,
     optionMaxDelta: 0.4e18,
     optionMaxNegCash: -100e18,
@@ -45,48 +82,45 @@ contract DeployTSA is Utils {
   });
 
   PrincipalProtectedTSA.PPTSAParams public defaultLrtppTSAParams = PrincipalProtectedTSA.PPTSAParams({
-    maxMarkValueToStrikeDiffRatio  : 700000000000000000,
-    minMarkValueToStrikeDiffRatio  : 100000000000000000,
-    strikeDiff  : 200000000000000000000,
-    maxTotalCostTolerance  : 2000000000000000000,
-    maxLossOrGainPercentOfTVL  : 20000000000000000,
-    negMaxCashTolerance  : 20000000000000000,
-    minSignatureExpiry  : 300,
-    maxSignatureExpiry  : 1800,
-    optionMinTimeToExpiry  : 21000,
-    optionMaxTimeToExpiry  : 691200,
-    maxNegCash  : -100000000000000000000000,
-    rfqFeeFactor  : 1000000000000000000
+    maxMarkValueToStrikeDiffRatio: 700000000000000000,
+    minMarkValueToStrikeDiffRatio: 100000000000000000,
+    strikeDiff: 200000000000000000000,
+    maxTotalCostTolerance: 2000000000000000000,
+    maxLossOrGainPercentOfTVL: 20000000000000000,
+    negMaxCashTolerance: 20000000000000000,
+    minSignatureExpiry: 300,
+    maxSignatureExpiry: 1800,
+    optionMinTimeToExpiry: 21000,
+    optionMaxTimeToExpiry: 691200,
+    maxNegCash: -100000000000000000000000,
+    rfqFeeFactor: 1000000000000000000
   });
-
 
   /// @dev main function
   function run() external {
-    // deployCoveredCall();
-    deployPrincipalProtected();
-  }
-
-  function deployCoveredCall() private {
-
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
     vm.startBroadcast(deployerPrivateKey);
 
     address deployer = vm.addr(deployerPrivateKey);
-    console2.log("deployer: ", deployer);
+    console.log("deployer: ", deployer);
 
-    TokenizedSubAccount tsaImplementation = new TokenizedSubAccount();
-    ProxyAdmin proxyAdmin = new ProxyAdmin();
-    TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-      address(tsaImplementation),
-      address(proxyAdmin),
-      abi.encodeWithSelector(tsaImplementation.initialize.selector, "TSA", "TSA", address(0))
-    );
+    // hardcode weETHC for getting proxyAdmin
+    ProxyAdmin proxyAdmin = ProxyAdmin(_getMarketAddress("weETHC", "proxyAdmin"));
 
+    if (settings.vaultType == VaultType.CoveredCall) {
+      deployCoveredCall(proxyAdmin, deployer);
+    } else {
+      deployPrincipalProtected(proxyAdmin, deployer);
+    }
+  }
+
+  function deployCoveredCall(ProxyAdmin proxyAdmin, address deployer) private {
+    // TODO: We don't fetch the existing implementation yet as it has changed - collateralManagement factored out
     CoveredCallTSA lrtcctsaImplementation = new CoveredCallTSA();
 
-    proxyAdmin.upgradeAndCall(
-      ITransparentUpgradeableProxy(address(proxy)),
+    TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
       address(lrtcctsaImplementation),
+      address(proxyAdmin),
       abi.encodeWithSelector(
         lrtcctsaImplementation.initialize.selector,
         deployer,
@@ -94,71 +128,46 @@ contract DeployTSA is Utils {
           subAccounts: ISubAccounts(_getCoreContract("subAccounts")),
           auction: DutchAuction(_getCoreContract("auction")),
           cash: CashAsset(_getCoreContract("cash")),
-          wrappedDepositAsset: IWrappedERC20Asset(_getMarketAddress("ETH", "base")),
+          wrappedDepositAsset: IWrappedERC20Asset(_getMarketAddress(settings.depositAssetName, "base")),
           manager: ILiquidatableManager(_getCoreContract("srm")),
           matching: IMatching(_getMatchingModule("matching")),
-          symbol: "ETH",
-          name: "ETH Covered Call"
+          symbol: settings.vaultSymbol,
+          name: settings.vaultName
         }),
         CoveredCallTSA.CCTSAInitParams({
-          baseFeed: ISpotFeed(_getMarketAddress("ETH", "spotFeed")),
+          baseFeed: ISpotFeed(_getMarketAddress(settings.depositAssetName, "spotFeed")),
           depositModule: IDepositModule(_getMatchingModule("deposit")),
           withdrawalModule: IWithdrawalModule(_getMatchingModule("withdrawal")),
           tradeModule: ITradeModule(_getMatchingModule("trade")),
-          optionAsset: IOptionAsset(_getMarketAddress("ETH", "option"))
+          optionAsset: IOptionAsset(_getMarketAddress(settings.optionAssetName, "option"))
         })
       )
     );
 
-    CoveredCallTSA(address(proxy)).setTSAParams(
-      BaseTSA.TSAParams({
-        depositCap: 10000000e18,
-        minDepositValue: 0.01e18,
-        depositScale: 1e18,
-        withdrawScale: 1e18,
-        managementFee: 0,
-        feeRecipient: address(0)
-      })
-    );
+    console.log("proxy: ", address(proxy));
+
+    CoveredCallTSA(address(proxy)).setTSAParams(defaultBaseTSAParams);
     CoveredCallTSA cctsa = CoveredCallTSA(address(proxy));
     cctsa.setCCTSAParams(defaultLrtccTSAParams);
     cctsa.setCollateralManagementParams(defaultCollateralManagementParams);
 
-    TSAShareHandler shareHandler = new TSAShareHandler();
 
     string memory objKey = "tsa-deployment";
 
-    vm.serializeAddress(objKey, "shareHandler", address(shareHandler));
     vm.serializeAddress(objKey, "proxyAdmin", address(proxyAdmin));
     vm.serializeAddress(objKey, "implementation", address(lrtcctsaImplementation));
-    string memory finalObj = vm.serializeAddress(objKey, "DNWETH", address(proxy));
+    string memory finalObj = vm.serializeAddress(objKey, "proxy", address(proxy));
 
-    // build path
-    _writeToDeployments("tsa", finalObj);
+    _writeToDeployments(settings.vaultSymbol, finalObj);
   }
 
-  // TODO: Should be combined with cover call vault for deployment script?
-  function deployPrincipalProtected() private {
-    uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-    vm.startBroadcast(deployerPrivateKey);
+  function deployPrincipalProtected(ProxyAdmin proxyAdmin, address deployer) private {
+    // hardcoded to get existing implementation of pptsa
+    PrincipalProtectedTSA lrtpptsaImplementation = PrincipalProtectedTSA(_getMarketAddress("sUSDeBULL", "implementation"));
 
-    address deployer = vm.addr(deployerPrivateKey);
-    console2.log("deployer: ", deployer);
-
-    TokenizedSubAccount tsaImplementation = new TokenizedSubAccount();
-    ProxyAdmin proxyAdmin = new ProxyAdmin();
     TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-      address(tsaImplementation),
-      address(proxyAdmin),
-      abi.encodeWithSelector(tsaImplementation.initialize.selector, "TSA", "TSA", address(0))
-    );
-
-    PrincipalProtectedTSA lrtpptsaImplementation = new PrincipalProtectedTSA();
-    console2.log("implementation address: ", address(lrtpptsaImplementation));
-
-    proxyAdmin.upgradeAndCall(
-      ITransparentUpgradeableProxy(address(proxy)),
       address(lrtpptsaImplementation),
+      address(proxyAdmin),
       abi.encodeWithSelector(
         lrtpptsaImplementation.initialize.selector,
         deployer,
@@ -166,52 +175,42 @@ contract DeployTSA is Utils {
           subAccounts: ISubAccounts(_getCoreContract("subAccounts")),
           auction: DutchAuction(_getCoreContract("auction")),
           cash: CashAsset(_getCoreContract("cash")),
-          wrappedDepositAsset: IWrappedERC20Asset(_getMarketAddress("sUSDe", "base")),
+          wrappedDepositAsset: IWrappedERC20Asset(_getMarketAddress(settings.depositAssetName, "base")),
           manager: ILiquidatableManager(_getCoreContract("srm")),
           matching: IMatching(_getMatchingModule("matching")),
-          symbol: "sUSDe",
-          name: "sUSDe Principal Protected Bull Call Spread"
+          symbol: settings.vaultSymbol,
+          name: settings.vaultName
         }),
         PrincipalProtectedTSA.PPTSAInitParams({
-          baseFeed: ISpotFeed(_getMarketAddress("sUSDe", "spotFeed")),
+          baseFeed: ISpotFeed(_getMarketAddress(settings.depositAssetName, "spotFeed")),
           depositModule: IDepositModule(_getMatchingModule("deposit")),
           withdrawalModule: IWithdrawalModule(_getMatchingModule("withdrawal")),
           tradeModule: ITradeModule(_getMatchingModule("trade")),
-          optionAsset: IOptionAsset(_getMarketAddress("ETH", "option")),
+          optionAsset: IOptionAsset(_getMarketAddress(settings.optionAssetName, "option")),
           rfqModule: IRfqModule(_getMatchingModule("rfq")),
-          isCallSpread: true,
-          isLongSpread: true
+          isCallSpread: settings.ppTSAisCallSpread,
+          isLongSpread: settings.ppTSAisLongSpread
         })
       )
     );
 
-    PrincipalProtectedTSA(address(proxy)).setTSAParams(
-      BaseTSA.TSAParams({
-        depositCap: 10000000e18,
-        minDepositValue: 0.01e18,
-        depositScale: 1e18,
-        withdrawScale: 1e18,
-        managementFee: 0,
-        feeRecipient: address(0)
-      })
-    );
+    console.log("proxy: ", address(proxy));
+
     PrincipalProtectedTSA pptsa = PrincipalProtectedTSA(address(proxy));
+
+    pptsa.setTSAParams(defaultBaseTSAParams);
     pptsa.setPPTSAParams(defaultLrtppTSAParams);
     pptsa.setCollateralManagementParams(defaultCollateralManagementParams);
 
-    TSAShareHandler shareHandler = new TSAShareHandler();
-
     string memory objKey = "tsa-deployment";
 
-    vm.serializeAddress(objKey, "shareHandler", address(shareHandler));
     vm.serializeAddress(objKey, "proxyAdmin", address(proxyAdmin));
     vm.serializeAddress(objKey, "implementation", address(lrtpptsaImplementation));
-    string memory finalObj = vm.serializeAddress(objKey, "DNWETH", address(proxy));
+    string memory finalObj = vm.serializeAddress(objKey, "proxy", address(proxy));
 
     // build path
-    _writeToDeployments("tsa", finalObj);
+    _writeToDeployments(settings.vaultSymbol, finalObj);
   }
-
 
 
   function _getMatchingModule(string memory module) internal returns (address) {

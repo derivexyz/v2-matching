@@ -14,7 +14,7 @@ echo "Deployer address:" $address
 cd ./lib/v2-core
 
 # Deploy core contracts
-forge script scripts/deploy-base-only-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
+forge script scripts/core/deploy-base-only-market.s.sol --rpc-url $ETH_RPC_URL --broadcast
 
 # Deploy matching contracts
 cd ../../

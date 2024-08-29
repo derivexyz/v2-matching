@@ -2,20 +2,20 @@
 pragma solidity ^0.8.0;
 
 
-import {Matching} from "../src/Matching.sol";
-import {DepositModule} from "../src/modules/DepositModule.sol";
-import {TradeModule} from "../src/modules/TradeModule.sol";
-import {TransferModule} from "../src/modules/TransferModule.sol";
-import {RfqModule} from "../src/modules/RfqModule.sol";
-import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
+import {Matching} from "../../src/Matching.sol";
+import {DepositModule} from "../../src/modules/DepositModule.sol";
+import {TradeModule} from "../../src/modules/TradeModule.sol";
+import {TransferModule} from "../../src/modules/TransferModule.sol";
+import {RfqModule} from "../../src/modules/RfqModule.sol";
+import {WithdrawalModule} from "../../src/modules/WithdrawalModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {PerpAsset} from "v2-core/src/assets/PerpAsset.sol";
 import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {ICashAsset} from "v2-core/src/interfaces/ICashAsset.sol";
 
 import "forge-std/console2.sol";
-import {Deployment, NetworkConfig} from "./types.sol";
-import {Utils} from "./utils.sol";
+import {Deployment, NetworkConfig} from "../types.sol";
+import {Utils} from "../utils.sol";
 
 
 contract AddPerpToModules is Utils {

@@ -31,7 +31,7 @@ mkdir deployments/901
 4. Run command
 
 ```
-forge script scripts/deploy-all.s.sol --rpc-url conduit_testnet --broadcast
+forge script scripts/deploy-matching.s.sol --rpc-url conduit_testnet --broadcast
 ```
 
 You should see output similar to this:

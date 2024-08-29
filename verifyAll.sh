@@ -40,7 +40,7 @@ market_contracts=(
   "pmrm ./src/risk-managers/PMRM.sol"
   "pmrmLib ./src/risk-managers/PMRMLib.sol"
   "pmrmViewer ./src/risk-managers/BasePortfolioViewer.sol"
-  "rateFeed ./src/feeds/LyraRateFeedStatic.sol"
+  "rateFeed ./src/feeds/static/LyraRateFeedStatic.sol"
   "spotFeed ./src/feeds/LyraSpotFeed.sol"
   "spotFeed ./src/feeds/SFPSpotFeed.sol"
   "volFeed ./src/feeds/LyraVolFeed.sol"

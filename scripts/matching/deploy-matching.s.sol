@@ -2,24 +2,24 @@
 pragma solidity ^0.8.0;
 
 
-import {Matching} from "../src/Matching.sol";
-import {DepositModule} from "../src/modules/DepositModule.sol";
-import {TradeModule} from "../src/modules/TradeModule.sol";
-import {TransferModule} from "../src/modules/TransferModule.sol";
-import {LiquidateModule} from "../src/modules/LiquidateModule.sol";
-import {RfqModule} from "../src/modules/RfqModule.sol";
-import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
-import {SubAccountCreator} from "../src/periphery/SubAccountCreator.sol";
-import {LyraSettlementUtils} from "../src/periphery/LyraSettlementUtils.sol";
-import {LyraAuctionUtils} from "../src/periphery/LyraAuctionUtils.sol";
+import {Matching} from "../../src/Matching.sol";
+import {DepositModule} from "../../src/modules/DepositModule.sol";
+import {TradeModule} from "../../src/modules/TradeModule.sol";
+import {TransferModule} from "../../src/modules/TransferModule.sol";
+import {LiquidateModule} from "../../src/modules/LiquidateModule.sol";
+import {RfqModule} from "../../src/modules/RfqModule.sol";
+import {WithdrawalModule} from "../../src/modules/WithdrawalModule.sol";
+import {SubAccountCreator} from "../../src/periphery/SubAccountCreator.sol";
+import {LyraSettlementUtils} from "../../src/periphery/LyraSettlementUtils.sol";
+import {LyraAuctionUtils} from "../../src/periphery/LyraAuctionUtils.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {ICashAsset} from "v2-core/src/interfaces/ICashAsset.sol";
 
 import "forge-std/console2.sol";
-import {Deployment, NetworkConfig} from "./types.sol";
-import {Utils} from "./utils.sol";
+import {Deployment, NetworkConfig} from "../types.sol";
+import {Utils} from "../utils.sol";
 
 
 contract DeployAll is Utils {
@@ -34,7 +34,7 @@ contract DeployAll is Utils {
     console2.log("Start deploying matching contract and modules! deployer: ", deployer);
 
     // load configs
-    NetworkConfig memory config = _loadConfig();
+    NetworkConfig memory config = _loadNetworkConfig();
 
     // deploy core contracts
     _deployAllContracts(config);
