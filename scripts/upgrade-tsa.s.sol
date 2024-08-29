@@ -31,6 +31,8 @@ import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
 // 2. Choose between Covered Call or PP TSA in the run() function
 // 3. Run the script with:
 // PRIVATE_KEY=... MARKET_NAME=weETH forge script scripts/upgrade-tsa.s.sol --rpc-url https://rpc-prod-testnet-0eakp60405.t.conduit.xyz --verify --verifier blockscout --verifier-url https://explorer-prod-testnet-0eakp60405.t.conduit.xyz/api --broadcast --sender 0x000000a94c901aa5d4da1157b2dd1c4c6b69815e --priority-gas-price 1
+// 4. Whitelist vault subaccount in v2-core Base Asset:
+// cast send --private-key <pk> --rpc-url https://rpc-prod-testnet-0eakp60405.t.conduit.xyz <v2-core base asset address> "setSubAccountWL(uint256,bool)" <vault subaccount> true
 
 contract DeployTSA is Utils {
     CollateralManagementTSA.CollateralManagementParams
