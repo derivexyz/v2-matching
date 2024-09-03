@@ -32,7 +32,7 @@ import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
 // 1. Adjust params in the script setup section
 // 2. Choose between Covered Call or PP TSA in the run() function
 // 3. Run the script with:
-// PRIVATE_KEY=... forge script scripts/deploy-prod-tsa.s.sol --rpc-url https://rpc-prod-testnet-0eakp60405.t.conduit.xyz --verify --verifier blockscout --verifier-url https://explorer-prod-testnet-0eakp60405.t.conduit.xyz/api --broadcast --sender 0x000000a94c901aa5d4da1157b2dd1c4c6b69815e --priority-gas-price 1
+// PRIVATE_KEY=... forge script scripts/deploy-tsa-with-implementation.s.sol --rpc-url https://rpc-prod-testnet-0eakp60405.t.conduit.xyz --verify --verifier blockscout --verifier-url https://explorer-prod-testnet-0eakp60405.t.conduit.xyz/api --broadcast --sender 0x000000a94c901aa5d4da1157b2dd1c4c6b69815e --priority-gas-price 1
 
 contract DeployTSA is Utils {
     enum VaultType {
