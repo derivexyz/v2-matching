@@ -127,6 +127,10 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     $.matching.depositSubAccount($.subAccount);
   }
 
+  function decimals() public view virtual override returns (uint8) {
+    return getBaseTSAAddresses().depositAsset.decimals();
+  }
+
   ///////////
   // Admin //
   ///////////
