@@ -111,7 +111,7 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     address initialOwner,
     BaseTSA.BaseTSAInitParams memory initParams,
     PPTSAInitParams memory ppInitParams
-  ) external reinitializer(2) {
+  ) external reinitializer(3) {
     __BaseTSA_init(initialOwner, initParams);
 
     PPTSAStorage storage $ = _getPPTSAStorage();

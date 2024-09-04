@@ -90,7 +90,7 @@ contract CoveredCallTSA is CollateralManagementTSA {
     address initialOwner,
     BaseTSA.BaseTSAInitParams memory initParams,
     CCTSAInitParams memory ccInitParams
-  ) external reinitializer(2) {
+  ) external reinitializer(3) {
     __BaseTSA_init(initialOwner, initParams);
 
     CCTSAStorage storage $ = _getCCTSAStorage();
