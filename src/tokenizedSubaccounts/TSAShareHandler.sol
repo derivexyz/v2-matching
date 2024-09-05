@@ -88,6 +88,7 @@ contract TSAShareHandler is Ownable2Step {
 
   uint public payloadBuffersize = 161;
   uint public withdrawalMinGasLimit = 500_000;
+  uint public withdrawalMinGasLimitEstimation = 500_000;
 
   mapping(address keeper => bool isKeeper) internal keepers;
 
@@ -108,8 +109,9 @@ contract TSAShareHandler is Ownable2Step {
     payloadBuffersize = size;
   }
 
-  function setWithdrawalMinGasLimit(uint limit) external onlyOwner {
+  function setWithdrawalMinGasLimit(uint limit, uint estimation) external onlyOwner {
     withdrawalMinGasLimit = limit;
+    withdrawalMinGasLimitEstimation = estimation;
   }
 
   function recoverEth(address payable recipient) external onlyOwner {
@@ -336,7 +338,7 @@ contract TSAShareHandler is Ownable2Step {
   ) internal returns (bool) {
     withdrawToken.approve(address(bridge), amount);
 
-    uint fees = IConnectorPlugExt(withdrawConnector).getMinFees(withdrawalMinGasLimit, payloadBufferSize);
+    uint fees = IConnectorPlugExt(withdrawConnector).getMinFees(withdrawalMinGasLimitEstimation, payloadBufferSize);
 
     if (fees > address(this).balance) {
       // We revert if not enough ETH present at this contract address; so we can try again later
