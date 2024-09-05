@@ -86,7 +86,7 @@ contract TSAShareHandler is Ownable2Step {
     bytes32 messageId;
   }
 
-  uint public payloadBuffersize = 161;
+  uint public payloadBufferSize = 161;
   uint public withdrawalMinGasLimit = 500_000;
   uint public withdrawalMinGasLimitEstimation = 500_000;
 
@@ -105,8 +105,8 @@ contract TSAShareHandler is Ownable2Step {
   ///////////
   // Admin //
   ///////////
-  function setPayloadBuffersize(uint size) external onlyOwner {
-    payloadBuffersize = size;
+  function setPayloadBufferSize(uint size) external onlyOwner {
+    payloadBufferSize = size;
   }
 
   function setWithdrawalMinGasLimit(uint limit, uint estimation) external onlyOwner {
