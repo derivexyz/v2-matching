@@ -17,6 +17,11 @@ import "forge-std/console2.sol";
 import {Deployment, NetworkConfig} from "./types.sol";
 import {Utils} from "./utils.sol";
 
+/**
+ * MARKET_NAME=TIA PRIVATE_KEY={} forge script scripts/add-perp-to-modules.s.sol --private-key {} --rpc-url {} --broadcast --priority-gas-price 1
+ **/
+
+// NOTE: only run on testnet
 
 contract AddPerpToModules is Utils {
 
@@ -50,17 +55,17 @@ contract AddPerpToModules is Utils {
    * @dev write to deployments/{network}/core.json
    */
   function __getTradeAddress() internal returns (address) {
-    return abi.decode(vm.parseJson(_readDeploymentFile("matching"), ".trade"), (address));
+    return abi.decode(vm.parseJson(_readMatchingDeploymentFile("matching"), ".trade"), (address));
   }
 
   function __getRfqAddress() internal returns (address) {
-    return abi.decode(vm.parseJson(_readDeploymentFile("matching"), ".rfq"), (address));
+    return abi.decode(vm.parseJson(_readMatchingDeploymentFile("matching"), ".rfq"), (address));
   }
 
   /**
    * @dev write to deployments/{network}/core.json
    */
   function __getPerpAddress(string memory marketName) internal returns (address) {
-    return abi.decode(vm.parseJson(_readDeploymentFile(marketName), ".perp"), (address));
+    return abi.decode(vm.parseJson(_readV2CoreDeploymentFile(marketName), ".perp"), (address));
   }
 }

@@ -17,9 +17,12 @@ contract LyraForkTest is ForkBase {
     vm.deal(address(0xB176A44D819372A38cee878fB0603AEd4d26C5a5), 1 ether);
     vm.startPrank(0xB176A44D819372A38cee878fB0603AEd4d26C5a5);
 
-    StandardManager srm = StandardManager(_getContract("core", "srm"));
+    StandardManager srm = StandardManager(_getContract(_readV2CoreDeploymentFile("core"), "srm"));
 
     {
+      string memory dai_deployment = _readV2CoreDeploymentFile("DAI");
+      string memory eth_deployment = _readV2CoreDeploymentFile("ETH");
+      string memory btc_deployment = _readV2CoreDeploymentFile("BTC");
       uint marketId = srm.createMarket("DAI");
       console.log("marketId:", marketId);
 
@@ -32,30 +35,35 @@ contract LyraForkTest is ForkBase {
           OCFactor: 1e18
         })
       );
+
+
       srm.setBaseAssetMarginFactor(marketId, 0.8e18, 0.6e18);
       srm.setOraclesForMarket(
-        marketId, ISpotFeed(_getContract("DAI", "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
+        marketId, ISpotFeed(_getContract(dai_deployment, "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
       );
 
-      srm.whitelistAsset(IAsset(_getContract("DAI", "base")), marketId, IStandardManager.AssetType.Base);
+      srm.whitelistAsset(IAsset(_getContract(dai_deployment, "base")), marketId, IStandardManager.AssetType.Base);
 
-      SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getContract("core", "srmViewer"));
-      srmViewer.setOIFeeRateBPS(_getContract("DAI", "base"), 0.5e18);
+      SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getContract(_readV2CoreDeploymentFile("core"), "srmViewer"));
+      srmViewer.setOIFeeRateBPS(_getContract(dai_deployment, "base"), 0.5e18);
 
-      srm.setWhitelistedCallee(_getContract("DAI", "spotFeed"), true);
-      PMRM(_getContract("ETH", "pmrm")).setWhitelistedCallee(_getContract("DAI", "spotFeed"), true);
-      PMRM(_getContract("BTC", "pmrm")).setWhitelistedCallee(_getContract("DAI", "spotFeed"), true);
+      srm.setWhitelistedCallee(_getContract(dai_deployment, "spotFeed"), true);
+      PMRM(_getContract(eth_deployment, "pmrm")).setWhitelistedCallee(_getContract(dai_deployment, "spotFeed"), true);
+      PMRM(_getContract(btc_deployment, "pmrm")).setWhitelistedCallee(_getContract(dai_deployment, "spotFeed"), true);
 
-      Ownable2Step(_getContract("DAI", "base")).acceptOwnership();
-      Ownable2Step(_getContract("DAI", "spotFeed")).acceptOwnership();
+      Ownable2Step(_getContract(dai_deployment, "base")).acceptOwnership();
+      Ownable2Step(_getContract(dai_deployment, "spotFeed")).acceptOwnership();
     }
     {
+      string memory sdai_deployment = _readV2CoreDeploymentFile("sDAI");
+      string memory eth_deployment = _readV2CoreDeploymentFile("ETH");
+      string memory btc_deployment = _readV2CoreDeploymentFile("BTC");
       uint marketId = srm.createMarket("sDAI");
       console.log("marketId:", marketId);
 
-      srm.whitelistAsset(IAsset(_getContract("sDAI", "base")), marketId, IStandardManager.AssetType.Base);
+      srm.whitelistAsset(IAsset(_getContract(sdai_deployment, "base")), marketId, IStandardManager.AssetType.Base);
       srm.setOraclesForMarket(
-        marketId, ISpotFeed(_getContract("sDAI", "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
+        marketId, ISpotFeed(_getContract(sdai_deployment, "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
       );
 
       srm.setOracleContingencyParams(
@@ -71,22 +79,25 @@ contract LyraForkTest is ForkBase {
       srm.setBaseAssetMarginFactor(marketId, 0.8e18, 0.6e18);
 
       SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getContract("core", "srmViewer"));
-      srmViewer.setOIFeeRateBPS(_getContract("sDAI", "base"), 0.5e18);
+      srmViewer.setOIFeeRateBPS(_getContract(sdai_deployment, "base"), 0.5e18);
 
-      srm.setWhitelistedCallee(_getContract("sDAI", "spotFeed"), true);
-      PMRM(_getContract("ETH", "pmrm")).setWhitelistedCallee(_getContract("sDAI", "spotFeed"), true);
-      PMRM(_getContract("BTC", "pmrm")).setWhitelistedCallee(_getContract("sDAI", "spotFeed"), true);
+      srm.setWhitelistedCallee(_getContract(sdai_deployment, "spotFeed"), true);
+      PMRM(_getContract(eth_deployment, "pmrm")).setWhitelistedCallee(_getContract(sdai_deployment, "spotFeed"), true);
+      PMRM(_getContract(btc_deployment, "pmrm")).setWhitelistedCallee(_getContract(sdai_deployment, "spotFeed"), true);
 
-      Ownable2Step(_getContract("sDAI", "base")).acceptOwnership();
-      Ownable2Step(_getContract("sDAI", "spotFeed")).acceptOwnership();
+      Ownable2Step(_getContract(sdai_deployment, "base")).acceptOwnership();
+      Ownable2Step(_getContract(sdai_deployment, "spotFeed")).acceptOwnership();
     }
     {
+      string memory usde_deployment = _readV2CoreDeploymentFile("USDe");
+      string memory eth_deployment = _readV2CoreDeploymentFile("ETH");
+      string memory btc_deployment = _readV2CoreDeploymentFile("BTC");
       uint marketId = srm.createMarket("USDe");
       console.log("marketId:", marketId);
 
-      srm.whitelistAsset(IAsset(_getContract("USDe", "base")), marketId, IStandardManager.AssetType.Base);
+      srm.whitelistAsset(IAsset(_getContract(usde_deployment, "base")), marketId, IStandardManager.AssetType.Base);
       srm.setOraclesForMarket(
-        marketId, ISpotFeed(_getContract("USDe", "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
+        marketId, ISpotFeed(_getContract(usde_deployment", "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
       );
 
       srm.setOracleContingencyParams(
@@ -102,22 +113,25 @@ contract LyraForkTest is ForkBase {
       srm.setBaseAssetMarginFactor(marketId, 0.8e18, 0.6e18);
 
       SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getContract("core", "srmViewer"));
-      srmViewer.setOIFeeRateBPS(_getContract("USDe", "base"), 0.5e18);
+      srmViewer.setOIFeeRateBPS(_getContract(usde_deployment, "base"), 0.5e18);
 
-      srm.setWhitelistedCallee(_getContract("USDe", "spotFeed"), true);
-      PMRM(_getContract("ETH", "pmrm")).setWhitelistedCallee(_getContract("USDe", "spotFeed"), true);
-      PMRM(_getContract("BTC", "pmrm")).setWhitelistedCallee(_getContract("USDe", "spotFeed"), true);
+      srm.setWhitelistedCallee(_getContract(usde_deployment, "spotFeed"), true);
+      PMRM(_getContract(eth_deployment, "pmrm")).setWhitelistedCallee(_getContract(usde_deployment, "spotFeed"), true);
+      PMRM(_getContract(btc_deployment, "pmrm")).setWhitelistedCallee(_getContract(usde_deployment, "spotFeed"), true);
 
-      Ownable2Step(_getContract("USDe", "base")).acceptOwnership();
-      Ownable2Step(_getContract("USDe", "spotFeed")).acceptOwnership();
+      Ownable2Step(_getContract(usde_deployment, "base")).acceptOwnership();
+      Ownable2Step(_getContract(usde_deployment, "spotFeed")).acceptOwnership();
     }
     {
+      string memory pyusd_deployment = _readV2CoreDeploymentFile("PYUSD");
+      string memory eth_deployment = _readV2CoreDeploymentFile("ETH");
+      string memory btc_deployment = _readV2CoreDeploymentFile("BTC");
       uint marketId = srm.createMarket("PYUSD");
       console.log("marketId:", marketId);
 
-      srm.whitelistAsset(IAsset(_getContract("PYUSD", "base")), marketId, IStandardManager.AssetType.Base);
+      srm.whitelistAsset(IAsset(_getContract(pyusd_deployment, "base")), marketId, IStandardManager.AssetType.Base);
       srm.setOraclesForMarket(
-        marketId, ISpotFeed(_getContract("PYUSD", "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
+        marketId, ISpotFeed(_getContract(pyusd_deployment, "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
       );
 
       srm.setOracleContingencyParams(
@@ -133,28 +147,15 @@ contract LyraForkTest is ForkBase {
       srm.setBaseAssetMarginFactor(marketId, 0.8e18, 0.6e18);
 
       SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getContract("core", "srmViewer"));
-      srmViewer.setOIFeeRateBPS(_getContract("PYUSD", "base"), 0.5e18);
+      srmViewer.setOIFeeRateBPS(_getContract(pyusd_deployment, "base"), 0.5e18);
 
-      srm.setWhitelistedCallee(_getContract("PYUSD", "spotFeed"), true);
-      PMRM(_getContract("ETH", "pmrm")).setWhitelistedCallee(_getContract("PYUSD", "spotFeed"), true);
-      PMRM(_getContract("BTC", "pmrm")).setWhitelistedCallee(_getContract("PYUSD", "spotFeed"), true);
+      srm.setWhitelistedCallee(_getContract(pyusd_deployment, "spotFeed"), true);
+      PMRM(_getContract(eth_deployment, "pmrm")).setWhitelistedCallee(_getContract(pyusd_deployment, "spotFeed"), true);
+      PMRM(_getContract(btc_deployment, "pmrm")).setWhitelistedCallee(_getContract(pyusd_deployment, "spotFeed"), true);
 
-      Ownable2Step(_getContract("PYUSD", "base")).acceptOwnership();
-      Ownable2Step(_getContract("PYUSD", "spotFeed")).acceptOwnership();
-      WrappedERC20Asset(_getContract("PYUSD", "base")).setTotalPositionCap(srm, 0);
+      Ownable2Step(_getContract(pyusd_deployment, "base")).acceptOwnership();
+      Ownable2Step(_getContract(pyusd_deployment, "spotFeed")).acceptOwnership();
+      WrappedERC20Asset(_getContract(pyusd_deployment, "base")).setTotalPositionCap(srm, 0);
     }
-  }
-
-  function _getContract(string memory file, string memory name) internal view returns (address) {
-    file = _readDeploymentFile(file);
-    return abi.decode(vm.parseJson(file, string.concat(".", name)), (address));
-  }
-
-  ///@dev read deployment file from deployments/
-  function _readDeploymentFile(string memory fileName) internal view returns (string memory) {
-    string memory deploymentDir = string.concat(vm.projectRoot(), "/deployments/");
-    string memory chainDir = string.concat(vm.toString(block.chainid), "/");
-    string memory file = string.concat(fileName, ".json");
-    return vm.readFile(string.concat(deploymentDir, chainDir, file));
   }
 }

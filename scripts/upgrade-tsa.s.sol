@@ -232,7 +232,7 @@ contract DeployTSA is Utils {
         return
             abi.decode(
                 vm.parseJson(
-                    _readDeploymentFile("matching"),
+                    _readMatchingDeploymentFile("matching"),
                     string.concat(".", module)
                 ),
                 (address)
@@ -246,7 +246,7 @@ contract DeployTSA is Utils {
         return
             abi.decode(
                 vm.parseJson(
-                    _readDeploymentFile(marketName),
+                    _readV2CoreDeploymentFile(marketName),
                     string.concat(".", contractName)
                 ),
                 (address)
@@ -259,7 +259,7 @@ contract DeployTSA is Utils {
         return
             abi.decode(
                 vm.parseJson(
-                    _readDeploymentFile("core"),
+                    _readV2CoreDeploymentFile("core"),
                     string.concat(".", contractName)
                 ),
                 (address)
