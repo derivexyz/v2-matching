@@ -20,6 +20,10 @@ contract LyraForkTest is ForkBase {
     StandardManager srm = StandardManager(_getContract(_readV2CoreDeploymentFile("core"), "srm"));
 
     {
+      string memory dai_deployment = _readV2CoreDeploymentFile("DAI");
+      string memory eth_deployment = _readV2CoreDeploymentFile("ETH");
+      string memory btc_deployment = _readV2CoreDeploymentFile("BTC");
+
       string memory market = "DAI";
       uint marketId = srm.createMarket("DAI");
       console.log("marketId:", marketId);
