@@ -11,7 +11,7 @@ contract ForkBase is Test {
     _;
   }
 
-  function _getContract(string memory file, string memory name) internal view returns (address) {
+  function _getContract(string memory deploymentFile, string memory name) internal view returns (address) {
     return abi.decode(vm.parseJson(deploymentFile, string.concat(".", name)), (address));
   }
 
