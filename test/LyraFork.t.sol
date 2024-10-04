@@ -36,7 +36,6 @@ contract LyraForkTest is ForkBase {
         })
       );
 
-
       srm.setBaseAssetMarginFactor(marketId, 0.8e18, 0.6e18);
       srm.setOraclesForMarket(
         marketId, ISpotFeed(_getContract(dai_deployment, "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
@@ -97,7 +96,7 @@ contract LyraForkTest is ForkBase {
 
       srm.whitelistAsset(IAsset(_getContract(usde_deployment, "base")), marketId, IStandardManager.AssetType.Base);
       srm.setOraclesForMarket(
-        marketId, ISpotFeed(_getContract(usde_deployment", "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
+        marketId, ISpotFeed(_getContract(usde_deployment, "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
       );
 
       srm.setOracleContingencyParams(

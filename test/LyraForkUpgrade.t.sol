@@ -244,8 +244,10 @@ contract LyraForkUpgradeTest is ForkBase {
 
   function _verifyWithdraw(PrincipalProtectedTSA pptsa) internal {
     address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
-    IWithdrawalModule.WithdrawalData memory data =
-      IWithdrawalModule.WithdrawalData({asset: _getContract(_readV2CoreDeploymentFile("sUSDe"), "base"), assetAmount: 10e18});
+    IWithdrawalModule.WithdrawalData memory data = IWithdrawalModule.WithdrawalData({
+      asset: _getContract(_readV2CoreDeploymentFile("sUSDe"), "base"),
+      assetAmount: 10e18
+    });
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: pptsa.subAccount(),
