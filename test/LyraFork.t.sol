@@ -21,7 +21,6 @@ contract LyraForkTest is ForkBase {
 
     {
       string memory market = "DAI";
-      string memory
       uint marketId = srm.createMarket("DAI");
       console.log("marketId:", marketId);
 
