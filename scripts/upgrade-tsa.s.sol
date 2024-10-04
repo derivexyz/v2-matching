@@ -155,7 +155,7 @@ contract DeployTSA is Utils {
         vm.startBroadcast(deployerPrivateKey);
 
         string memory marketName = vm.envString("MARKET_NAME");
-        string memory tsaName = string.concat(marketName, "BULL");
+        string memory tsaName = string.concat(marketName, "PS");
 
         address deployer = vm.addr(deployerPrivateKey);
         console2.log("deployer: ", deployer);
@@ -185,10 +185,7 @@ contract DeployTSA is Utils {
                     manager: ILiquidatableManager(_getCoreContract("srm")),
                     matching: IMatching(_getMatchingModule("matching")),
                     symbol: tsaName,
-                    name: string.concat(
-                        marketName,
-                        "Principal Protected Bull Call Spread"
-                    )
+                    name: string.concat(marketName, "Covered Put Spread")
                 }),
                 PrincipalProtectedTSA.PPTSAInitParams({
                     baseFeed: ISpotFeed(
@@ -202,11 +199,11 @@ contract DeployTSA is Utils {
                     ),
                     tradeModule: ITradeModule(_getMatchingModule("trade")),
                     optionAsset: IOptionAsset(
-                        _getMarketAddress("ETH", "option")
+                        _getMarketAddress("BTC", "option")
                     ),
                     rfqModule: IRfqModule(_getMatchingModule("rfq")),
-                    isCallSpread: true,
-                    isLongSpread: true
+                    isCallSpread: false,
+                    isLongSpread: false
                 })
             )
         );
@@ -214,7 +211,7 @@ contract DeployTSA is Utils {
         PrincipalProtectedTSA(address(proxy)).setTSAParams(
             BaseTSA.TSAParams({
                 depositCap: 100000000e18,
-                minDepositValue: 0.01e18,
+                minDepositValue: 0,
                 depositScale: 1e18,
                 withdrawScale: 1e18,
                 managementFee: 0,
@@ -222,7 +219,7 @@ contract DeployTSA is Utils {
             })
         );
         PrincipalProtectedTSA pptsa = PrincipalProtectedTSA(address(proxy));
-        pptsa.setPPTSAParams(defaultLrtppTSAParams);
+        pptsa.setPPTSAParams(defaultLrtppTSAParams); 
         pptsa.setCollateralManagementParams(defaultCollateralManagementParams);
     }
 
