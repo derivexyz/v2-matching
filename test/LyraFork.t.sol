@@ -11,16 +11,41 @@ import "openzeppelin/access/Ownable2Step.sol";
 import "./ForkBase.t.sol";
 
 contract LyraForkTest is ForkBase {
+  string[10] public MARKETS = ["TIA", "SUI", "NEAR", "PEPE", "WIF", "WLD", "BNB", "AAVE", "OP", "ARB"];
+  string[4] public feeds = ["spotFeed", "perpFeed", "iapFeed", "ibpFeed"];
+
+  // SOL (update)	10x 	15x	Leave as is 	Leave as is
+  //DOGE (update)	10x    	15x	5M DOGE	$500K
+  //TIA	10x	15x	100K TIA	$500K
+  //SUI	10x 	15x	250K SUI	$500K
+  //NEAR	10x 	15x 	40K NEAR	$200K
+  //(M)PEPE	5x 	7x 	20K MPEPE	$200K
+  //WIF	5x 	7x 	100K WIF 	$200K
+  //Worldcoin	10x 	15x 	100K WLD	$200K
+  //BNB	10x 	15x	800 BNB	$500K
+  //Aave	10x 	15x	3K Aave	$500K
+  //OP	10x 	15x	250K OP	$500K
+  //ARB	10x 	15x	750K ARB	$500K
+
+  uint[2][] public MARKET_PARAMS = [[0.1e18, 0.15e18]];
+
   function setUp() external {}
 
   function testFork() external skipped {
     vm.deal(address(0xB176A44D819372A38cee878fB0603AEd4d26C5a5), 1 ether);
     vm.startPrank(0xB176A44D819372A38cee878fB0603AEd4d26C5a5);
 
-    StandardManager srm = StandardManager(_getContract("core", "srm"));
+    StandardManager srm = StandardManager(_getContract(_readV2CoreDeploymentFile("core"), "srm"));
 
-    {
-      uint marketId = srm.createMarket("DAI");
+    PMRM ethPMRM = PMRM(_getV2CoreContract("ETH", "pmrm"));
+    PMRM btcPMRM = PMRM(_getV2CoreContract("BTC", "pmrm"));
+
+    for (uint i = 0; i < MARKETS.length; i++) {
+      string memory market = MARKETS[i];
+      console.log("market:", market);
+      string memory deploymentFile = _readV2CoreDeploymentFile(market);
+
+      uint marketId = srm.createMarket(market);
       console.log("marketId:", marketId);
 
       srm.setOracleContingencyParams(
@@ -32,129 +57,30 @@ contract LyraForkTest is ForkBase {
           OCFactor: 1e18
         })
       );
-      srm.setBaseAssetMarginFactor(marketId, 0.8e18, 0.6e18);
+
+      srm.setPerpMarginRequirements(marketId, 0.6e18, 0.8e18);
       srm.setOraclesForMarket(
-        marketId, ISpotFeed(_getContract("DAI", "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
+        marketId, ISpotFeed(_getContract(deploymentFile, "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
       );
 
-      srm.whitelistAsset(IAsset(_getContract("DAI", "base")), marketId, IStandardManager.AssetType.Base);
+      srm.whitelistAsset(IAsset(_getContract(deploymentFile, "perp")), marketId, IStandardManager.AssetType.Perpetual);
 
-      SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getContract("core", "srmViewer"));
-      srmViewer.setOIFeeRateBPS(_getContract("DAI", "base"), 0.5e18);
+      SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getV2CoreContract("core", "srmViewer"));
+      srmViewer.setOIFeeRateBPS(_getContract(deploymentFile, "perp"), 0.5e18);
 
-      srm.setWhitelistedCallee(_getContract("DAI", "spotFeed"), true);
-      PMRM(_getContract("ETH", "pmrm")).setWhitelistedCallee(_getContract("DAI", "spotFeed"), true);
-      PMRM(_getContract("BTC", "pmrm")).setWhitelistedCallee(_getContract("DAI", "spotFeed"), true);
+      for (uint j = 0; j < feeds.length; j++) {
+        string memory feed = feeds[j];
+        console.log("feed:", feed);
+        srm.setWhitelistedCallee(_getContract(deploymentFile, feed), true);
+        ethPMRM.setWhitelistedCallee(_getContract(deploymentFile, feed), true);
+        btcPMRM.setWhitelistedCallee(_getContract(deploymentFile, feed), true);
+      }
 
-      Ownable2Step(_getContract("DAI", "base")).acceptOwnership();
-      Ownable2Step(_getContract("DAI", "spotFeed")).acceptOwnership();
+      Ownable2Step(_getContract(deploymentFile, "perp")).acceptOwnership();
+      Ownable2Step(_getContract(deploymentFile, "spotFeed")).acceptOwnership();
+      Ownable2Step(_getContract(deploymentFile, "perpFeed")).acceptOwnership();
+      Ownable2Step(_getContract(deploymentFile, "iapFeed")).acceptOwnership();
+      Ownable2Step(_getContract(deploymentFile, "ibpFeed")).acceptOwnership();
     }
-    {
-      uint marketId = srm.createMarket("sDAI");
-      console.log("marketId:", marketId);
-
-      srm.whitelistAsset(IAsset(_getContract("sDAI", "base")), marketId, IStandardManager.AssetType.Base);
-      srm.setOraclesForMarket(
-        marketId, ISpotFeed(_getContract("sDAI", "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
-      );
-
-      srm.setOracleContingencyParams(
-        marketId,
-        IStandardManager.OracleContingencyParams({
-          perpThreshold: 0.55e18,
-          optionThreshold: 0.55e18,
-          baseThreshold: 0.55e18,
-          OCFactor: 1e18
-        })
-      );
-
-      srm.setBaseAssetMarginFactor(marketId, 0.8e18, 0.6e18);
-
-      SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getContract("core", "srmViewer"));
-      srmViewer.setOIFeeRateBPS(_getContract("sDAI", "base"), 0.5e18);
-
-      srm.setWhitelistedCallee(_getContract("sDAI", "spotFeed"), true);
-      PMRM(_getContract("ETH", "pmrm")).setWhitelistedCallee(_getContract("sDAI", "spotFeed"), true);
-      PMRM(_getContract("BTC", "pmrm")).setWhitelistedCallee(_getContract("sDAI", "spotFeed"), true);
-
-      Ownable2Step(_getContract("sDAI", "base")).acceptOwnership();
-      Ownable2Step(_getContract("sDAI", "spotFeed")).acceptOwnership();
-    }
-    {
-      uint marketId = srm.createMarket("USDe");
-      console.log("marketId:", marketId);
-
-      srm.whitelistAsset(IAsset(_getContract("USDe", "base")), marketId, IStandardManager.AssetType.Base);
-      srm.setOraclesForMarket(
-        marketId, ISpotFeed(_getContract("USDe", "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
-      );
-
-      srm.setOracleContingencyParams(
-        marketId,
-        IStandardManager.OracleContingencyParams({
-          perpThreshold: 0.55e18,
-          optionThreshold: 0.55e18,
-          baseThreshold: 0.55e18,
-          OCFactor: 1e18
-        })
-      );
-
-      srm.setBaseAssetMarginFactor(marketId, 0.8e18, 0.6e18);
-
-      SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getContract("core", "srmViewer"));
-      srmViewer.setOIFeeRateBPS(_getContract("USDe", "base"), 0.5e18);
-
-      srm.setWhitelistedCallee(_getContract("USDe", "spotFeed"), true);
-      PMRM(_getContract("ETH", "pmrm")).setWhitelistedCallee(_getContract("USDe", "spotFeed"), true);
-      PMRM(_getContract("BTC", "pmrm")).setWhitelistedCallee(_getContract("USDe", "spotFeed"), true);
-
-      Ownable2Step(_getContract("USDe", "base")).acceptOwnership();
-      Ownable2Step(_getContract("USDe", "spotFeed")).acceptOwnership();
-    }
-    {
-      uint marketId = srm.createMarket("PYUSD");
-      console.log("marketId:", marketId);
-
-      srm.whitelistAsset(IAsset(_getContract("PYUSD", "base")), marketId, IStandardManager.AssetType.Base);
-      srm.setOraclesForMarket(
-        marketId, ISpotFeed(_getContract("PYUSD", "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
-      );
-
-      srm.setOracleContingencyParams(
-        marketId,
-        IStandardManager.OracleContingencyParams({
-          perpThreshold: 0.55e18,
-          optionThreshold: 0.55e18,
-          baseThreshold: 0.55e18,
-          OCFactor: 1e18
-        })
-      );
-
-      srm.setBaseAssetMarginFactor(marketId, 0.8e18, 0.6e18);
-
-      SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getContract("core", "srmViewer"));
-      srmViewer.setOIFeeRateBPS(_getContract("PYUSD", "base"), 0.5e18);
-
-      srm.setWhitelistedCallee(_getContract("PYUSD", "spotFeed"), true);
-      PMRM(_getContract("ETH", "pmrm")).setWhitelistedCallee(_getContract("PYUSD", "spotFeed"), true);
-      PMRM(_getContract("BTC", "pmrm")).setWhitelistedCallee(_getContract("PYUSD", "spotFeed"), true);
-
-      Ownable2Step(_getContract("PYUSD", "base")).acceptOwnership();
-      Ownable2Step(_getContract("PYUSD", "spotFeed")).acceptOwnership();
-      WrappedERC20Asset(_getContract("PYUSD", "base")).setTotalPositionCap(srm, 0);
-    }
-  }
-
-  function _getContract(string memory file, string memory name) internal view returns (address) {
-    file = _readDeploymentFile(file);
-    return abi.decode(vm.parseJson(file, string.concat(".", name)), (address));
-  }
-
-  ///@dev read deployment file from deployments/
-  function _readDeploymentFile(string memory fileName) internal view returns (string memory) {
-    string memory deploymentDir = string.concat(vm.projectRoot(), "/deployments/");
-    string memory chainDir = string.concat(vm.toString(block.chainid), "/");
-    string memory file = string.concat(fileName, ".json");
-    return vm.readFile(string.concat(deploymentDir, chainDir, file));
   }
 }

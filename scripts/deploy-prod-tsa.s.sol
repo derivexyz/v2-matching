@@ -214,14 +214,14 @@ contract DeployTSA is Utils {
 
 
   function _getMatchingModule(string memory module) internal returns (address) {
-    return abi.decode(vm.parseJson(_readDeploymentFile("matching"), string.concat(".", module)), (address));
+    return abi.decode(vm.parseJson(_readMatchingDeploymentFile("matching"), string.concat(".", module)), (address));
   }
 
   function _getMarketAddress(string memory marketName, string memory contractName) internal returns (address) {
-    return abi.decode(vm.parseJson(_readDeploymentFile(marketName), string.concat(".", contractName)), (address));
+    return abi.decode(vm.parseJson(_readV2CoreDeploymentFile(marketName), string.concat(".", contractName)), (address));
   }
 
   function _getCoreContract(string memory contractName) internal returns (address) {
-    return abi.decode(vm.parseJson(_readDeploymentFile("core"), string.concat(".", contractName)), (address));
+    return abi.decode(vm.parseJson(_readV2CoreDeploymentFile("core"), string.concat(".", contractName)), (address));
   }
 }

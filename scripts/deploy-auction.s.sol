@@ -25,15 +25,15 @@ contract DeployNewAuction is Utils {
     address deployer = vm.addr(deployerPrivateKey);
     console2.log("deployer: ", deployer);
 
-    string memory file = _readDeploymentFile("core");
+    string memory file = _readV2CoreDeploymentFile("core");
     ISubAccounts subAccounts = ISubAccounts(abi.decode(vm.parseJson(file, ".subAccounts"), (address)));
     ISecurityModule securityModule = ISecurityModule(abi.decode(vm.parseJson(file, ".securityModule"), (address)));
     ICashAsset cash = ICashAsset(abi.decode(vm.parseJson(file, ".cash"), (address)));
     address srm = abi.decode(vm.parseJson(file, ".srm"), (address));
 
-    address ethPMRM = abi.decode(vm.parseJson(_readDeploymentFile("ETH"), ".pmrm"), (address));
-    address btcPMRM = abi.decode(vm.parseJson(_readDeploymentFile("BTC"), ".pmrm"), (address));
-    IMatching matching = IMatching(abi.decode(vm.parseJson(_readDeploymentFile("matching"), ".matching"), (address)));
+    address ethPMRM = abi.decode(vm.parseJson(_readV2CoreDeploymentFile("ETH"), ".pmrm"), (address));
+    address btcPMRM = abi.decode(vm.parseJson(_readV2CoreDeploymentFile("BTC"), ".pmrm"), (address));
+    IMatching matching = IMatching(abi.decode(vm.parseJson(_readMatchingDeploymentFile("matching"), ".matching"), (address)));
 
 
     DutchAuction auction = new DutchAuction(subAccounts, securityModule, cash);

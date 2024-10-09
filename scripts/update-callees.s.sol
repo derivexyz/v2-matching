@@ -39,11 +39,11 @@ contract UpdateCallees is Utils {
     address deployer = vm.addr(deployerPrivateKey);
     console2.log("deployer: ", deployer);
 
-    string memory shared = _readDeploymentFile("shared");
-    string memory core = _readDeploymentFile("core");
-    string memory ethMarket = _readDeploymentFile("ETH");
-    string memory btcMarket = _readDeploymentFile("BTC");
-    string memory snxMarket = _readDeploymentFile("SNX");
+    string memory shared = _readV2CoreDeploymentFile("shared");
+    string memory core = _readV2CoreDeploymentFile("core");
+    string memory ethMarket = _readV2CoreDeploymentFile("ETH");
+    string memory btcMarket = _readV2CoreDeploymentFile("BTC");
+    string memory snxMarket = _readV2CoreDeploymentFile("SNX");
 
     // USDC
 
@@ -81,9 +81,9 @@ contract UpdateCallees is Utils {
 
     // USDT
 
-    _addWhitelistedCallee(_getContract(core, "srm"), _getContract(_readDeploymentFile("USDT"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("USDT"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("USDT"), "spotFeed"));
+    _addWhitelistedCallee(_getContract(core, "srm"), _getContract(_readV2CoreDeploymentFile("USDT"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readV2CoreDeploymentFile("USDT"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readV2CoreDeploymentFile("USDT"), "spotFeed"));
 
     LyraERC20(_getContract(shared, "usdt")).configureMinter(deployer, true);
 
@@ -100,34 +100,34 @@ contract UpdateCallees is Utils {
 
     // WSTETH
 
-    _addWhitelistedCallee(_getContract(core, "srm"), _getContract(_readDeploymentFile("WSTETH"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("WSTETH"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("WSTETH"), "spotFeed"));
+    _addWhitelistedCallee(_getContract(core, "srm"), _getContract(_readV2CoreDeploymentFile("WSTETH"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readV2CoreDeploymentFile("WSTETH"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readV2CoreDeploymentFile("WSTETH"), "spotFeed"));
 
     LyraERC20(_getContract(shared, "wsteth")).configureMinter(deployer, true);
 
 
     // SOL
 
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("SOL"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("SOL"), "perpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("SOL"), "ibpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("SOL"), "iapFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("SOL"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("SOL"), "perpFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("SOL"), "ibpFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("SOL"), "iapFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readV2CoreDeploymentFile("SOL"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readV2CoreDeploymentFile("SOL"), "perpFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readV2CoreDeploymentFile("SOL"), "ibpFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readV2CoreDeploymentFile("SOL"), "iapFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readV2CoreDeploymentFile("SOL"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readV2CoreDeploymentFile("SOL"), "perpFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readV2CoreDeploymentFile("SOL"), "ibpFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readV2CoreDeploymentFile("SOL"), "iapFeed"));
 
     // DOGE
 
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("DOGE"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("DOGE"), "perpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("DOGE"), "ibpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readDeploymentFile("DOGE"), "iapFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("DOGE"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("DOGE"), "perpFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("DOGE"), "ibpFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readDeploymentFile("DOGE"), "iapFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readV2CoreDeploymentFile("DOGE"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readV2CoreDeploymentFile("DOGE"), "perpFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readV2CoreDeploymentFile("DOGE"), "ibpFeed"));
+    _addWhitelistedCallee(_getPMRM(ethMarket), _getContract(_readV2CoreDeploymentFile("DOGE"), "iapFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readV2CoreDeploymentFile("DOGE"), "spotFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readV2CoreDeploymentFile("DOGE"), "perpFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readV2CoreDeploymentFile("DOGE"), "ibpFeed"));
+    _addWhitelistedCallee(_getPMRM(btcMarket), _getContract(_readV2CoreDeploymentFile("DOGE"), "iapFeed"));
 
     // Set custom caps for local testing
 
@@ -137,7 +137,7 @@ contract UpdateCallees is Utils {
     WrappedERC20Asset(_getContract(btcMarket, "base")).setTotalPositionCap(
       IManager(_getContract(core, "srm")), 10_000 ether
     );
-    WrappedERC20Asset(_getContract(_readDeploymentFile("USDT"), "base")).setTotalPositionCap(
+    WrappedERC20Asset(_getContract(_readV2CoreDeploymentFile("USDT"), "base")).setTotalPositionCap(
       IManager(_getContract(core, "srm")), 100_000 ether
     );
 

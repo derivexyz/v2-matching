@@ -18,7 +18,7 @@ contract DeployAuctionUtil is Utils {
     address deployer = vm.addr(deployerPrivateKey);
     console2.log("deployer: ", deployer);
 
-    string memory file = _readDeploymentFile("core");
+    string memory file = _readV2CoreDeploymentFile("core");
 
     address subAccounts = abi.decode(vm.parseJson(file, ".subAccounts"), (address));
     address auctions = abi.decode(vm.parseJson(file, ".auction"), (address));

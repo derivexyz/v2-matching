@@ -55,21 +55,21 @@ contract DeployAll is Utils {
 
 
   function _getMatchingAddress() internal returns (IMatching) {
-    return IMatching(abi.decode(vm.parseJson(_readDeploymentFile("matching"), ".matching"), (address)));
+    return IMatching(abi.decode(vm.parseJson(_readMatchingDeploymentFile("matching"), ".matching"), (address)));
   }
 
   /**
    * @dev write to deployments/{network}/core.json
    */
   function _getPerpAddress(string memory marketName) internal returns (IPerpAsset) {
-    return IPerpAsset(abi.decode(vm.parseJson(_readDeploymentFile(marketName), ".perp"), (address)));
+    return IPerpAsset(abi.decode(vm.parseJson(_readV2CoreDeploymentFile(marketName), ".perp"), (address)));
   }
 
   function _getCashAddress() internal returns (address) {
-    return abi.decode(vm.parseJson(_readDeploymentFile("core"), ".cash"), (address));
+    return abi.decode(vm.parseJson(_readV2CoreDeploymentFile("core"), ".cash"), (address));
   }
 
   function _getAuctionAddress() internal returns (DutchAuction) {
-    return DutchAuction(abi.decode(vm.parseJson(_readDeploymentFile("core"), ".auction"), (address)));
+    return DutchAuction(abi.decode(vm.parseJson(_readV2CoreDeploymentFile("core"), ".auction"), (address)));
   }
 }

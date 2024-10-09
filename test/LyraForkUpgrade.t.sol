@@ -204,8 +204,8 @@ contract LyraForkUpgradeTest is ForkBase {
 
   function _verifyMakerTrade(PrincipalProtectedTSA pptsa) internal {
     address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
-    OptionAsset optionAsset = OptionAsset(_getContract("ETH", "option"));
-    RfqModule rfqModule = RfqModule(_getContract("matching", "rfq"));
+    OptionAsset optionAsset = OptionAsset(_getContract(_readV2CoreDeploymentFile("ETH"), "option"));
+    RfqModule rfqModule = RfqModule(_getContract(_readMatchingDeploymentFile("matching"), "rfq"));
 
     uint higherPrice = 3.6e18;
     uint highStrike = 2900e18;
@@ -244,13 +244,15 @@ contract LyraForkUpgradeTest is ForkBase {
 
   function _verifyWithdraw(PrincipalProtectedTSA pptsa) internal {
     address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
-    IWithdrawalModule.WithdrawalData memory data =
-      IWithdrawalModule.WithdrawalData({asset: _getContract("sUSDe", "base"), assetAmount: 10e18});
+    IWithdrawalModule.WithdrawalData memory data = IWithdrawalModule.WithdrawalData({
+      asset: _getContract(_readV2CoreDeploymentFile("sUSDe"), "base"),
+      assetAmount: 10e18
+    });
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: pptsa.subAccount(),
       nonce: 5,
-      module: IWithdrawalModule(_getContract("matching", "withdrawal")),
+      module: IWithdrawalModule(_getContract(_readMatchingDeploymentFile("matching"), "withdrawal")),
       data: abi.encode(data),
       expiry: block.timestamp + 8 minutes,
       owner: address(pptsa),
@@ -258,18 +260,5 @@ contract LyraForkUpgradeTest is ForkBase {
     });
     vm.prank(deployer);
     pptsa.signActionData(action, "");
-  }
-
-  function _getContract(string memory file, string memory name) internal view returns (address) {
-    string memory deploymentFile = _readDeploymentFile(file);
-    return abi.decode(vm.parseJson(deploymentFile, string.concat(".", name)), (address));
-  }
-
-  ///@dev read deployment file from deployments/
-  function _readDeploymentFile(string memory fileName) internal view returns (string memory) {
-    string memory deploymentDir = string.concat(vm.projectRoot(), "/deployments/");
-    string memory chainDir = string.concat(vm.toString(block.chainid), "/");
-    string memory file = string.concat(fileName, ".json");
-    return vm.readFile(string.concat(deploymentDir, chainDir, file));
   }
 }
