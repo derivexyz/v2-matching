@@ -10,9 +10,7 @@ import "v2-core/src/risk-managers/PMRM.sol";
 import "openzeppelin/access/Ownable2Step.sol";
 import "./ForkBase.t.sol";
 
-
 contract LyraForkTest is ForkBase {
-
   string[10] public MARKETS = ["TIA", "SUI", "NEAR", "PEPE", "WIF", "WLD", "BNB", "AAVE", "OP", "ARB"];
   string[4] public feeds = ["spotFeed", "perpFeed", "iapFeed", "ibpFeed"];
 
@@ -29,10 +27,7 @@ contract LyraForkTest is ForkBase {
   //OP	10x 	15x	250K OP	$500K
   //ARB	10x 	15x	750K ARB	$500K
 
-
-  uint[2][] public MARKET_PARAMS = [
-    [0.1e18, 0.15e18]
-  ];
+  uint[2][] public MARKET_PARAMS = [[0.1e18, 0.15e18]];
 
   function setUp() external {}
 
