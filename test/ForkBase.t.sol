@@ -30,4 +30,12 @@ contract ForkBase is Test {
     string memory file = string.concat(fileName, ".json");
     return vm.readFile(string.concat(deploymentDir, chainDir, file));
   }
+
+  function _getV2CoreContract(string memory fileName, string memory name) internal view returns (address) {
+    return _getContract(_readV2CoreDeploymentFile(fileName), name);
+  }
+
+  function _getMatchingContract(string memory fileName, string memory name) internal view returns (address) {
+    return _getContract(_readMatchingDeploymentFile(fileName), name);
+  }
 }
