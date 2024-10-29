@@ -8,7 +8,7 @@ import "v2-core/src/risk-managers/StandardManager.sol";
 import "v2-core/src/risk-managers/SRMPortfolioViewer.sol";
 import "v2-core/src/risk-managers/PMRM.sol";
 import "openzeppelin/access/Ownable2Step.sol";
-import "./fork/ForkBase.t.sol";
+import "./ForkBase.t.sol";
 import "v2-core/scripts/config-mainnet.sol";
 
 contract PerpMarketFork is ForkBase {
