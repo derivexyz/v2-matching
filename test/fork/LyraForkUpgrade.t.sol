@@ -25,7 +25,7 @@ import "../src/Matching.sol";
 import "v2-core/src/assets/WLWrappedERC20Asset.sol";
 import "../src/modules/RfqModule.sol";
 import "v2-core/src/SubAccounts.sol";
-import {ForkBase} from "./ForkBase.t.sol";
+import {ForkBase} from "./fork/ForkBase.t.sol";
 
 contract LyraForkUpgradeTest is ForkBase {
   CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA

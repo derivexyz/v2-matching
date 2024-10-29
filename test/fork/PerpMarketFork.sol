@@ -8,37 +8,36 @@ import "v2-core/src/risk-managers/StandardManager.sol";
 import "v2-core/src/risk-managers/SRMPortfolioViewer.sol";
 import "v2-core/src/risk-managers/PMRM.sol";
 import "openzeppelin/access/Ownable2Step.sol";
-import "./ForkBase.t.sol";
+import "./fork/ForkBase.t.sol";
+import "v2-core/scripts/config-mainnet.sol";
 
-contract LyraForkTest is ForkBase {
-  string[10] public MARKETS = ["TIA", "SUI", "NEAR", "PEPE", "WIF", "WLD", "BNB", "AAVE", "OP", "ARB"];
+contract PerpMarketFork is ForkBase {
+  string[10] public MARKETS = ["LINK", "XRP", "AVAX", "UNI", "TAO", "SEI", "EIGEN", "ENA", "BITCOIN", "DEGEN"];
   string[4] public feeds = ["spotFeed", "perpFeed", "iapFeed", "ibpFeed"];
 
-  // SOL (update)	10x 	15x	Leave as is 	Leave as is
-  //DOGE (update)	10x    	15x	5M DOGE	$500K
-  //TIA	10x	15x	100K TIA	$500K
-  //SUI	10x 	15x	250K SUI	$500K
-  //NEAR	10x 	15x 	40K NEAR	$200K
-  //(M)PEPE	5x 	7x 	20K MPEPE	$200K
-  //WIF	5x 	7x 	100K WIF 	$200K
-  //Worldcoin	10x 	15x 	100K WLD	$200K
-  //BNB	10x 	15x	800 BNB	$500K
-  //Aave	10x 	15x	3K Aave	$500K
-  //OP	10x 	15x	250K OP	$500K
-  //ARB	10x 	15x	750K ARB	$500K
-
-  uint[2][] public MARKET_PARAMS = [[0.1e18, 0.15e18]];
-
+  /**
+   * [COIN, IM leverage, MM leverage, OI cap]
+   * LINK,   10x,        15x,         50K
+   * XRP,    10x,        15x,         1M
+   * AVAX,   10x,        15x,         20K
+   * UNI,    10x,        15x,         60K
+   * TAO     5x,         15x,         1K
+   * SEI,    5x,         15x,         1M
+   * EIGEN,  5x,         15x,         150K
+   * ENA     10k,        15k,         1M
+   * BITCOIN,3k,         5k,          600k
+   * DEGEN,  3k,         5k,          20M
+   */
   function setUp() external {}
 
   function testFork() external skipped {
     vm.deal(address(0xB176A44D819372A38cee878fB0603AEd4d26C5a5), 1 ether);
     vm.startPrank(0xB176A44D819372A38cee878fB0603AEd4d26C5a5);
 
-    StandardManager srm = StandardManager(_getContract(_readV2CoreDeploymentFile("core"), "srm"));
+    StandardManager srm = StandardManager(0x28c9ddF9A3B29c2E6a561c1BC520954e5A33de5D);
 
-    PMRM ethPMRM = PMRM(_getV2CoreContract("ETH", "pmrm"));
-    PMRM btcPMRM = PMRM(_getV2CoreContract("BTC", "pmrm"));
+    PMRM ethPMRM = PMRM(0xe7cD9370CdE6C9b5eAbCe8f86d01822d3de205A0);
+    PMRM btcPMRM = PMRM(0x45DA02B9cCF384d7DbDD7b2b13e705BADB43Db0D);
 
     for (uint i = 0; i < MARKETS.length; i++) {
       string memory market = MARKETS[i];
@@ -48,17 +47,15 @@ contract LyraForkTest is ForkBase {
       uint marketId = srm.createMarket(market);
       console.log("marketId:", marketId);
 
-      srm.setOracleContingencyParams(
-        marketId,
-        IStandardManager.OracleContingencyParams({
-          perpThreshold: 0.55e18,
-          optionThreshold: 0.55e18,
-          baseThreshold: 0.55e18,
-          OCFactor: 1e18
-        })
-      );
+      (
+        IStandardManager.PerpMarginRequirements memory perpMarginRequirements,
+        ,
+        IStandardManager.OracleContingencyParams memory oracleContingencyParams,
+      ) = Config.getSRMParams(market);
 
-      srm.setPerpMarginRequirements(marketId, 0.6e18, 0.8e18);
+      srm.setOracleContingencyParams(marketId, oracleContingencyParams);
+
+      srm.setPerpMarginRequirements(marketId, perpMarginRequirements.mmPerpReq, perpMarginRequirements.imPerpReq);
       srm.setOraclesForMarket(
         marketId, ISpotFeed(_getContract(deploymentFile, "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
       );
@@ -66,7 +63,7 @@ contract LyraForkTest is ForkBase {
       srm.whitelistAsset(IAsset(_getContract(deploymentFile, "perp")), marketId, IStandardManager.AssetType.Perpetual);
 
       SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getV2CoreContract("core", "srmViewer"));
-      srmViewer.setOIFeeRateBPS(_getContract(deploymentFile, "perp"), 0.5e18);
+      srmViewer.setOIFeeRateBPS(_getContract(deploymentFile, "perp"), 0.1e18);
 
       for (uint j = 0; j < feeds.length; j++) {
         string memory feed = feeds[j];
