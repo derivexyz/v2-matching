@@ -6,8 +6,10 @@ import {Test} from "forge-std/Test.sol";
 contract ForkBase is Test {
   constructor() {}
 
-  modifier skipped() {
-    vm.skip(true);
+  modifier checkFork() {
+    if (block.chainid == 31337) {
+      vm.skip(true);
+    }
     _;
   }
 

@@ -53,7 +53,7 @@ contract LyraForkUpgradeTest is ForkBase {
 
   function setUp() external {}
 
-  function testForkUpgrade() external skipped {
+  function testForkUpgrade() external checkFork {
     address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
 
     vm.deal(deployer, 1 ether);

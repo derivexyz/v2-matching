@@ -31,7 +31,7 @@ contract LyraForkTest is ForkBase {
 
   function setUp() external {}
 
-  function testFork() external skipped {
+  function testFork() external checkFork {
     vm.deal(address(0xB176A44D819372A38cee878fB0603AEd4d26C5a5), 1 ether);
     vm.startPrank(0xB176A44D819372A38cee878fB0603AEd4d26C5a5);
 
