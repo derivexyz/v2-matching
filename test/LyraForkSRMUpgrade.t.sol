@@ -32,16 +32,18 @@ contract LyraForkSRMUpgradeTest is ForkBase {
     weth.mint(address(this), 1e18);
     vm.stopPrank();
 
-    uint newSubaccount = SubAccounts(_getV2CoreContract("core", "subAccounts")).createAccount(address(this), srm);
+    uint newSubaccount = SubAccounts(_getV2CoreContract("core", "subAccounts")).createAccount(address(srm.owner()), srm);
 
     weth.approve(address(wethAsset), 1e18);
     wethAsset.deposit(newSubaccount, 1e18);
 
     CashAsset cash = CashAsset(_getV2CoreContract("core", "cash"));
 
+    vm.startPrank(srm.owner());
     cash.withdraw(newSubaccount, 200e6, address(this));
 
     vm.expectRevert(IStandardManager.SRM_PortfolioBelowMargin.selector);
     wethAsset.withdraw(newSubaccount, uint(1e18), address(this));
+    vm.stopPrank();
   }
 }

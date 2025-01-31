@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import {Matching} from "../src/Matching.sol";
 import {DepositModule} from "../src/modules/DepositModule.sol";
 import {TradeModule} from "../src/modules/TradeModule.sol";
+import {LiquidateModule} from "../src/modules/LiquidateModule.sol";
 import {TransferModule} from "../src/modules/TransferModule.sol";
 import {RfqModule} from "../src/modules/RfqModule.sol";
 import {WithdrawalModule} from "../src/modules/WithdrawalModule.sol";
@@ -25,7 +26,7 @@ import {Utils} from "./utils.sol";
 
 contract AddPerpToModules is Utils {
 
-  /// @dev main function
+  /// @dev main functiond
   function run() external {
 
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -36,6 +37,7 @@ contract AddPerpToModules is Utils {
 
     TradeModule trade = TradeModule(__getTradeAddress());
     RfqModule rfq = RfqModule(__getRfqAddress());
+    LiquidateModule liq = LiquidateModule(__getLiquidateAddress());
 
     console2.log("trade address: ", address(trade));
 
@@ -60,6 +62,10 @@ contract AddPerpToModules is Utils {
 
   function __getRfqAddress() internal returns (address) {
     return abi.decode(vm.parseJson(_readMatchingDeploymentFile("matching"), ".rfq"), (address));
+  }
+
+  function __getLiquidateAddress() internal returns (address) {
+    return abi.decode(vm.parseJson(_readMatchingDeploymentFile("matching"), ".liquidate"), (address));
   }
 
   /**

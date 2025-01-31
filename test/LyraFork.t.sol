@@ -9,23 +9,12 @@ import "v2-core/src/risk-managers/SRMPortfolioViewer.sol";
 import "v2-core/src/risk-managers/PMRM.sol";
 import "openzeppelin/access/Ownable2Step.sol";
 import "./ForkBase.t.sol";
+import {ITradeModule} from "../src/interfaces/ITradeModule.sol";
+import {TradeModule} from "../src/modules/TradeModule.sol";
 
 contract LyraForkTest is ForkBase {
-  string[10] public MARKETS = ["TIA", "SUI", "NEAR", "PEPE", "WIF", "WLD", "BNB", "AAVE", "OP", "ARB"];
+  string[1] public MARKETS = ["TRUMP"];
   string[4] public feeds = ["spotFeed", "perpFeed", "iapFeed", "ibpFeed"];
-
-  // SOL (update)	10x 	15x	Leave as is 	Leave as is
-  //DOGE (update)	10x    	15x	5M DOGE	$500K
-  //TIA	10x	15x	100K TIA	$500K
-  //SUI	10x 	15x	250K SUI	$500K
-  //NEAR	10x 	15x 	40K NEAR	$200K
-  //(M)PEPE	5x 	7x 	20K MPEPE	$200K
-  //WIF	5x 	7x 	100K WIF 	$200K
-  //Worldcoin	10x 	15x 	100K WLD	$200K
-  //BNB	10x 	15x	800 BNB	$500K
-  //Aave	10x 	15x	3K Aave	$500K
-  //OP	10x 	15x	250K OP	$500K
-  //ARB	10x 	15x	750K ARB	$500K
 
   uint[2][] public MARKET_PARAMS = [[0.1e18, 0.15e18]];
 
@@ -35,7 +24,7 @@ contract LyraForkTest is ForkBase {
     vm.deal(address(0xB176A44D819372A38cee878fB0603AEd4d26C5a5), 1 ether);
     vm.startPrank(0xB176A44D819372A38cee878fB0603AEd4d26C5a5);
 
-    StandardManager srm = StandardManager(_getContract(_readV2CoreDeploymentFile("core"), "srm"));
+    StandardManager srm = StandardManager(_getV2CoreContract(_readV2CoreDeploymentFile("core"), "srm"));
 
     PMRM ethPMRM = PMRM(_getV2CoreContract("ETH", "pmrm"));
     PMRM btcPMRM = PMRM(_getV2CoreContract("BTC", "pmrm"));
@@ -60,27 +49,41 @@ contract LyraForkTest is ForkBase {
 
       srm.setPerpMarginRequirements(marketId, 0.6e18, 0.8e18);
       srm.setOraclesForMarket(
-        marketId, ISpotFeed(_getContract(deploymentFile, "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
+        marketId,
+        ISpotFeed(_getV2CoreContract(deploymentFile, "spotFeed")),
+        IForwardFeed(address(0)),
+        IVolFeed(address(0))
       );
 
-      srm.whitelistAsset(IAsset(_getContract(deploymentFile, "perp")), marketId, IStandardManager.AssetType.Perpetual);
+      srm.whitelistAsset(
+        IAsset(_getV2CoreContract(deploymentFile, "perp")), marketId, IStandardManager.AssetType.Perpetual
+      );
 
       SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getV2CoreContract("core", "srmViewer"));
-      srmViewer.setOIFeeRateBPS(_getContract(deploymentFile, "perp"), 0.5e18);
+      srmViewer.setOIFeeRateBPS(_getV2CoreContract(deploymentFile, "perp"), 0.5e18);
+      //      TradeModule(_getV2CoreContract(deploymentFile, "tradeModule")).setPerpAsset(_getV2CoreContract(deploymentFile, "perp"), true);
 
       for (uint j = 0; j < feeds.length; j++) {
         string memory feed = feeds[j];
         console.log("feed:", feed);
-        srm.setWhitelistedCallee(_getContract(deploymentFile, feed), true);
-        ethPMRM.setWhitelistedCallee(_getContract(deploymentFile, feed), true);
-        btcPMRM.setWhitelistedCallee(_getContract(deploymentFile, feed), true);
+        srm.setWhitelistedCallee(_getV2CoreContract(deploymentFile, feed), true);
+        ethPMRM.setWhitelistedCallee(_getV2CoreContract(deploymentFile, feed), true);
+        btcPMRM.setWhitelistedCallee(_getV2CoreContract(deploymentFile, feed), true);
       }
 
-      Ownable2Step(_getContract(deploymentFile, "perp")).acceptOwnership();
-      Ownable2Step(_getContract(deploymentFile, "spotFeed")).acceptOwnership();
-      Ownable2Step(_getContract(deploymentFile, "perpFeed")).acceptOwnership();
-      Ownable2Step(_getContract(deploymentFile, "iapFeed")).acceptOwnership();
-      Ownable2Step(_getContract(deploymentFile, "ibpFeed")).acceptOwnership();
+      Ownable2Step(_getV2CoreContract(deploymentFile, "perp")).acceptOwnership();
+      Ownable2Step(_getV2CoreContract(deploymentFile, "spotFeed")).acceptOwnership();
+      Ownable2Step(_getV2CoreContract(deploymentFile, "perpFeed")).acceptOwnership();
+      Ownable2Step(_getV2CoreContract(deploymentFile, "iapFeed")).acceptOwnership();
+      Ownable2Step(_getV2CoreContract(deploymentFile, "ibpFeed")).acceptOwnership();
+
+      TradeModule(_getMatchingContract("matching", "trade")).setPerpAsset(
+        IPerpAsset(_getV2CoreContract(deploymentFile, "perp")), true
+      );
+      TradeModule(_getMatchingContract("matching", "rfq")).setPerpAsset(
+        IPerpAsset(_getV2CoreContract(deploymentFile, "perp")), true
+      );
+      //      TradeModule(_getMatchingContract("matching", "liquidate")).setPerpAsset(IPerpAsset(_getV2CoreContract(deploymentFile, "perp")), true);
     }
   }
 }
