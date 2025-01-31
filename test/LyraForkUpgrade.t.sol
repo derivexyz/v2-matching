@@ -60,40 +60,40 @@ contract LyraForkUpgradeTest is ForkBase {
     vm.startPrank(deployer);
     string memory tsaName = "sUSDeBULL";
 
-    ProxyAdmin proxyAdmin = ProxyAdmin(_getContract(tsaName, "proxyAdmin"));
+    ProxyAdmin proxyAdmin = ProxyAdmin(_getV2CoreContract(tsaName, "proxyAdmin"));
 
-    PrincipalProtectedTSA implementation = PrincipalProtectedTSA(_getContract(tsaName, "implementation"));
+    PrincipalProtectedTSA implementation = PrincipalProtectedTSA(_getV2CoreContract(tsaName, "implementation"));
 
     proxyAdmin.upgradeAndCall(
-      ITransparentUpgradeableProxy(_getContract(tsaName, "proxy")),
+      ITransparentUpgradeableProxy(_getV2CoreContract(tsaName, "proxy")),
       address(0xa2F1C5b4d8e0b3835025a9E5D45cFF6226261f58),
       abi.encodeWithSelector(
         implementation.initialize.selector,
         deployer,
         BaseTSA.BaseTSAInitParams({
-          subAccounts: ISubAccounts(_getContract("core", "subAccounts")),
-          auction: DutchAuction(_getContract("core", "auction")),
-          cash: CashAsset(_getContract("core", "cash")),
-          wrappedDepositAsset: IWrappedERC20Asset(_getContract("sUSDe", "base")),
-          manager: ILiquidatableManager(_getContract("core", "srm")),
-          matching: IMatching(_getContract("matching", "matching")),
+          subAccounts: ISubAccounts(_getV2CoreContract("core", "subAccounts")),
+          auction: DutchAuction(_getV2CoreContract("core", "auction")),
+          cash: CashAsset(_getV2CoreContract("core", "cash")),
+          wrappedDepositAsset: IWrappedERC20Asset(_getV2CoreContract("sUSDe", "base")),
+          manager: ILiquidatableManager(_getV2CoreContract("core", "srm")),
+          matching: IMatching(_getV2CoreContract("matching", "matching")),
           symbol: tsaName,
           name: string.concat("sUSDe ", "Principal Protected Bull Call Spread")
         }),
         PrincipalProtectedTSA.PPTSAInitParams({
-          baseFeed: ISpotFeed(_getContract("sUSDe", "spotFeed")),
-          depositModule: IDepositModule(_getContract("matching", "deposit")),
-          withdrawalModule: IWithdrawalModule(_getContract("matching", "withdrawal")),
-          tradeModule: ITradeModule(_getContract("matching", "trade")),
-          optionAsset: IOptionAsset(_getContract("ETH", "option")),
-          rfqModule: IRfqModule(_getContract("matching", "rfq")),
+          baseFeed: ISpotFeed(_getV2CoreContract("sUSDe", "spotFeed")),
+          depositModule: IDepositModule(_getV2CoreContract("matching", "deposit")),
+          withdrawalModule: IWithdrawalModule(_getV2CoreContract("matching", "withdrawal")),
+          tradeModule: ITradeModule(_getV2CoreContract("matching", "trade")),
+          optionAsset: IOptionAsset(_getV2CoreContract("ETH", "option")),
+          rfqModule: IRfqModule(_getV2CoreContract("matching", "rfq")),
           isCallSpread: true,
           isLongSpread: true
         })
       )
     );
 
-    PrincipalProtectedTSA pptsa = PrincipalProtectedTSA(address(_getContract(tsaName, "proxy")));
+    PrincipalProtectedTSA pptsa = PrincipalProtectedTSA(address(_getV2CoreContract(tsaName, "proxy")));
 
     pptsa.setTSAParams(
       BaseTSA.TSAParams({
@@ -117,31 +117,31 @@ contract LyraForkUpgradeTest is ForkBase {
   }
 
   function _verifyAndMatchDeposit(PrincipalProtectedTSA pptsa) internal {
-    address susde = _getContract("shared", "susde");
+    address susde = _getV2CoreContract("shared", "susde");
     address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
-    Matching matching = Matching(_getContract("matching", "matching"));
+    Matching matching = Matching(_getV2CoreContract("matching", "matching"));
     LyraERC20 susdeCoin = LyraERC20(susde);
-    address proxyAddress = _getContract("sUSDeBULL", "proxy");
+    address proxyAddress = _getV2CoreContract("sUSDeBULL", "proxy");
 
     vm.prank(proxyAddress);
     susdeCoin.approve(deployer, 11e18);
     vm.startPrank(deployer);
     susdeCoin.transferFrom(proxyAddress, deployer, 10e18);
 
-    WLWrappedERC20Asset wrappedDepositAsset = WLWrappedERC20Asset(_getContract("sUSDe", "base"));
+    WLWrappedERC20Asset wrappedDepositAsset = WLWrappedERC20Asset(_getV2CoreContract("sUSDe", "base"));
     wrappedDepositAsset.wrappedAsset().approve(address(pptsa), 11e18);
     wrappedDepositAsset.setWhitelistEnabled(false);
     uint depositId = pptsa.initiateDeposit(1e18, deployer);
     pptsa.processDeposit(depositId);
 
     bytes memory depositData = abi.encode(
-      IDepositModule.DepositData({amount: 10e18, asset: _getContract("sUSDe", "base"), managerForNewAccount: address(0)})
+      IDepositModule.DepositData({amount: 10e18, asset: _getV2CoreContract("sUSDe", "base"), managerForNewAccount: address(0)})
     );
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: pptsa.subAccount(),
       nonce: 1,
-      module: IDepositModule(_getContract("matching", "deposit")),
+      module: IDepositModule(_getV2CoreContract("matching", "deposit")),
       data: depositData,
       expiry: block.timestamp + 8 minutes,
       owner: address(pptsa),
@@ -162,8 +162,8 @@ contract LyraForkUpgradeTest is ForkBase {
 
   function _verifyTakerTrade(PrincipalProtectedTSA pptsa) internal {
     address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
-    OptionAsset optionAsset = OptionAsset(_getContract("ETH", "option"));
-    RfqModule rfqModule = RfqModule(_getContract("matching", "rfq"));
+    OptionAsset optionAsset = OptionAsset(_getV2CoreContract("ETH", "option"));
+    RfqModule rfqModule = RfqModule(_getV2CoreContract("matching", "rfq"));
 
     uint higherPrice = 3.6e18;
     uint highStrike = 2900e18;
@@ -204,8 +204,8 @@ contract LyraForkUpgradeTest is ForkBase {
 
   function _verifyMakerTrade(PrincipalProtectedTSA pptsa) internal {
     address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
-    OptionAsset optionAsset = OptionAsset(_getContract(_readV2CoreDeploymentFile("ETH"), "option"));
-    RfqModule rfqModule = RfqModule(_getContract(_readMatchingDeploymentFile("matching"), "rfq"));
+    OptionAsset optionAsset = OptionAsset(_getV2CoreContract(_readV2CoreDeploymentFile("ETH"), "option"));
+    RfqModule rfqModule = RfqModule(_getV2CoreContract(_readMatchingDeploymentFile("matching"), "rfq"));
 
     uint higherPrice = 3.6e18;
     uint highStrike = 2900e18;
@@ -245,14 +245,14 @@ contract LyraForkUpgradeTest is ForkBase {
   function _verifyWithdraw(PrincipalProtectedTSA pptsa) internal {
     address deployer = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
     IWithdrawalModule.WithdrawalData memory data = IWithdrawalModule.WithdrawalData({
-      asset: _getContract(_readV2CoreDeploymentFile("sUSDe"), "base"),
+      asset: _getV2CoreContract(_readV2CoreDeploymentFile("sUSDe"), "base"),
       assetAmount: 10e18
     });
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: pptsa.subAccount(),
       nonce: 5,
-      module: IWithdrawalModule(_getContract(_readMatchingDeploymentFile("matching"), "withdrawal")),
+      module: IWithdrawalModule(_getV2CoreContract(_readMatchingDeploymentFile("matching"), "withdrawal")),
       data: abi.encode(data),
       expiry: block.timestamp + 8 minutes,
       owner: address(pptsa),
