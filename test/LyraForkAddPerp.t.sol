@@ -16,14 +16,10 @@ import {PositionTracking} from "v2-core/src/assets/utils/PositionTracking.sol";
 import {WLWrappedERC20Asset} from "v2-core/src/assets/WLWrappedERC20Asset.sol";
 
 contract LyraForkAddPerpTest is ForkBase {
-
-  string[1] private markets = [
-    "TRUMP"
-  ];
+  string[1] private markets = ["TRUMP"];
 
   string[4] public feeds = ["spotFeed", "perpFeed", "iapFeed", "ibpFeed"];
   string[2] public modules = ["trade", "rfq"];
-
 
   function setUp() external {}
 
@@ -40,17 +36,16 @@ contract LyraForkAddPerpTest is ForkBase {
     for (uint i = 0; i < markets.length; i++) {
       console.log("market:", markets[i]);
 
-      uint marketId = abi.decode(_call(
-        address(srm),
-        abi.encodeWithSelector(
-          srm.createMarket.selector,
-          markets[i]
-        )
-      ), (uint));
+      uint marketId =
+        abi.decode(_call(address(srm), abi.encodeWithSelector(srm.createMarket.selector, markets[i])), (uint));
 
       console.log("market ID for market:", marketId);
 
-      (IStandardManager.PerpMarginRequirements memory perpMarginReqs,,IStandardManager.OracleContingencyParams memory oracleContingencyParams,) = Config.getSRMParams("OP");
+      (
+        IStandardManager.PerpMarginRequirements memory perpMarginReqs,
+        ,
+        IStandardManager.OracleContingencyParams memory oracleContingencyParams,
+      ) = Config.getSRMParams("OP");
 
       _call(
         address(srm),
@@ -76,74 +71,53 @@ contract LyraForkAddPerpTest is ForkBase {
       _call(
         address(srm),
         abi.encodeWithSelector(
-          srm.setPerpMarginRequirements.selector,
-          marketId,
-          perpMarginReqs.mmPerpReq,
-          perpMarginReqs.imPerpReq
+          srm.setPerpMarginRequirements.selector, marketId, perpMarginReqs.mmPerpReq, perpMarginReqs.imPerpReq
         )
       );
 
       _call(
-        address(srm),
-        abi.encodeWithSelector(
-          srm.setOracleContingencyParams.selector,
-          marketId,
-          oracleContingencyParams
-        )
+        address(srm), abi.encodeWithSelector(srm.setOracleContingencyParams.selector, marketId, oracleContingencyParams)
       );
 
       _call(
         _getV2CoreContract("core", "srmViewer"),
         abi.encodeWithSelector(
-          srmViewer.setOIFeeRateBPS.selector,
-          address(_getV2CoreContract(markets[i], "perp")),
-          Config.OI_FEE_BPS
+          srmViewer.setOIFeeRateBPS.selector, address(_getV2CoreContract(markets[i], "perp")), Config.OI_FEE_BPS
         )
       );
 
       _call(
-        address(_getV2CoreContract(markets[i], "perp")),
-        abi.encodeWithSelector(
-          Ownable2Step.acceptOwnership.selector
-        )
+        address(_getV2CoreContract(markets[i], "perp")), abi.encodeWithSelector(Ownable2Step.acceptOwnership.selector)
       );
 
       ////////////////////
       // Whitelist callee for feeds/accept ownership
       ////////////////////
 
-      for (uint j=0; j < feeds.length; j++) {
+      for (uint j = 0; j < feeds.length; j++) {
         _call(
           address(_getV2CoreContract(markets[i], feeds[j])),
-          abi.encodeWithSelector(
-            Ownable2Step.acceptOwnership.selector
-          )
+          abi.encodeWithSelector(Ownable2Step.acceptOwnership.selector)
         );
 
         _call(
           address(srm),
           abi.encodeWithSelector(
-            srm.setWhitelistedCallee.selector,
-            address(_getV2CoreContract(markets[i], feeds[j])),
-            true
+            srm.setWhitelistedCallee.selector, address(_getV2CoreContract(markets[i], feeds[j])), true
           )
         );
 
         _call(
           address(btcPMRM),
           abi.encodeWithSelector(
-            srm.setWhitelistedCallee.selector,
-            address(_getV2CoreContract(markets[i], feeds[j])),
-            true
+            srm.setWhitelistedCallee.selector, address(_getV2CoreContract(markets[i], feeds[j])), true
           )
         );
 
         _call(
           address(ethPMRM),
           abi.encodeWithSelector(
-            srm.setWhitelistedCallee.selector,
-            address(_getV2CoreContract(markets[i], feeds[j])),
-            true
+            srm.setWhitelistedCallee.selector, address(_getV2CoreContract(markets[i], feeds[j])), true
           )
         );
       }
@@ -151,32 +125,24 @@ contract LyraForkAddPerpTest is ForkBase {
       /////
       // Adjust cap
 
-      ( uint perpCap,,) = Config.getSRMCaps(markets[i]);
+      (uint perpCap,,) = Config.getSRMCaps(markets[i]);
 
       _call(
         address(_getV2CoreContract(markets[i], "perp")),
-        abi.encodeWithSelector(
-          PositionTracking.setTotalPositionCap.selector,
-          IManager(srm),
-          perpCap
-        )
+        abi.encodeWithSelector(PositionTracking.setTotalPositionCap.selector, IManager(srm), perpCap)
       );
-
 
       //////
       // Add to modules
 
-      for (uint j=0; j < modules.length; j++) {
+      for (uint j = 0; j < modules.length; j++) {
         _call(
           _getMatchingContract("matching", modules[j]),
           abi.encodeWithSelector(
-            TradeModule.setPerpAsset.selector,
-            IPerpAsset(_getV2CoreContract(markets[i], "perp")),
-            true
+            TradeModule.setPerpAsset.selector, IPerpAsset(_getV2CoreContract(markets[i], "perp")), true
           )
         );
       }
-
     }
   }
 

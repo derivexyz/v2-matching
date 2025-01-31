@@ -135,7 +135,11 @@ contract LyraForkUpgradeTest is ForkBase {
     pptsa.processDeposit(depositId);
 
     bytes memory depositData = abi.encode(
-      IDepositModule.DepositData({amount: 10e18, asset: _getV2CoreContract("sUSDe", "base"), managerForNewAccount: address(0)})
+      IDepositModule.DepositData({
+        amount: 10e18,
+        asset: _getV2CoreContract("sUSDe", "base"),
+        managerForNewAccount: address(0)
+      })
     );
 
     IActionVerifier.Action memory action = IActionVerifier.Action({

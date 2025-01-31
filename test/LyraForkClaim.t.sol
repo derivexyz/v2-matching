@@ -16,17 +16,13 @@ import {PositionTracking} from "v2-core/src/assets/utils/PositionTracking.sol";
 import {WLWrappedERC20Asset} from "v2-core/src/assets/WLWrappedERC20Asset.sol";
 
 contract LyraForkClaim is ForkBase {
-
   function setUp() external {}
 
   function testFork() external checkFork {
     vm.deal(address(0xBa0512b8F70Cd73939F6b22e965950B977b372c5), 1 ether);
     vm.startPrank(0xBa0512b8F70Cd73939F6b22e965950B977b372c5);
 
-    _call(
-      address(0x2f8C5a3BBd69443B6e462F563bA0EaB4317F995b),
-      hex"d1058e59"
-    );
+    _call(address(0x2f8C5a3BBd69443B6e462F563bA0EaB4317F995b), hex"d1058e59");
 
     _call(
       address(0x7499d654422023a407d92e1D83D387d81BC68De1),

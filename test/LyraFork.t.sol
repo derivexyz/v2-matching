@@ -49,14 +49,19 @@ contract LyraForkTest is ForkBase {
 
       srm.setPerpMarginRequirements(marketId, 0.6e18, 0.8e18);
       srm.setOraclesForMarket(
-        marketId, ISpotFeed(_getV2CoreContract(deploymentFile, "spotFeed")), IForwardFeed(address(0)), IVolFeed(address(0))
+        marketId,
+        ISpotFeed(_getV2CoreContract(deploymentFile, "spotFeed")),
+        IForwardFeed(address(0)),
+        IVolFeed(address(0))
       );
 
-      srm.whitelistAsset(IAsset(_getV2CoreContract(deploymentFile, "perp")), marketId, IStandardManager.AssetType.Perpetual);
+      srm.whitelistAsset(
+        IAsset(_getV2CoreContract(deploymentFile, "perp")), marketId, IStandardManager.AssetType.Perpetual
+      );
 
       SRMPortfolioViewer srmViewer = SRMPortfolioViewer(_getV2CoreContract("core", "srmViewer"));
       srmViewer.setOIFeeRateBPS(_getV2CoreContract(deploymentFile, "perp"), 0.5e18);
-//      TradeModule(_getV2CoreContract(deploymentFile, "tradeModule")).setPerpAsset(_getV2CoreContract(deploymentFile, "perp"), true);
+      //      TradeModule(_getV2CoreContract(deploymentFile, "tradeModule")).setPerpAsset(_getV2CoreContract(deploymentFile, "perp"), true);
 
       for (uint j = 0; j < feeds.length; j++) {
         string memory feed = feeds[j];
@@ -72,9 +77,13 @@ contract LyraForkTest is ForkBase {
       Ownable2Step(_getV2CoreContract(deploymentFile, "iapFeed")).acceptOwnership();
       Ownable2Step(_getV2CoreContract(deploymentFile, "ibpFeed")).acceptOwnership();
 
-      TradeModule(_getMatchingContract("matching", "trade")).setPerpAsset(IPerpAsset(_getV2CoreContract(deploymentFile, "perp")), true);
-      TradeModule(_getMatchingContract("matching", "rfq")).setPerpAsset(IPerpAsset(_getV2CoreContract(deploymentFile, "perp")), true);
-//      TradeModule(_getMatchingContract("matching", "liquidate")).setPerpAsset(IPerpAsset(_getV2CoreContract(deploymentFile, "perp")), true);
+      TradeModule(_getMatchingContract("matching", "trade")).setPerpAsset(
+        IPerpAsset(_getV2CoreContract(deploymentFile, "perp")), true
+      );
+      TradeModule(_getMatchingContract("matching", "rfq")).setPerpAsset(
+        IPerpAsset(_getV2CoreContract(deploymentFile, "perp")), true
+      );
+      //      TradeModule(_getMatchingContract("matching", "liquidate")).setPerpAsset(IPerpAsset(_getV2CoreContract(deploymentFile, "perp")), true);
     }
   }
 }
