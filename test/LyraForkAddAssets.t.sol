@@ -1,4 +1,4 @@
-pragma solidity 0.8.20;
+pragma solidity ^0.8.20;
 
 import "forge-std/console.sol";
 import "v2-core/scripts/types.sol";
