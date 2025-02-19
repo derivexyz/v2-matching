@@ -47,7 +47,24 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   /////////////
 
   function signActionData(IMatching.Action memory action, bytes memory extraData) external virtual onlySigner {
+    _signActionData(action, extraData);
+  }
+
+  // TODO: check if we can call this from the backend
+  function signActionViaPermit(IMatching.Action memory action, bytes memory extraData, bytes memory signerSig) external virtual {
     bytes32 hash = getActionTypedDataHash(action);
+
+    (address recovered, ECDSA.RecoverError error) = ECDSA.tryRecover(hash, signerSig);
+    require(error == ECDSA.RecoverError.NoError && _getBaseSigningTSAStorage().signers[recovered], "Invalid signature");
+
+    // require signerSig is a valid signature of signer on hash
+    _signActionData(action, extraData);
+  }
+
+  function _signActionData(IMatching.Action memory action, bytes memory extraData) internal {
+    bytes32 hash = getActionTypedDataHash(action);
+    // TODO: check we want caching
+    if (_getBaseSigningTSAStorage().signedData[hash]) return;
 
     if (action.signer != address(this)) {
       revert BOCST_InvalidAction();
