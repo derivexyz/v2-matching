@@ -225,11 +225,35 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
       _verifyPerpTradeFee(tradeData.worstFee, tradeHelperVars.perpPrice);
     }
 
-
     _verifyTradeDelta(tradeData, tradeHelperVars);
-    _verifyTradeLeverage(tradeData, tradeHelperVars);
+    _verifyTradeLeverage(tradeData.desiredAmount, tradeHelperVars);
     _verifyEmaMarkLoss(tradeData, tradeHelperVars);
   }
+
+
+  function _verifyWithdrawAction(IMatching.Action memory action, BaseTSAAddresses memory tsaAddresses) internal view {
+    IWithdrawalModule.WithdrawalData memory withdrawData = abi.decode(action.data, (IWithdrawalModule.WithdrawalData));
+
+    // either base or perp
+    TradeHelperVars memory tradeHelperVars;
+    tradeHelperVars.isBaseTrade = tradeData.asset == address(tsaAddresses.depositAsset);
+
+    if (tradeHelperVars.isBaseTrade || tradeData.asset != address($.perpAsset)) {
+      revert("InvalidAsset");
+    }
+
+    tradeHelperVars.basePrice = _getBasePrice();
+    tradeHelperVars.perpPrice = _getPerpPrice();
+    (tradeHelperVars.perpPosition, tradeHelperVars.baseBalance, tradeHelperVars.cashBalance) = _getSubAccountStats();
+    tradeHelperVars.underlyingBase = _getConvertedMtM();
+
+
+    _verifyTradeLeverage(-int(withdrawData.assetAmount), tradeHelperVars);
+  }
+
+  /////////////////////////
+  // Action Verification //
+  /////////////////////////
 
   function _verifyTradeDelta(
     ITradeModule.TradeData memory tradeData,
@@ -266,7 +290,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   }
 
   function _verifyTradeLeverage(
-    ITradeModule.TradeData memory tradeData,
+    int amountBaseChange,
     TradeHelperVars memory tradeHelperVars
   ) internal view {
     if (!tradeHelperVars.isBaseTrade) {
@@ -276,7 +300,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
 
     // Leverage
     uint leverage = tradeHelperVars.baseBalance.divideDecimal(tradeHelperVars.underlyingBase);
-    uint newBaseBalance = uint(int(tradeHelperVars.baseBalance) + tradeData.desiredAmount);
+    uint newBaseBalance = uint(int(tradeHelperVars.baseBalance) + amountBaseChange);
 
     uint newLeverage = newBaseBalance.divideDecimal(tradeHelperVars.underlyingBase);
 
@@ -342,13 +366,6 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     require(worstFee.divideDecimal(perpPrice) <= $.lbParams.maxPerpFee, "PerpFeeTooHigh");
   }
 
-  /////////////////
-  // Withdrawals //
-  /////////////////
-
-  function _verifyWithdrawAction(IMatching.Action memory action, BaseTSAAddresses memory tsaAddresses) internal view {
-    // TODO
-  }
 
   ///////////////////
   // Account Value //
