@@ -19,12 +19,15 @@ import {IDepositModule} from "../interfaces/IDepositModule.sol";
 import {IWithdrawalModule} from "../interfaces/IWithdrawalModule.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 import {IRfqModule} from "../interfaces/IRfqModule.sol";
+import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
 
 import {
   StandardManager, IStandardManager, IVolFeed, IForwardFeed
 } from "v2-core/src/risk-managers/StandardManager.sol";
 import {ITradeModule} from "../interfaces/ITradeModule.sol";
 import {CollateralManagementTSA} from "./CollateralManagementTSA.sol";
+
+import {console} from "forge-std/console.sol";
 
 /// @title LeveragedBasisTSA
 /// @notice A TSA that accepts a base asset, borrows against it to buy more, and then opens short perps to neutralise
@@ -53,21 +56,25 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     ///////
     // Guardrail params
     ///////
-    // Fees
+    // Trade bounds
     uint maxPerpFee;
-
+    /// @dev Max loss per unit of base traded, in base
+    int maxBaseLossPerBase;
+    /// @dev Max loss per unit of perp traded, in base
+    int maxBaseLossPerPerp;
     // Delta
     int deltaTarget;
     int deltaTargetTolerance;
-
     // Leverage
     uint leverageFloor;
     uint leverageCeil;
-
     // EMA
     /// @dev Factor for half life of EMA decay (e.g. 0.0002 ~= 1hr)
     uint emaDecayFactor;
+    /// @dev Target % of of tvl that we can maximally lose via EMA calculation
     uint markLossEmaTarget;
+    uint minSignatureExpiry;
+    uint maxSignatureExpiry;
   }
 
   /// @custom:storage-location erc7201:lyra.storage.LeveragedBasisTSA
@@ -86,12 +93,23 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     bytes32 lastSeenHash;
   }
 
-  // keccak256(abi.encode(uint256(keccak256("lyra.storage.LeveragedBasisTSA")) - 1)) & ~bytes32(uint256(0xff))
-  bytes32 private constant LevBasisStorageLocation = 0x880abe6be62a76aa5b3195ed89577651391b09ba97c809a88c84430932fde200;
+  struct TradeHelperVars {
+    bool isBaseTrade;
+    uint basePrice;
+    uint perpPrice;
+    int perpPosition;
+    uint baseBalance;
+    int cashBalance;
+    uint underlyingBase;
+  }
 
-  function _getLBTSAStorage() private pure returns (LBTSAStorage storage $) {
+  // keccak256(abi.encode(uint256(keccak256("lyra.storage.LeveragedBasisTSA")) - 1)) & ~bytes32(uint256(0xff))
+  bytes32 private constant LEV_BASIS_STORAGE_LOCATION =
+    0x880abe6be62a76aa5b3195ed89577651391b09ba97c809a88c84430932fde200;
+
+  function _getLBTSAStorage() internal pure returns (LBTSAStorage storage $) {
     assembly {
-      $.slot := LevBasisStorageLocation
+      $.slot := LEV_BASIS_STORAGE_LOCATION
     }
   }
 
@@ -103,7 +121,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     address initialOwner,
     BaseTSA.BaseTSAInitParams memory initParams,
     LBTSAInitParams memory lbInitParams
-  ) external reinitializer(1) {
+  ) external reinitializer(2) {
     __BaseTSA_init(initialOwner, initParams);
 
     LBTSAStorage storage $ = _getLBTSAStorage();
@@ -112,6 +130,8 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     $.withdrawalModule = lbInitParams.withdrawalModule;
     $.tradeModule = lbInitParams.tradeModule;
     $.baseFeed = lbInitParams.baseFeed;
+    $.perpAsset = lbInitParams.perpAsset;
+
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     tsaAddresses.depositAsset.approve(address($.depositModule), type(uint).max);
@@ -121,9 +141,23 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   // Admin //
   ///////////
   function setLBTSAParams(LBTSAParams memory lbtsaParams) external onlyOwner {
-    LBTSAStorage storage $ = _getLBTSAStorage();
+    // TODO: set reasonable bounds
+    if (
+      // || lbtsaParams.deltaTarget < -0.2e18 || lbtsaParams.deltaTarget > 0.2e18 // ±20%
+      // Note: because of atomic singing, these can be very low. Signatures might come in last second.
+      lbtsaParams.maxPerpFee > 0.01e18 // Max 1% fee
+        || lbtsaParams.deltaTargetTolerance > 0.1e18 // <10%
+        || lbtsaParams.leverageCeil < lbtsaParams.leverageFloor || lbtsaParams.leverageCeil > 5e18 // Must be > floor
+        || lbtsaParams.emaDecayFactor == 0 || lbtsaParams.emaDecayFactor > 0.001e18 // 0-0.1%
+        || lbtsaParams.markLossEmaTarget > 0.05e18 // Max 5%
+        || lbtsaParams.maxBaseLossPerBase < 0 || lbtsaParams.maxBaseLossPerBase > 0.02e18 // 0-2%
+        || lbtsaParams.maxBaseLossPerPerp < 0 || lbtsaParams.maxBaseLossPerPerp > 0.02e18 // 0-2
+        || lbtsaParams.minSignatureExpiry > lbtsaParams.maxSignatureExpiry
+    ) {
+      revert LBT_InvalidParams();
+    }
 
-    $.lbParams = lbtsaParams;
+    _getLBTSAStorage().lbParams = lbtsaParams;
 
     emit LBTSAParamsSet(lbtsaParams);
   }
@@ -133,13 +167,14 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     override
     onlyOwner
   {
+    // TODO: set reasonable bounds
     if (
       newCollateralMgmtParams.worstSpotBuyPrice < 1e18 || newCollateralMgmtParams.worstSpotBuyPrice > 1.2e18
         || newCollateralMgmtParams.worstSpotSellPrice > 1e18 || newCollateralMgmtParams.worstSpotSellPrice < 0.8e18
         || newCollateralMgmtParams.spotTransactionLeniency < 1e18
         || newCollateralMgmtParams.spotTransactionLeniency > 1.2e18 || newCollateralMgmtParams.feeFactor > 0.05e18
     ) {
-      revert("InvalidParams");
+      revert LBT_InvalidParams();
     }
     _getLBTSAStorage().collateralManagementParams = newCollateralMgmtParams;
 
@@ -160,13 +195,13 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     checkBlocked
   {
     LBTSAStorage storage $ = _getLBTSAStorage();
-    // TODO: expiry
-    //    if (
-    //      action.expiry < block.timestamp + $.lbParams.minSignatureExpiry
-    //        || action.expiry > block.timestamp + $.lbParams.maxSignatureExpiry
-    //    ) {
-    //      revert("PPT_InvalidActionExpiry()");
-    //    }
+
+    if (
+      action.expiry < block.timestamp + $.lbParams.minSignatureExpiry
+        || action.expiry > block.timestamp + $.lbParams.maxSignatureExpiry
+    ) {
+      revert LBT_InvalidActionExpiry();
+    }
 
     _revokeSignature($.lastSeenHash);
     $.lastSeenHash = actionHash;
@@ -182,23 +217,13 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     } else if (address(action.module) == address($.tradeModule)) {
       _verifyTradeAction(action, tsaAddresses);
     } else {
-      revert("InvalidModule");
+      revert LBT_InvalidModule();
     }
   }
 
   /////////////
   // Trading //
   /////////////
-  struct TradeHelperVars {
-    bool isBaseTrade;
-    uint basePrice;
-    uint perpPrice;
-    int perpPosition;
-    uint baseBalance;
-    int cashBalance;
-    uint underlyingBase;
-    int deltaChange;
-  }
 
   function _verifyTradeAction(IMatching.Action memory action, BaseTSAAddresses memory tsaAddresses) internal {
     LBTSAStorage memory $ = _getLBTSAStorage();
@@ -206,17 +231,8 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     ITradeModule.TradeData memory tradeData = abi.decode(action.data, (ITradeModule.TradeData));
 
     // either base or perp
-    TradeHelperVars memory tradeHelperVars;
-    tradeHelperVars.isBaseTrade = tradeData.asset == address(tsaAddresses.depositAsset);
-
-    if (tradeHelperVars.isBaseTrade || tradeData.asset != address($.perpAsset)) {
-      revert("InvalidAsset");
-    }
-
-    tradeHelperVars.basePrice = _getBasePrice();
-    tradeHelperVars.perpPrice = _getPerpPrice();
-    (tradeHelperVars.perpPosition, tradeHelperVars.baseBalance, tradeHelperVars.cashBalance) = _getSubAccountStats();
-    tradeHelperVars.underlyingBase = _getConvertedMtM();
+    TradeHelperVars memory tradeHelperVars =
+      _getTradeHelperVars(tradeData.asset, address(tsaAddresses.wrappedDepositAsset), address($.perpAsset));
 
     // Fees
     if (tradeHelperVars.isBaseTrade) {
@@ -225,26 +241,59 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
       _verifyPerpTradeFee(tradeData.worstFee, tradeHelperVars.perpPrice);
     }
 
+    int amtDelta = tradeData.isBid ? tradeData.desiredAmount : -tradeData.desiredAmount;
 
-    _verifyTradeDelta(tradeData, tradeHelperVars);
-    _verifyTradeLeverage(tradeData, tradeHelperVars);
+    _verifyTradeDelta(tradeHelperVars, amtDelta);
+    _verifyTradeLeverage(tradeHelperVars, amtDelta);
     _verifyEmaMarkLoss(tradeData, tradeHelperVars);
   }
 
-  function _verifyTradeDelta(
-    ITradeModule.TradeData memory tradeData,
-    TradeHelperVars memory tradeHelperVars
-  ) internal view {
+  function _verifyWithdrawAction(IMatching.Action memory action, BaseTSAAddresses memory tsaAddresses) internal view {
+    LBTSAStorage storage $ = _getLBTSAStorage();
+    IWithdrawalModule.WithdrawalData memory withdrawalData = abi.decode(action.data, (IWithdrawalModule.WithdrawalData));
+
+    require(withdrawalData.asset == address(tsaAddresses.wrappedDepositAsset), LBT_InvalidWithdrawAsset());
+
+    TradeHelperVars memory tradeHelperVars =
+      _getTradeHelperVars(withdrawalData.asset, address(tsaAddresses.wrappedDepositAsset), address($.perpAsset));
+
+    _verifyTradeDelta(tradeHelperVars, -int(withdrawalData.assetAmount));
+    _verifyTradeLeverage(tradeHelperVars, -int(withdrawalData.assetAmount));
+  }
+
+  //////////////////////////
+  // Verification Helpers //
+  //////////////////////////
+
+  function getTradeHelperVars(address asset) external view returns (TradeHelperVars memory tradeHelperVars) {
+    tradeHelperVars = _getTradeHelperVars(
+      asset, address(getBaseTSAAddresses().wrappedDepositAsset), address(_getLBTSAStorage().perpAsset)
+    );
+  }
+
+  function _getTradeHelperVars(address asset, address wrappedDepositAsset, address perpAsset)
+    internal
+    view
+    returns (TradeHelperVars memory tradeHelperVars)
+  {
+    tradeHelperVars.isBaseTrade = asset == wrappedDepositAsset;
+
+    require(tradeHelperVars.isBaseTrade || asset == perpAsset, LBT_InvalidTradeAsset());
+
+    tradeHelperVars.basePrice = _getBasePrice();
+    tradeHelperVars.perpPrice = _getPerpPrice();
+    (tradeHelperVars.perpPosition, tradeHelperVars.baseBalance, tradeHelperVars.cashBalance) = _getSubAccountStats();
+    tradeHelperVars.underlyingBase = _getConvertedMtM();
+  }
+
+  function _verifyTradeDelta(TradeHelperVars memory tradeHelperVars, int amtDelta) internal view {
     LBTSAStorage storage $ = _getLBTSAStorage();
 
-    uint perpBaseRatio = tradeHelperVars.perpPrice * 1e18 / tradeHelperVars.basePrice;
+    uint perpBaseRatio = tradeHelperVars.isBaseTrade
+      ? DecimalMath.UNIT
+      : tradeHelperVars.perpPrice.divideDecimal(tradeHelperVars.basePrice);
 
-    int deltaChange;
-    if (tradeData.isBid) {
-      deltaChange = tradeHelperVars.isBaseTrade ? tradeData.desiredAmount : tradeData.desiredAmount.multiplyDecimal(int(perpBaseRatio));
-    } else {
-      deltaChange = tradeHelperVars.isBaseTrade ? -tradeData.desiredAmount: -tradeData.desiredAmount.multiplyDecimal(int(perpBaseRatio));
-    }
+    int deltaChange = amtDelta.multiplyDecimal(int(perpBaseRatio));
 
     // delta as a % of TVL
     int portfolioDeltaPercent = (
@@ -260,15 +309,12 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
 
     require(
       newDeltaPercent >= targetDelta - $.lbParams.deltaTargetTolerance
-      && newDeltaPercent <= targetDelta + $.lbParams.deltaTargetTolerance,
-      "PostTradeDeltaOutOfRange"
+        && newDeltaPercent <= targetDelta + $.lbParams.deltaTargetTolerance,
+      LBT_PostTradeDeltaOutOfRange()
     );
   }
 
-  function _verifyTradeLeverage(
-    ITradeModule.TradeData memory tradeData,
-    TradeHelperVars memory tradeHelperVars
-  ) internal view {
+  function _verifyTradeLeverage(TradeHelperVars memory tradeHelperVars, int amtDelta) internal view {
     if (!tradeHelperVars.isBaseTrade) {
       return;
     }
@@ -276,78 +322,66 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
 
     // Leverage
     uint leverage = tradeHelperVars.baseBalance.divideDecimal(tradeHelperVars.underlyingBase);
-    uint newBaseBalance = uint(int(tradeHelperVars.baseBalance) + tradeData.desiredAmount);
+    uint newBaseBalance = uint(int(tradeHelperVars.baseBalance) + amtDelta);
 
     uint newLeverage = newBaseBalance.divideDecimal(tradeHelperVars.underlyingBase);
 
-    if (
-      (leverage < $.lbParams.leverageFloor && newLeverage > leverage)
-      || (leverage > $.lbParams.leverageCeil && newLeverage < leverage)
-    ) {
-      // leverage is improving
+    if (leverage < $.lbParams.leverageFloor && newLeverage > leverage && newLeverage <= $.lbParams.leverageCeil) {
+      // improving from below
+      return;
+    }
+
+    if (leverage > $.lbParams.leverageCeil && newLeverage < leverage && newLeverage >= $.lbParams.leverageFloor) {
+      // improving from above
       return;
     }
 
     require(
-      leverage >= $.lbParams.leverageFloor
-      && leverage <= $.lbParams.leverageCeil,
-      "PostTradeLeverageOutOfRange"
+      newLeverage >= $.lbParams.leverageFloor && newLeverage <= $.lbParams.leverageCeil,
+      LBT_PostTradeLeverageOutOfRange()
     );
   }
 
-  function _verifyEmaMarkLoss(
-    ITradeModule.TradeData memory tradeData,
-    TradeHelperVars memory tradeHelperVars
-  ) internal {
+  function _verifyEmaMarkLoss(ITradeModule.TradeData memory tradeData, TradeHelperVars memory tradeHelperVars) internal {
     LBTSAStorage storage $ = _getLBTSAStorage();
 
     int priceToCheck = int(tradeHelperVars.isBaseTrade ? tradeHelperVars.basePrice : tradeHelperVars.perpPrice);
 
-    // TODO: fee
+    // Note, we don't include fee in the loss calculation
     int lossPerUnitCash = tradeData.isBid ? tradeData.limitPrice - priceToCheck : priceToCheck - tradeData.limitPrice;
     int lossPerUnitBase = lossPerUnitCash * 1e18 / int(tradeHelperVars.basePrice);
-    // Require that at most we lose X% of the trade value per unit. TODO: param (diff for base/perp)
-    require(lossPerUnitBase < 0.02e18, "InvalidGainPerUnit");
+
+    // Require that at most we lose X% of the trade value per unit.
+    require(
+      lossPerUnitBase <= (tradeHelperVars.isBaseTrade ? $.lbParams.maxBaseLossPerBase : $.lbParams.maxBaseLossPerPerp),
+      LBT_InvalidGainPerUnit()
+    );
 
     // total loss from trade in base / total tvl in base
     int markLossPercent = tradeData.desiredAmount * lossPerUnitBase / int(tradeHelperVars.underlyingBase);
 
-    int preMarkLossEma = $.markLossEma;
+    int preMarkLossEma = _decayAndFetchEma();
+    int emaLoss = preMarkLossEma + markLossPercent;
+    $.markLossEma = emaLoss;
 
-    // convert mark loss -> % of TVL
-    int emaLoss = _updateMarkLossEMA(markLossPercent);
-
-    require(
-      emaLoss <= int($.lbParams.markLossEmaTarget)
-      || emaLoss <= preMarkLossEma,
-      "MarkLossTooHigh"
-    );
+    require(emaLoss <= int($.lbParams.markLossEmaTarget) || emaLoss <= preMarkLossEma, LBT_MarkLossTooHigh());
   }
 
-  function _updateMarkLossEMA(int markLossPercent) internal returns (int _markLossEma) {
+  function _decayAndFetchEma() internal returns (int newEma) {
     LBTSAStorage storage $ = _getLBTSAStorage();
 
     uint dt = block.timestamp - $.markLossLastTs;
-    uint decay = FixedPointMathLib.exp(-int($.lbParams.emaDecayFactor * dt) / 1e18);
-    $.markLossEma = $.markLossEma.multiplyDecimal(int(decay)) + markLossPercent;
+    uint decay = FixedPointMathLib.exp(-int($.lbParams.emaDecayFactor * dt));
+    $.markLossEma = $.markLossEma.multiplyDecimal(int(decay));
     $.markLossLastTs = block.timestamp;
 
     return $.markLossEma;
   }
 
-
-  function _verifyPerpTradeFee(uint worstFee, uint perpPrice) internal {
+  function _verifyPerpTradeFee(uint worstFee, uint perpPrice) internal view {
     LBTSAStorage storage $ = _getLBTSAStorage();
 
-    require(worstFee.divideDecimal(perpPrice) <= $.lbParams.maxPerpFee, "PerpFeeTooHigh");
-  }
-
-  /////////////////
-  // Withdrawals //
-  /////////////////
-
-  function _verifyWithdrawAction(IMatching.Action memory action, BaseTSAAddresses memory tsaAddresses) internal view {
-    // TODO
+    require(worstFee.divideDecimal(perpPrice) <= $.lbParams.maxPerpFee, LBT_PerpFeeTooHigh());
   }
 
   ///////////////////
@@ -368,12 +402,8 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
         cashBalance = balances[i].balance;
       }
     }
-    if (signedBaseBalance < 0) {
-      revert("NegativeBaseBalance");
-    }
-    if (perpPosition > 0) {
-      revert("PositivePerpPosition");
-    }
+    require(signedBaseBalance >= 0, LBT_NegativeBaseBalance());
+    require(perpPosition <= 0, LBT_PositivePerpPosition());
 
     return (perpPosition, signedBaseBalance.abs(), cashBalance);
   }
@@ -381,10 +411,10 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   function _getBasePrice() internal view override returns (uint spotPrice) {
     (spotPrice,) = _getLBTSAStorage().baseFeed.getSpot();
   }
-//
-//  function _getSpotPrice() internal view returns (uint spotPrice) {
-//    (spotPrice,) = _getLBTSAStorage().spotFeed.getSpot();
-//  }
+  //
+  //  function _getSpotPrice() internal view returns (uint spotPrice) {
+  //    (spotPrice,) = _getLBTSAStorage().spotFeed.getSpot();
+  //  }
 
   function _getPerpPrice() internal view returns (uint perpPrice) {
     (perpPrice,) = _getLBTSAStorage().perpAsset.getPerpPrice();
@@ -396,10 +426,10 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   function getAccountValue(bool includePending) public view returns (uint) {
     return _getAccountValue(includePending);
   }
-//
-//  function getSubAccountStats() public view returns (uint openPositiveSpreads, uint baseBalance, int cashBalance) {
-//    return _getSubAccountStats();
-//  }
+  //
+  //  function getSubAccountStats() public view returns (uint openPositiveSpreads, uint baseBalance, int cashBalance) {
+  //    return _getSubAccountStats();
+  //  }
 
   function getBasePrice() public view returns (uint) {
     return _getBasePrice();
@@ -417,6 +447,10 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     return _getLBTSAStorage().lastSeenHash;
   }
 
+  function getLBTSAEmaValues() public view returns (int markLossEma, uint markLossLastTs) {
+    return (_getLBTSAStorage().markLossEma, _getLBTSAStorage().markLossLastTs);
+  }
+
   function getLBTSAAddresses()
     public
     view
@@ -431,4 +465,16 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   ///////////////////
   event LBTSAParamsSet(LBTSAParams lbtsaParams);
 
+  error LBT_InvalidParams();
+  error LBT_InvalidActionExpiry();
+  error LBT_InvalidModule();
+  error LBT_InvalidWithdrawAsset();
+  error LBT_InvalidTradeAsset();
+  error LBT_PostTradeLeverageOutOfRange();
+  error LBT_PostTradeDeltaOutOfRange();
+  error LBT_InvalidGainPerUnit();
+  error LBT_MarkLossTooHigh();
+  error LBT_PerpFeeTooHigh();
+  error LBT_NegativeBaseBalance();
+  error LBT_PositivePerpPosition();
 }

@@ -51,7 +51,10 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   }
 
   // TODO: check if we can call this from the backend
-  function signActionViaPermit(IMatching.Action memory action, bytes memory extraData, bytes memory signerSig) external virtual {
+  function signActionViaPermit(IMatching.Action memory action, bytes memory extraData, bytes memory signerSig)
+    external
+    virtual
+  {
     bytes32 hash = getActionTypedDataHash(action);
 
     (address recovered, ECDSA.RecoverError error) = ECDSA.tryRecover(hash, signerSig);
@@ -63,8 +66,8 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
 
   function _signActionData(IMatching.Action memory action, bytes memory extraData) internal {
     bytes32 hash = getActionTypedDataHash(action);
-    // TODO: check we want caching
-    if (_getBaseSigningTSAStorage().signedData[hash]) return;
+    // TODO: check we want caching. **If params are updated, old ones would not be revoked.**
+    // if (_getBaseSigningTSAStorage().signedData[hash]) return;
 
     if (action.signer != address(this)) {
       revert BOCST_InvalidAction();
@@ -72,7 +75,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     _verifyAction(action, hash, extraData);
     _getBaseSigningTSAStorage().signedData[hash] = true;
 
-    emit ActionSigned(msg.sender, hash, action);
+    emit ActionSigned(action.signer, hash, action);
   }
 
   function revokeActionSignature(IMatching.Action memory action) external virtual onlySigner {

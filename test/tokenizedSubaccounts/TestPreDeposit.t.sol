@@ -9,45 +9,45 @@ import {ITradeModule} from "../../src/interfaces/ITradeModule.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 
 import "forge-std/console2.sol";
-import "./TSATestUtils.sol";
+import "./utils/TSATestUtils.sol";
 
 contract TSAPreDepositTest is TSATestUtils {
   MockERC20 internal erc20;
-  TokenizedSubAccount internal tsa;
+  TokenizedSubAccount internal tsaPreDeposit;
 
   function setUp() public override {
     erc20 = new MockERC20("token", "token");
     deployPredeposit(address(erc20));
-    tsa = TokenizedSubAccount(address(proxy));
+    tsaPreDeposit = TokenizedSubAccount(address(proxy));
   }
 
   function testCanDepositWithdrawAndMigrate() public {
     erc20.mint(alice, 1000e18);
 
     vm.prank(alice);
-    erc20.approve(address(tsa), 1500e18);
+    erc20.approve(address(tsaPreDeposit), 1500e18);
 
     // Can deposit exactly the whole cap
     vm.prank(alice);
-    tsa.depositFor(alice, 200e18);
+    tsaPreDeposit.depositFor(alice, 200e18);
 
-    assertEq(tsa.balanceOf(alice), 200e18);
+    assertEq(tsaPreDeposit.balanceOf(alice), 200e18);
 
     vm.prank(alice);
-    tsa.depositFor(alice, 300e18);
+    tsaPreDeposit.depositFor(alice, 300e18);
 
-    assertEq(tsa.balanceOf(alice), 500e18);
+    assertEq(tsaPreDeposit.balanceOf(alice), 500e18);
 
     // Cannot withdraw more than deposited
     vm.prank(alice);
     vm.expectRevert();
-    tsa.withdrawTo(alice, 501e18);
+    tsaPreDeposit.withdrawTo(alice, 501e18);
 
     // Can withdraw some
     vm.prank(alice);
-    tsa.withdrawTo(alice, 400e18);
-    assertEq(tsa.balanceOf(alice), 100e18);
-    assertEq(erc20.balanceOf(address(tsa)), 100e18);
+    tsaPreDeposit.withdrawTo(alice, 400e18);
+    assertEq(tsaPreDeposit.balanceOf(alice), 100e18);
+    assertEq(erc20.balanceOf(address(tsaPreDeposit)), 100e18);
     assertEq(erc20.balanceOf(alice), 900e18);
   }
 }

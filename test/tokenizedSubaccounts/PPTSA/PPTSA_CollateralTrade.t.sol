@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "../TSATestUtils.sol";
+import "../utils/PPTSATestUtils.sol";
 
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 
@@ -23,7 +23,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     uint64 expiry = uint64(block.timestamp + 7 days);
     _tradeRfqAsMaker(1e18, 1e18, expiry, 400e18, 4e18, 800e18, true);
 
-    (uint openSpreads, uint base, int cash) = tsa.getSubAccountStats();
+    (uint openSpreads, uint base, int cash) = pptsa.getSubAccountStats();
     assertEq(openSpreads, 1e18);
     assertEq(base, 10e18);
     assertEq(cash, 3e18);
@@ -53,26 +53,26 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     tradeData.desiredAmount = 0;
     action.data = abi.encode(tradeData);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidDesiredAmount.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     tradeData.desiredAmount = 2.0e18;
     action.module = IMatchingModule(address(10));
     action.data = abi.encode(tradeData);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidModule.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     action.module = tradeModule;
     tradeData.asset = address(markets["weth"].option);
     action.data = abi.encode(tradeData);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidAsset.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     tradeData.asset = address(markets["weth"].base);
     action.data = abi.encode(tradeData);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     vm.warp(block.timestamp + 1 days);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidActionExpiry.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
   }
 }

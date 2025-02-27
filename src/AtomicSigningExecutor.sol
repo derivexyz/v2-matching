@@ -1,21 +1,19 @@
+// SPDX-License-Identifier: GPL-3.0-only
+pragma solidity ^0.8.20;
 
-import "./Matching.sol";// SPDX-License-Identifier: MIT
+import "./Matching.sol";
 import "./interfaces/IActionVerifier.sol";
-
-interface IAtomicSigner {
-  struct AtomicAction {
-    bool isAtomic;
-    bytes extraData;
-  }
-
-  function signActionViaPermit(IMatching.Action memory action, bytes memory extraData, bytes memory signerSig) external;
-}
-
+import "./interfaces/IAtomicSigner.sol";
 
 // Wrapper contract for the "Executor" role within the Matching contract. Allows for calling out to the singer of an
 // action if their signature is "0" before forwarding the request onto Matching itself.
 
 contract AtomicSigningExecutor {
+  struct AtomicAction {
+    bool isAtomic;
+    bytes extraData;
+  }
+
   Matching public immutable matching;
 
   constructor(Matching _matching) {
@@ -26,13 +24,10 @@ contract AtomicSigningExecutor {
     IActionVerifier.Action[] memory actions,
     bytes[] memory signatures,
     bytes memory actionData,
-    IAtomicSigner.AtomicAction[] memory atomicActionData
-  )
-    public
-    onlyTradeExecutor
-  {
+    AtomicAction[] memory atomicActionData
+  ) external onlyTradeExecutor {
     for (uint i = 0; i < actions.length; i++) {
-      IAtomicSigner.AtomicAction memory atomicAction = atomicActionData[i];
+      AtomicAction memory atomicAction = atomicActionData[i];
       if (atomicAction.isAtomic) {
         // Call the signer of the action
         IAtomicSigner signer = IAtomicSigner(actions[i].signer);
