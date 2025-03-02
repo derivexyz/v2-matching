@@ -1,6 +1,6 @@
 pragma solidity ^0.8.18;
 
-import "./TSATestUtils.sol";
+import "./utils/CCTSATestUtils.sol";
 /*
 Tests for TSA signing
 - ✅only signers can sign

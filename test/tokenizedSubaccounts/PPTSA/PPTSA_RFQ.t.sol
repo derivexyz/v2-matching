@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "../TSATestUtils.sol";
+import "../utils/PPTSATestUtils.sol";
 import "forge-std/console2.sol";
 
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
@@ -37,7 +37,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     takerOrder.orderHash = "";
     action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TradeDataDoesNotMatchOrderHash.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // Should fail if the asset is not the option asset
     makerOrder.trades[0].asset = address(markets["weth"].base);
@@ -45,14 +45,14 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidMakerTradeDetails.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // Should fail when the assets between both legs are not the same
     makerOrder.trades[0].asset = address(markets["weth"].option);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidMakerTradeDetails.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     makerOrder.trades[1].asset = address(markets["weth"].option);
 
@@ -64,7 +64,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     takerOrder.orderHash = keccak256(abi.encode(smallerTrades));
     action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidTradeLength.selector);
-    tsa.signActionData(action, abi.encode(smallerTrades));
+    pptsa.signActionData(action, abi.encode(smallerTrades));
 
     // Should fail when we're a taker buying long call spreads with a negative high strike amount
     makerOrder.trades[0].subId = OptionEncoding.toSubId(expiry, strike2, true);
@@ -72,14 +72,14 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // Should fail when we're a maker buying long call spreads with a positive high strike amount
     makerOrder.trades[0].subId = OptionEncoding.toSubId(expiry, strike, true);
     makerOrder.trades[1].subId = OptionEncoding.toSubId(expiry, strike2, true);
     action.data = abi.encode(makerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     // strike difference not matching params
     strike2 = 100e18;
@@ -87,7 +87,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_StrikePriceOutsideOfDiff.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // trade amounts dont equal each other
     strike2 = 400e18;
@@ -96,7 +96,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidTradeAmount.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
   }
 
   function testValidateSpreadPriceRanges() public {
@@ -118,12 +118,12 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
       _setupRfq(amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, true);
     IActionVerifier.Action memory action = _createRfqAction(takerOrder);
     _tradeRfqAsTaker(amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, true);
-    (uint openSpreads,,) = tsa.getSubAccountStats();
+    (uint openSpreads,,) = pptsa.getSubAccountStats();
     assertEq(openSpreads, 100e18);
 
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TradeTooLarge.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // cant buy a short call spread that is too large
     _setupPPTSAWithDeposit(true, false);
@@ -131,17 +131,17 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     usdc.mint(address(this), 400_000e6);
     usdc.approve(address(cash), 400_000e6);
     cash.deposit(tsaSubacc, 400_000e6);
-    tsa.setPPTSAParams(params);
+    pptsa.setPPTSAParams(params);
     _tradeRfqAsTaker(-1 * amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, true);
     (makerOrder, takerOrder) = _setupRfq(-1 * amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, true);
     action = _createRfqAction(takerOrder);
 
-    (openSpreads,,) = tsa.getSubAccountStats();
+    (openSpreads,,) = pptsa.getSubAccountStats();
     assertEq(openSpreads, 100e18);
 
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TradeTooLarge.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // cant buy a long put spread that is too large
     _setupPPTSAWithDeposit(false, true);
@@ -149,17 +149,17 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     usdc.mint(address(this), 400_000e6);
     usdc.approve(address(cash), 400_000e6);
     cash.deposit(tsaSubacc, 400_000e6);
-    tsa.setPPTSAParams(params);
+    pptsa.setPPTSAParams(params);
     _tradeRfqAsTaker(amount, lowerPrice, expiry, lowStrike, higherPrice, highStrike, false);
     (makerOrder, takerOrder) = _setupRfq(amount, lowerPrice, expiry, lowStrike, higherPrice, highStrike, false);
     action = _createRfqAction(takerOrder);
 
-    (openSpreads,,) = tsa.getSubAccountStats();
+    (openSpreads,,) = pptsa.getSubAccountStats();
     assertEq(openSpreads, 100e18);
 
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TradeTooLarge.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // cant buy a short put spread that is too large
     _setupPPTSAWithDeposit(false, false);
@@ -167,17 +167,17 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     usdc.mint(address(this), 400_000e6);
     usdc.approve(address(cash), 400_000e6);
     cash.deposit(tsaSubacc, 400_000e6);
-    tsa.setPPTSAParams(params);
+    pptsa.setPPTSAParams(params);
     _tradeRfqAsTaker(-1 * amount, lowerPrice, expiry, lowStrike, higherPrice, highStrike, false);
     (makerOrder, takerOrder) = _setupRfq(-1 * amount, lowerPrice, expiry, lowStrike, higherPrice, highStrike, false);
     action = _createRfqAction(takerOrder);
 
-    (openSpreads,,) = tsa.getSubAccountStats();
+    (openSpreads,,) = pptsa.getSubAccountStats();
     assertEq(openSpreads, 100e18);
 
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TradeTooLarge.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
   }
 
   function testCostToleranceValidation() public {
@@ -186,8 +186,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
     CollateralManagementTSA.CollateralManagementParams memory collateralManagementParams =
       defaultCollateralManagementParams;
-    tsa.setPPTSAParams(params);
-    tsa.setCollateralManagementParams(collateralManagementParams);
+    pptsa.setPPTSAParams(params);
+    pptsa.setCollateralManagementParams(collateralManagementParams);
     int amount = 1e18;
     uint price = 411e18;
     uint64 expiry = uint64(block.timestamp + 7 days);
@@ -202,12 +202,12 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TotalCostOverTolerance.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     params.maxTotalCostTolerance = 1e18 - 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
-    tsa.setCollateralManagementParams(collateralManagementParams);
+    pptsa.setPPTSAParams(params);
+    pptsa.setCollateralManagementParams(collateralManagementParams);
   }
 
   function testShortSpreadCostToleranceValidations() public {
@@ -219,8 +219,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
     CollateralManagementTSA.CollateralManagementParams memory collateralManagementParams =
       defaultCollateralManagementParams;
-    tsa.setPPTSAParams(params);
-    tsa.setCollateralManagementParams(collateralManagementParams);
+    pptsa.setPPTSAParams(params);
+    pptsa.setCollateralManagementParams(collateralManagementParams);
     int amount = 1e18;
     uint price = 411e18;
     uint64 expiry = uint64(block.timestamp + 7 days);
@@ -238,25 +238,25 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     action.data = abi.encode(takerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TotalCostBelowTolerance.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     params.maxTotalCostTolerance = 1e18 + 1;
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidParams.selector);
-    tsa.setPPTSAParams(params);
-    tsa.setCollateralManagementParams(collateralManagementParams);
+    pptsa.setPPTSAParams(params);
+    pptsa.setCollateralManagementParams(collateralManagementParams);
 
     params.maxTotalCostTolerance = 5e17;
-    tsa.setPPTSAParams(params);
-    tsa.setCollateralManagementParams(collateralManagementParams);
+    pptsa.setPPTSAParams(params);
+    pptsa.setCollateralManagementParams(collateralManagementParams);
     vm.prank(signer);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     params.maxMarkValueToStrikeDiffRatio = 9e17;
-    tsa.setPPTSAParams(params);
-    tsa.setCollateralManagementParams(collateralManagementParams);
+    pptsa.setPPTSAParams(params);
+    pptsa.setCollateralManagementParams(collateralManagementParams);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_MarkValueNotWithinBounds.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
   }
 
   function testOptionMarkPriceValidations() public {
@@ -279,7 +279,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     action.data = abi.encode(takerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidOptionDetails.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     makerOrder.trades[0].subId = OptionEncoding.toSubId(expiry, strike, true);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
@@ -288,7 +288,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     vm.warp(block.timestamp + 8 days);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidOptionDetails.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
   }
 
   function testCannotTradeWithTooMuchNegativeCash() public {
@@ -311,7 +311,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_CannotTradeWithTooMuchNegativeCash.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
   }
 
   function testRFQFeeTooHigh() public {
@@ -357,7 +357,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     });
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_TradeFeeTooHigh.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
   }
 
   function testMakerTakerInvalidHighStrikeAmountCombinations() public {
@@ -371,7 +371,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     PrincipalProtectedTSA.PPTSAParams memory params = defaultPPTSAParams;
     _setupPPTSAWithDeposit(true, false);
     params.maxTotalCostTolerance = 5e17;
-    tsa.setPPTSAParams(params);
+    pptsa.setPPTSAParams(params);
 
     // we are the taker buying a short call spread
     (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) =
@@ -380,7 +380,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     IActionVerifier.Action memory action = _createRfqAction(takerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // we are the maker buying a short call spread
     makerOrder.trades[0].amount = -amount;
@@ -388,17 +388,17 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     action.data = abi.encode(makerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     _setupPPTSAWithDeposit(true, true);
     params.maxTotalCostTolerance = 2e18;
-    tsa.setPPTSAParams(params);
+    pptsa.setPPTSAParams(params);
     // we are a taker buying a long call spread
     (makerOrder, takerOrder) = _setupRfq(-1 * amount, higherPrice, expiry, highStrike, lowerPrice, lowStrike, true);
     action = _createRfqAction(takerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // we are the maker buying a long call spread
     makerOrder.trades[0].amount = amount;
@@ -406,17 +406,17 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     action.data = abi.encode(makerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     _setupPPTSAWithDeposit(false, false);
     params.maxTotalCostTolerance = 5e17;
-    tsa.setPPTSAParams(params);
+    pptsa.setPPTSAParams(params);
     // we are the taker buying a short put spread
     (makerOrder, takerOrder) = _setupRfq(-1 * amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, false);
     action = _createRfqAction(takerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // we are the maker buying a short put spread
     makerOrder.trades[0].amount = amount;
@@ -424,17 +424,17 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     action.data = abi.encode(makerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     _setupPPTSAWithDeposit(false, true);
     params.maxTotalCostTolerance = 2e18;
-    tsa.setPPTSAParams(params);
+    pptsa.setPPTSAParams(params);
     // we are the taker buying a long put spread
     (makerOrder, takerOrder) = _setupRfq(amount, lowerPrice, expiry, highStrike, higherPrice, lowStrike, false);
     action = _createRfqAction(takerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // we are the maker buying a long put spread
     makerOrder.trades[0].amount = -amount;
@@ -442,7 +442,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     action.data = abi.encode(makerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidHighStrikeAmount.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
   }
 
   function testCannotRFQWithIncorrectAmountOfExistingSpreads() public {
@@ -455,7 +455,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     _setupPPTSAWithDeposit(true, true);
     _tradeRfqAsMaker(-1 * amount, higherPrice, expiry, highStrike, lowerPrice, lowStrike, true);
-    (uint openSpreads, uint baseBalance, int cashBalance) = tsa.getSubAccountStats();
+    (uint openSpreads, uint baseBalance, int cashBalance) = pptsa.getSubAccountStats();
     assertEq(openSpreads, amount.abs());
     assertEq(baseBalance, 100e18);
     assertEq(cashBalance, -200e18);
@@ -487,7 +487,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     IActionVerifier.Action memory action = _createRfqAction(takerOrder);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidSpreadBalance.selector);
-    tsa.signActionData(action, abi.encode(makerOrder.trades));
+    pptsa.signActionData(action, abi.encode(makerOrder.trades));
   }
 
   function testCannotChangeStrikeDiffWithOpenSpreads() public {
@@ -499,18 +499,18 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     uint lowStrike = 1600e18;
     _setupPPTSAWithDeposit(true, true);
     _tradeRfqAsMaker(-1 * amount, higherPrice, expiry, highStrike, lowerPrice, lowStrike, true);
-    (uint openSpreads,,) = tsa.getSubAccountStats();
+    (uint openSpreads,,) = pptsa.getSubAccountStats();
     assertEq(openSpreads, amount.abs());
 
     defaultPPTSAParams.strikeDiff = 100e18;
     vm.expectRevert(PrincipalProtectedTSA.PPT_CannotChangeStrikeDiffWithOpenSpreads.selector);
-    tsa.setPPTSAParams(defaultPPTSAParams);
+    pptsa.setPPTSAParams(defaultPPTSAParams);
 
     vm.warp(block.timestamp + 8 days);
     _setSettlementPrice("weth", expiry, 2500e18);
-    srm.settleOptions(markets["weth"].option, tsa.subAccount());
+    srm.settleOptions(markets["weth"].option, pptsa.subAccount());
 
-    tsa.setPPTSAParams(defaultPPTSAParams);
+    pptsa.setPPTSAParams(defaultPPTSAParams);
   }
 
   function _createRfqAction(IRfqModule.TakerOrder memory takerOrder) internal returns (IActionVerifier.Action memory) {

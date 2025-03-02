@@ -1,6 +1,6 @@
 pragma solidity ^0.8.18;
 
-import "../TSATestUtils.sol";
+import "../utils/TSATestUtils.sol";
 
 /**
  * For both lower and higher decimal assets:

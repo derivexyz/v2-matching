@@ -17,6 +17,7 @@ docs/
 
 # IDE files
 .idea/
+.vscode/
 
 lcov.info
 

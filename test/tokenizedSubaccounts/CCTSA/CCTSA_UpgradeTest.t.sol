@@ -1,6 +1,6 @@
 pragma solidity ^0.8.18;
 
-import "../TSATestUtils.sol";
+import "../utils/CCTSATestUtils.sol";
 
 /*
 Tests for upgrading from the predeposit contract
@@ -46,7 +46,7 @@ contract CCTSA_UpgradeTest is CCTSATestUtils {
     ccTSA.setShareKeeper(address(this), true);
 
     // Check balances
-    assertEq(tsa.balanceOf(address(this)), 999_000e6);
+    assertEq(cctsa.balanceOf(address(this)), 999_000e6);
     assertEq(usdc.balanceOf(address(tsa)), 999_000e6);
 
     // Cannot call TSA functions
@@ -101,7 +101,7 @@ contract CCTSA_UpgradeTest is CCTSATestUtils {
     ccTSA.setShareKeeper(address(this), true);
 
     // Check balances
-    assertEq(tsa.balanceOf(address(this)), 999_000e26);
+    assertEq(cctsa.balanceOf(address(this)), 999_000e26);
     assertEq(usdc.balanceOf(address(tsa)), 999_000e26);
 
     // Cannot call TSA functions

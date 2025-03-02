@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "../TSATestUtils.sol";
+import "../utils/PPTSATestUtils.sol";
 
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 
@@ -22,26 +22,26 @@ contract PPTSA_Admin is PPTSATestUtils {
     // Submit a deposit request
     IActionVerifier.Action memory action1 = _createDepositAction(1e18);
 
-    assertEq(tsa.lastSeenHash(), bytes32(0));
+    assertEq(pptsa.lastSeenHash(), bytes32(0));
 
     vm.prank(signer);
-    tsa.signActionData(action1, "");
+    pptsa.signActionData(action1, "");
 
-    assertEq(tsa.lastSeenHash(), tsa.getActionTypedDataHash(action1));
+    assertEq(pptsa.lastSeenHash(), pptsa.getActionTypedDataHash(action1));
 
     IActionVerifier.Action memory action2 = _createDepositAction(2e18);
 
     vm.prank(signer);
-    tsa.signActionData(action2, "");
+    pptsa.signActionData(action2, "");
 
-    assertEq(tsa.lastSeenHash(), tsa.getActionTypedDataHash(action2));
+    assertEq(pptsa.lastSeenHash(), pptsa.getActionTypedDataHash(action2));
 
     vm.expectRevert(IActionVerifier.OV_InvalidSignature.selector);
     _submitToMatching(action1);
 
-    // TODO: Can withdraw even with a pending deposit action. Can lead to pending deposits being moved to TSA...
-    tsa.requestWithdrawal(10e18);
-    tsa.processWithdrawalRequests(1);
+    // TODO: Can withdraw even with a pending deposit action. Can lead to pending deposits being moved to pptsa...
+    pptsa.requestWithdrawal(10e18);
+    pptsa.processWithdrawalRequests(1);
 
     // Fails as no funds were actually deposited, but passes signature validation
     vm.expectRevert("ERC20: transfer amount exceeds balance");
@@ -58,10 +58,10 @@ contract PPTSA_Admin is PPTSATestUtils {
     action.module = IMatchingModule(address(10));
 
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidModule.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     action.module = depositModule;
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
     vm.stopPrank();
   }
 }
