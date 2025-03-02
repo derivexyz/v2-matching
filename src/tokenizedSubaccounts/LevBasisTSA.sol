@@ -27,8 +27,6 @@ import {
 import {ITradeModule} from "../interfaces/ITradeModule.sol";
 import {CollateralManagementTSA} from "./CollateralManagementTSA.sol";
 
-import {console} from "forge-std/console.sol";
-
 /// @title LeveragedBasisTSA
 /// @notice A TSA that accepts a base asset, borrows against it to buy more, and then opens short perps to neutralise
 /// the delta of the borrowed portion, earning the perp funding in the process.
@@ -146,7 +144,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
       // || lbtsaParams.deltaTarget < -0.2e18 || lbtsaParams.deltaTarget > 0.2e18 // ±20%
       // Note: because of atomic singing, these can be very low. Signatures might come in last second.
       lbtsaParams.maxPerpFee > 0.01e18 // Max 1% fee
-        || lbtsaParams.deltaTargetTolerance > 0.1e18 // <10%
+        || lbtsaParams.deltaTargetTolerance > 0.5e18 // <50%
         || lbtsaParams.leverageCeil < lbtsaParams.leverageFloor || lbtsaParams.leverageCeil > 5e18 // Must be > floor
         || lbtsaParams.emaDecayFactor == 0 || lbtsaParams.emaDecayFactor > 0.001e18 // 0-0.1%
         || lbtsaParams.markLossEmaTarget > 0.05e18 // Max 5%
@@ -289,11 +287,9 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   function _verifyTradeDelta(TradeHelperVars memory tradeHelperVars, int amtDelta) internal view {
     LBTSAStorage storage $ = _getLBTSAStorage();
 
-    uint perpBaseRatio = tradeHelperVars.isBaseTrade
-      ? DecimalMath.UNIT
-      : tradeHelperVars.perpPrice.divideDecimal(tradeHelperVars.basePrice);
+    uint perpBaseRatio = tradeHelperVars.perpPrice.divideDecimal(tradeHelperVars.basePrice);
 
-    int deltaChange = amtDelta.multiplyDecimal(int(perpBaseRatio));
+    int deltaChange = tradeHelperVars.isBaseTrade ? amtDelta : amtDelta.multiplyDecimal(int(perpBaseRatio));
 
     // delta as a % of TVL
     int portfolioDeltaPercent = (
