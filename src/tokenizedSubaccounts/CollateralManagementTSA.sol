@@ -139,7 +139,14 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
       depositAssetBalance -= totalPendingDeposits();
     }
 
-    (int margin, int mtm) = tsaAddresses.manager.getMarginAndMarkToMarket(subAccount(), true, 0);
+    return _getConvertedMtM() + depositAssetBalance;
+  }
+
+  function _getConvertedMtM() internal view returns (uint) {
+    BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
+
+    // Note: scenario 0 wont calculate full margin for PMRM subaccounts
+    (, int mtm) = tsaAddresses.manager.getMarginAndMarkToMarket(subAccount(), false, 0);
     uint spotPrice = _getBasePrice();
 
     // convert to depositAsset value but in 18dp
@@ -155,11 +162,11 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
 
     // Might not be technically insolvent (could have enough depositAsset to cover the deficit), but we block deposits
     // and withdrawals whenever the margin is negative (i.e. liquidatable)
-    if (convertedMtM < 0 || margin < 0) {
+    if (convertedMtM < 0) {
       revert CMTSA_PositionInsolvent();
     }
 
-    return uint(convertedMtM) + depositAssetBalance;
+    return uint(convertedMtM);
   }
 
   function _getBasePrice() internal view virtual returns (uint spotPrice);

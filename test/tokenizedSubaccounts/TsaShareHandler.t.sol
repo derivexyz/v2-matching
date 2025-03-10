@@ -2,7 +2,7 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/console2.sol";
-import "./TSATestUtils.sol";
+import "./utils/CCTSATestUtils.sol";
 import "../../src/tokenizedSubaccounts/TSAShareHandler.sol";
 
 contract MockConnector {
