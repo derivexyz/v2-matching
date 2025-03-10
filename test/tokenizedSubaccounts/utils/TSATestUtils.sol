@@ -53,8 +53,6 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     _setupMarketFeeds();
     _setupTradeModule();
     _setupRfqModule();
-
-    console.log("address(markets[\"weth\"].perp)", address(markets["weth"].perp));
   }
 
   function _setupMatching() internal {

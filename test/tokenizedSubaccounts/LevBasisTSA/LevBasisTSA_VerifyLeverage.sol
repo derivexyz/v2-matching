@@ -30,16 +30,16 @@ contract LevBasisTSA_VerifyLeverageTests is LBTSATestUtils {
     _setLeverageParams(1e18, 3e18);
 
     // newLev = 2, within bounds
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     // newLev = 3, barely within bounds
     tradeData.desiredAmount = 2e18;
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     // newLev = 3.1, above bounds
     tradeData.desiredAmount = 2.1e18;
     vm.expectRevert(LeveragedBasisTSA.LBT_PostTradeLeverageOutOfRange.selector);
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
   }
 
   // Test that decreasing base balance decreases leverage
@@ -57,16 +57,16 @@ contract LevBasisTSA_VerifyLeverageTests is LBTSATestUtils {
 
     // newLev = 2, within bounds
     tradeData.desiredAmount = 1e18;
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     // newLev = 1, barely within bounds
     tradeData.desiredAmount = 2e18;
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     // newLev = 0.9, below bounds
     tradeData.desiredAmount = 2.1e18;
     vm.expectRevert(LeveragedBasisTSA.LBT_PostTradeLeverageOutOfRange.selector);
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
   }
 
   // Perp Trade Leverage Tests
@@ -83,10 +83,10 @@ contract LevBasisTSA_VerifyLeverageTests is LBTSATestUtils {
 
     // perp trades are ignored for leverage calc
     tradeData.desiredAmount = 1_000_000e18;
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     tradeData.isBid = false;
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
   }
 
   // Leverage Improvement Tests
@@ -105,24 +105,24 @@ contract LevBasisTSA_VerifyLeverageTests is LBTSATestUtils {
 
     // starting at 5x leverage, any decrease down to 1x leverage is allowed
     tradeData.desiredAmount = 1e18;
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     tradeData.isBid = true; // buy
     vm.expectRevert(LeveragedBasisTSA.LBT_PostTradeLeverageOutOfRange.selector);
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     tradeData.isBid = false; // sell
     tradeData.desiredAmount = 30e18;
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     // going from 5x to 1x is allowed
     tradeData.desiredAmount = 80e18;
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     // going below 1x is not allowed
     tradeData.desiredAmount = 80.01e18;
     vm.expectRevert(LeveragedBasisTSA.LBT_PostTradeLeverageOutOfRange.selector);
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
   }
 
   // Edge Cases
@@ -138,18 +138,18 @@ contract LevBasisTSA_VerifyLeverageTests is LBTSATestUtils {
 
     tradeHelperVars.underlyingBase = 0;
     vm.expectRevert(); // division by zero
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     // cannot reduce base balance below 0
     tradeHelperVars.underlyingBase = 1e18;
     tradeHelperVars.baseBalance = 0.5e18;
     vm.expectRevert(); // casting int to uint
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     // but you can reduce leverage to 0 if params allow it
     _setLeverageParams(0, 1e18);
     tradeData.desiredAmount = 0.5e18;
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     // test with low leverage ceiling
     // start at 1x leverage
@@ -160,13 +160,13 @@ contract LevBasisTSA_VerifyLeverageTests is LBTSATestUtils {
 
     // selling 0.5e18 should be allowed
     tradeData.desiredAmount = 0.5e18;
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
 
     // buying any amount would revert
     tradeData.isBid = true;
     tradeData.desiredAmount = 0.01e18;
     vm.expectRevert(LeveragedBasisTSA.LBT_PostTradeLeverageOutOfRange.selector);
-    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars);
+    lbtsa.verifyTradeLeverage(tradeData, tradeHelperVars, false);
   }
 
   /////////////

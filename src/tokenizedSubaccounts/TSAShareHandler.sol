@@ -169,8 +169,6 @@ contract TSAShareHandler is Ownable2Step {
   ) external {
     require(fallbackDest != address(0), "fallbackDest cannot be 0");
 
-    IBaseTSA.BaseTSAAddresses memory tsaAddrs = fromVault.getBaseTSAAddresses();
-
     IERC20Metadata(address(fromVault)).transferFrom(msg.sender, address(this), amount);
 
     _addPendingAction(

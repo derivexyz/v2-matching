@@ -53,45 +53,64 @@ contract CCTSA_ViewsTests is CCTSATestUtils {
     _depositToTSA(1.5e18);
     _executeDeposit(2e18);
 
-    _tradeOption(-2e18, 100e18, block.timestamp + 1 weeks, 2600e18);
+    uint refTime = block.timestamp;
+
+    _tradeOption(-2e18, 10e18, refTime + 1 weeks, 2600e18);
 
     (uint sc, uint base, int cash) = cctsa.getSubAccountStats();
 
     assertEq(sc, 2e18);
     assertEq(base, 2e18);
-    assertEq(cash, 200e18);
+    assertEq(cash, 20e18);
 
-    // Options are worth very little, vault got a good price, so gained 0.08 in value
-    assertApproxEqAbs(cctsa.getAccountValue(false), 2.08e18, 0.01e18);
+    // Options are worth more than vault paid, so lost a little bit of value
+    assertApproxEqAbs(cctsa.getAccountValue(false), 1.99e18, 0.01e18);
 
     _depositToTSA(2e18);
     _executeDeposit(2e18);
 
     // Can have multiple different expiries, as long as valid
-    _tradeOption(-1e18, 100e18, block.timestamp + 1 weeks + 1 hours, 2600e18);
-    _tradeOption(-1e18, 100e18, block.timestamp + 1 weeks + 2 hours, 2600e18);
+    _tradeOption(-1e18, 10e18, refTime + 1 weeks + 1 hours, 2600e18);
+    _tradeOption(-1e18, 10e18, refTime + 1 weeks + 2 hours, 2600e18);
 
     (sc, base, cash) = cctsa.getSubAccountStats();
 
     assertEq(sc, 4e18);
     assertEq(base, 4e18);
-    assertEq(cash, 400e18);
+    assertEq(cash, 40e18);
 
-    assertApproxEqAbs(cctsa.getAccountValue(false), 4.16e18, 0.01e18);
+    assertApproxEqAbs(cctsa.getAccountValue(false), 3.99e18, 0.01e18);
 
-    // set margin to be negative (slash base collateral margin and value options highly)
-    _setForwardPrice("weth", uint64(block.timestamp + 1 weeks), 10000e18, 1e18);
-    _setForwardPrice("weth", uint64(block.timestamp + 1 weeks + 1 hours), 10000e18, 1e18);
-    _setForwardPrice("weth", uint64(block.timestamp + 1 weeks + 2 hours), 10000e18, 1e18);
+    // have to warp so feeds are updated
+    vm.warp(block.timestamp + 1);
+
+    // set mtm to be negative (slash base collateral margin and value options highly)
+    _setForwardPrice("weth", uint64(refTime + 1 weeks), 4000e18, 1e18);
+    _setForwardPrice("weth", uint64(refTime + 1 weeks + 1 hours), 4000e18, 1e18);
+    _setForwardPrice("weth", uint64(refTime + 1 weeks + 2 hours), 4000e18, 1e18);
 
     // value base at 1% for IM
     srm.setBaseAssetMarginFactor(markets["weth"].id, 0.01e18, 0.01e18);
 
     (int margin, int mtm) = srm.getMarginAndMarkToMarket(cctsa.subAccount(), true, 0);
-    assertLt(margin, 0);
-    assertGt(mtm, 0);
+    assertLt(margin, 0, "mm: mm < 0 but mtm > 0");
+    assertGt(mtm, 0, "mtm: mm < 0 but mtm > 0");
 
-    // TODO: really weird that account value produces a different value than margin and mtm if you look at the stack...
+    cctsa.getAccountValue(false);
+
+    // have to warp so feeds are updated
+    vm.warp(block.timestamp + 1);
+
+    // but if mtm is < 0 will revert
+    // set margin to be negative (slash base collateral margin and value options highly)
+    _setForwardPrice("weth", uint64(refTime + 1 weeks), 8000e18, 1e18);
+    _setForwardPrice("weth", uint64(refTime + 1 weeks + 1 hours), 8000e18, 1e18);
+    _setForwardPrice("weth", uint64(refTime + 1 weeks + 2 hours), 8000e18, 1e18);
+
+    (margin, mtm) = srm.getMarginAndMarkToMarket(cctsa.subAccount(), true, 0);
+    assertLt(margin, 0, "mm: mm & mtm < 0");
+    assertLt(mtm, 0, "mtm: mm & mtm < 0");
+
     vm.expectRevert(CollateralManagementTSA.CMTSA_PositionInsolvent.selector);
     cctsa.getAccountValue(false);
   }

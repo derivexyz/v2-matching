@@ -50,7 +50,6 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     _signActionData(action, extraData);
   }
 
-  // TODO: check if we can call this from the backend
   function signActionViaPermit(IMatching.Action memory action, bytes memory extraData, bytes memory signerSig)
     external
     virtual
@@ -66,8 +65,6 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
 
   function _signActionData(IMatching.Action memory action, bytes memory extraData) internal {
     bytes32 hash = getActionTypedDataHash(action);
-    // TODO: check we want caching. **If params are updated, old ones would not be revoked.**
-    // if (_getBaseSigningTSAStorage().signedData[hash]) return;
 
     if (action.signer != address(this)) {
       revert BOCST_InvalidAction();

@@ -27,16 +27,15 @@ contract DeployTSA is Utils {
 
   CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
   .CollateralManagementParams({
-    feeFactor: 10000000000000000,
-    spotTransactionLeniency: 1050000000000000000,
-    worstSpotSellPrice: 985000000000000000,
-    worstSpotBuyPrice: 1015000000000000000
+    feeFactor: 0.01e17,
+    spotTransactionLeniency: 1.01e18,
+    worstSpotSellPrice: 0.985e18,
+    worstSpotBuyPrice: 1.015e18
   });
 
   CoveredCallTSA.CCTSAParams public defaultLrtccTSAParams = CoveredCallTSA.CCTSAParams({
     minSignatureExpiry: 5 minutes,
     maxSignatureExpiry: 30 minutes,
-    spotTransactionLeniency: 1.01e18,
     optionVolSlippageFactor: 0.5e18,
     optionMaxDelta: 0.4e18,
     optionMaxNegCash: -100e18,
@@ -45,25 +44,25 @@ contract DeployTSA is Utils {
   });
 
   PrincipalProtectedTSA.PPTSAParams public defaultLrtppTSAParams = PrincipalProtectedTSA.PPTSAParams({
-    maxMarkValueToStrikeDiffRatio  : 700000000000000000,
-    minMarkValueToStrikeDiffRatio  : 100000000000000000,
-    strikeDiff  : 200000000000000000000,
-    maxTotalCostTolerance  : 2000000000000000000,
-    maxLossOrGainPercentOfTVL  : 20000000000000000,
-    negMaxCashTolerance  : 20000000000000000,
+    maxMarkValueToStrikeDiffRatio  : 0.7e18,
+    minMarkValueToStrikeDiffRatio  : 0.1e18,
+    strikeDiff  : 200e18,
+    maxTotalCostTolerance  : 2e18,
+    maxLossOrGainPercentOfTVL  : 0.02e18,
+    negMaxCashTolerance  : 0.02e18,
     minSignatureExpiry  : 300,
     maxSignatureExpiry  : 1800,
     optionMinTimeToExpiry  : 21000,
     optionMaxTimeToExpiry  : 691200,
-    maxNegCash  : -100000000000000000000000,
-    rfqFeeFactor  : 1000000000000000000
+    maxNegCash  : -100000e18,
+    rfqFeeFactor  : 1e18
   });
 
 
   /// @dev main function
   function run() external {
-    // deployCoveredCall();
-    deployPrincipalProtected();
+     deployCoveredCall();
+//    deployPrincipalProtected();
   }
 
   function deployCoveredCall() private {
@@ -199,11 +198,8 @@ contract DeployTSA is Utils {
     pptsa.setPPTSAParams(defaultLrtppTSAParams);
     pptsa.setCollateralManagementParams(defaultCollateralManagementParams);
 
-    TSAShareHandler shareHandler = new TSAShareHandler();
-
     string memory objKey = "tsa-deployment";
 
-    vm.serializeAddress(objKey, "shareHandler", address(shareHandler));
     vm.serializeAddress(objKey, "proxyAdmin", address(proxyAdmin));
     vm.serializeAddress(objKey, "implementation", address(lrtpptsaImplementation));
     string memory finalObj = vm.serializeAddress(objKey, "DNWETH", address(proxy));

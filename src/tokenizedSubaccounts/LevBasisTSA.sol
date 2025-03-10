@@ -60,16 +60,16 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     int maxBaseLossPerBase;
     /// @dev Max loss per unit of perp traded, in base
     int maxBaseLossPerPerp;
-    // Delta
-    int deltaTarget;
-    int deltaTargetTolerance;
+    // Delta of the portfolio as a % of TVL (0.5 = 50% delta of TVL)
+    int deltaFloor;
+    int deltaCeil;
     // Leverage
     uint leverageFloor;
     uint leverageCeil;
     // EMA
     /// @dev Factor for half life of EMA decay (e.g. 0.0002 ~= 1hr)
     uint emaDecayFactor;
-    /// @dev Target % of of tvl that we can maximally lose via EMA calculation
+    /// @dev Target % of tvl that we can maximally lose via EMA calculation
     uint markLossEmaTarget;
     uint minSignatureExpiry;
     uint maxSignatureExpiry;
@@ -88,6 +88,8 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     int markLossEma;
     uint markLossLastTs;
     /// @dev Only one hash is considered valid at a time, and it is revoked when a new one comes in.
+    /// Note: off-chain multiple "atomic" actions can be considered valid at once. Only once they are partially filled
+    /// would a new order on-chain invalidate the previous one.
     bytes32 lastSeenHash;
   }
 
@@ -96,8 +98,11 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     uint basePrice;
     uint perpPrice;
     int perpPosition;
+    /// Actual base balance held within the subaccount.
     uint baseBalance;
     int cashBalance;
+    /// This is the MtM of the subaccount, converted to base. Used for leverage caluclations.
+    /// BaseBalance == underlyingBase == 1x leverage
     uint underlyingBase;
   }
 
@@ -139,17 +144,16 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   // Admin //
   ///////////
   function setLBTSAParams(LBTSAParams memory lbtsaParams) external onlyOwner {
-    // TODO: set reasonable bounds
     if (
       // || lbtsaParams.deltaTarget < -0.2e18 || lbtsaParams.deltaTarget > 0.2e18 // ±20%
       // Note: because of atomic singing, these can be very low. Signatures might come in last second.
       lbtsaParams.maxPerpFee > 0.01e18 // Max 1% fee
-        || lbtsaParams.deltaTargetTolerance > 0.5e18 // <50%
+        || lbtsaParams.deltaFloor > 1e18 || lbtsaParams.deltaCeil < 1e18 // 1 delta is always allowed
         || lbtsaParams.leverageCeil < lbtsaParams.leverageFloor || lbtsaParams.leverageCeil > 5e18 // Must be > floor
-        || lbtsaParams.emaDecayFactor == 0 || lbtsaParams.emaDecayFactor > 0.001e18 // 0-0.1%
-        || lbtsaParams.markLossEmaTarget > 0.05e18 // Max 5%
-        || lbtsaParams.maxBaseLossPerBase < 0 || lbtsaParams.maxBaseLossPerBase > 0.02e18 // 0-2%
-        || lbtsaParams.maxBaseLossPerPerp < 0 || lbtsaParams.maxBaseLossPerPerp > 0.02e18 // 0-2
+        || lbtsaParams.emaDecayFactor == 0 // Must be non-zero
+        || lbtsaParams.markLossEmaTarget > 0.2e18 // Max param 20%
+        || lbtsaParams.maxBaseLossPerBase < 0 || lbtsaParams.maxBaseLossPerBase > 0.05e18 // 0-5%
+        || lbtsaParams.maxBaseLossPerPerp < 0 || lbtsaParams.maxBaseLossPerPerp > 0.05e18 // 0-5%
         || lbtsaParams.minSignatureExpiry > lbtsaParams.maxSignatureExpiry
     ) {
       revert LBT_InvalidParams();
@@ -165,7 +169,6 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     override
     onlyOwner
   {
-    // TODO: set reasonable bounds
     if (
       newCollateralMgmtParams.worstSpotBuyPrice < 1e18 || newCollateralMgmtParams.worstSpotBuyPrice > 1.2e18
         || newCollateralMgmtParams.worstSpotSellPrice > 1e18 || newCollateralMgmtParams.worstSpotSellPrice < 0.8e18
@@ -241,8 +244,8 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
 
     int amtDelta = tradeData.isBid ? tradeData.desiredAmount : -tradeData.desiredAmount;
 
-    _verifyTradeDelta(tradeHelperVars, amtDelta);
-    _verifyTradeLeverage(tradeHelperVars, amtDelta);
+    _verifyTradeDelta(tradeHelperVars, amtDelta, false);
+    _verifyTradeLeverage(tradeHelperVars, amtDelta, false);
     _verifyEmaMarkLoss(tradeData, tradeHelperVars);
   }
 
@@ -255,8 +258,8 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     TradeHelperVars memory tradeHelperVars =
       _getTradeHelperVars(withdrawalData.asset, address(tsaAddresses.wrappedDepositAsset), address($.perpAsset));
 
-    _verifyTradeDelta(tradeHelperVars, -int(withdrawalData.assetAmount));
-    _verifyTradeLeverage(tradeHelperVars, -int(withdrawalData.assetAmount));
+    _verifyTradeLeverage(tradeHelperVars, -int(withdrawalData.assetAmount), true);
+    _verifyTradeDelta(tradeHelperVars, -int(withdrawalData.assetAmount), true);
   }
 
   //////////////////////////
@@ -284,58 +287,79 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     tradeHelperVars.underlyingBase = _getConvertedMtM();
   }
 
-  function _verifyTradeDelta(TradeHelperVars memory tradeHelperVars, int amtDelta) internal view {
+  function _verifyTradeDelta(TradeHelperVars memory tradeHelperVars, int amtDelta, bool isWithdrawal) internal view {
     LBTSAStorage storage $ = _getLBTSAStorage();
 
     uint perpBaseRatio = tradeHelperVars.perpPrice.divideDecimal(tradeHelperVars.basePrice);
+    int newUnderlyingBase = int(tradeHelperVars.underlyingBase);
 
-    int deltaChange = tradeHelperVars.isBaseTrade ? amtDelta : amtDelta.multiplyDecimal(int(perpBaseRatio));
+    // early exit if we are withdrawing everything
+    if (tradeHelperVars.isBaseTrade && isWithdrawal) {
+      // only for base withdrawals will underlyingBase be reduced
+      newUnderlyingBase += amtDelta;
 
-    // delta as a % of TVL
-    int portfolioDeltaPercent = (
-      int(tradeHelperVars.baseBalance) + tradeHelperVars.perpPosition.multiplyDecimal(int(perpBaseRatio))
-    ).divideDecimal(int(tradeHelperVars.underlyingBase));
-    int newDeltaPercent = portfolioDeltaPercent + deltaChange.divideDecimal(int(tradeHelperVars.underlyingBase));
-    int targetDelta = $.lbParams.deltaTarget;
-
-    if ((newDeltaPercent - targetDelta).abs() < (portfolioDeltaPercent - targetDelta).abs()) {
-      // delta is improving
-      return;
+      // Note, there could be positive or negative cash, but that is not considered here
+      if (newUnderlyingBase == 0 && tradeHelperVars.perpPosition == 0) return;
     }
 
+    // prevent div by 0
+    require(newUnderlyingBase > 0, LBT_InvalidDeltaChange());
+
+    int baseExposure =
+      int(tradeHelperVars.baseBalance) + tradeHelperVars.perpPosition.multiplyDecimal(int(perpBaseRatio));
+
+    // delta as a % of TVL
+    int preDeltaPercent = baseExposure.divideDecimal(tradeHelperVars.underlyingBase.toInt256());
+
+    int deltaChange = tradeHelperVars.isBaseTrade ? amtDelta : amtDelta.multiplyDecimal(int(perpBaseRatio));
+    int newDeltaPercent = (baseExposure + deltaChange).divideDecimal(newUnderlyingBase);
+
     require(
-      newDeltaPercent >= targetDelta - $.lbParams.deltaTargetTolerance
-        && newDeltaPercent <= targetDelta + $.lbParams.deltaTargetTolerance,
+      _isWithinBounds(preDeltaPercent, newDeltaPercent, $.lbParams.deltaFloor, $.lbParams.deltaCeil),
       LBT_PostTradeDeltaOutOfRange()
     );
   }
 
-  function _verifyTradeLeverage(TradeHelperVars memory tradeHelperVars, int amtDelta) internal view {
+  function _verifyTradeLeverage(TradeHelperVars memory tradeHelperVars, int amtDelta, bool isWithdrawal) internal view {
     if (!tradeHelperVars.isBaseTrade) {
       return;
     }
     LBTSAStorage storage $ = _getLBTSAStorage();
 
+    uint newUnderlyingBase =
+      isWithdrawal ? uint(int(tradeHelperVars.underlyingBase) + amtDelta) : tradeHelperVars.underlyingBase;
+
     // Leverage
     uint leverage = tradeHelperVars.baseBalance.divideDecimal(tradeHelperVars.underlyingBase);
     uint newBaseBalance = uint(int(tradeHelperVars.baseBalance) + amtDelta);
 
-    uint newLeverage = newBaseBalance.divideDecimal(tradeHelperVars.underlyingBase);
+    // handle zero case
+    if (newBaseBalance == 0 && newUnderlyingBase == 0) return;
 
-    if (leverage < $.lbParams.leverageFloor && newLeverage > leverage && newLeverage <= $.lbParams.leverageCeil) {
-      // improving from below
-      return;
-    }
-
-    if (leverage > $.lbParams.leverageCeil && newLeverage < leverage && newLeverage >= $.lbParams.leverageFloor) {
-      // improving from above
-      return;
-    }
+    uint newLeverage = newBaseBalance.divideDecimal(newUnderlyingBase);
 
     require(
-      newLeverage >= $.lbParams.leverageFloor && newLeverage <= $.lbParams.leverageCeil,
+      _isWithinBounds(int(leverage), int(newLeverage), int($.lbParams.leverageFloor), int($.lbParams.leverageCeil)),
       LBT_PostTradeLeverageOutOfRange()
     );
+  }
+
+  function _isWithinBounds(int oldValue, int newValue, int floor, int ceil) internal pure returns (bool) {
+    if (newValue >= floor && newValue <= ceil) {
+      return true;
+    }
+
+    // improving from below floor
+    if (oldValue < floor && newValue > oldValue && newValue < ceil) {
+      return true;
+    }
+
+    // improving from above ceil
+    if (oldValue > ceil && newValue < oldValue && newValue > floor) {
+      return true;
+    }
+
+    return false;
   }
 
   function _verifyEmaMarkLoss(ITradeModule.TradeData memory tradeData, TradeHelperVars memory tradeHelperVars) internal {
@@ -461,6 +485,8 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   ///////////////////
   event LBTSAParamsSet(LBTSAParams lbtsaParams);
 
+  error LBT_InvalidWithdrawalAmount();
+  error LBT_InvalidDeltaChange();
   error LBT_InvalidParams();
   error LBT_InvalidActionExpiry();
   error LBT_InvalidModule();

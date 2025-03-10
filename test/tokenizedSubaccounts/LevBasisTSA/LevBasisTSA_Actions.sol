@@ -26,6 +26,7 @@ contract LevBasisTSA_ActionTests is LBTSATestUtils {
 
     // Open basis position 4 times (each 0.5x more leverage)
     for (uint i = 0; i < 4; i++) {
+      console.log("Opening basis position %d/%d", i, 4);
       int mtm = srm.getMargin(tsa.subAccount(), true);
       // Buy spot
       _tradeSpot(0.5e18, 2000e18);
@@ -44,8 +45,9 @@ contract LevBasisTSA_ActionTests is LBTSATestUtils {
     vm.expectRevert(LeveragedBasisTSA.LBT_PostTradeLeverageOutOfRange.selector);
     lbtsa.signActionData(action, "");
     vm.stopPrank();
-    // Open basis position 4 times (each 0.5x more leverage)
+    // Close basis position 4 times (each 0.5x more leverage)
     for (uint i = 0; i < 4; i++) {
+      console.log("Closing basis position %d/%d", i, 4);
       int mtm = srm.getMargin(tsa.subAccount(), true);
       // Buy spot
       _tradeSpot(-0.5e18, 2000e18);
@@ -65,5 +67,13 @@ contract LevBasisTSA_ActionTests is LBTSATestUtils {
     lbtsa.signActionData(action, "");
     vm.stopPrank();
     // TODO: test EMA is triggered
+
+    ISubAccounts.AssetBalance[] memory balances = subAccounts.getAccountBalances(lbtsa.subAccount());
+    vm.assertEq(balances.length, 1);
+    vm.assertEq(balances[0].balance, 1e18);
+
+    console.log("Withdrawing everything");
+    // can now withdraw everything
+    _executeWithdrawal(1e18);
   }
 }
