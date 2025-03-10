@@ -122,7 +122,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     address initialOwner,
     BaseTSA.BaseTSAInitParams memory initParams,
     LBTSAInitParams memory lbInitParams
-  ) external reinitializer(2) {
+  ) external reinitializer(1) {
     __BaseTSA_init(initialOwner, initParams);
 
     LBTSAStorage storage $ = _getLBTSAStorage();
@@ -143,15 +143,14 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   ///////////
   function setLBTSAParams(LBTSAParams memory lbtsaParams) external onlyOwner {
     if (
-      // || lbtsaParams.deltaTarget < -0.2e18 || lbtsaParams.deltaTarget > 0.2e18 // ±20%
       // Note: because of atomic singing, these can be very low. Signatures might come in last second.
       lbtsaParams.maxPerpFee > 0.01e18 // Max 1% fee
         || lbtsaParams.deltaFloor > 1e18 || lbtsaParams.deltaCeil < 1e18 // 1 delta is always allowed
         || lbtsaParams.leverageCeil < lbtsaParams.leverageFloor || lbtsaParams.leverageCeil > 5e18 // Must be > floor
         || lbtsaParams.emaDecayFactor == 0 // Must be non-zero
-        || lbtsaParams.markLossEmaTarget > 0.2e18 // Max param 20%
-        || lbtsaParams.maxBaseLossPerBase < 0 || lbtsaParams.maxBaseLossPerBase > 0.05e18 // 0-5%
-        || lbtsaParams.maxBaseLossPerPerp < 0 || lbtsaParams.maxBaseLossPerPerp > 0.05e18 // 0-5%
+        || lbtsaParams.markLossEmaTarget > 0.5e18 // Max param 50%
+        || lbtsaParams.maxBaseLossPerBase < 0 || lbtsaParams.maxBaseLossPerBase > 0.1e18 // 0-10%
+        || lbtsaParams.maxBaseLossPerPerp < 0 || lbtsaParams.maxBaseLossPerPerp > 0.1e18 // 0-10%
         || lbtsaParams.minSignatureExpiry > lbtsaParams.maxSignatureExpiry
     ) {
       revert LBT_InvalidParams();
@@ -182,6 +181,12 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
 
   function _getCollateralManagementParams() internal view override returns (CollateralManagementParams storage $) {
     return _getLBTSAStorage().collateralManagementParams;
+  }
+
+  function resetDecay() external onlyOwner {
+    LBTSAStorage storage $ = _getLBTSAStorage();
+    $.markLossLastTs = block.timestamp;
+    $.markLossEma = 0;
   }
 
   ///////////////////////
@@ -287,7 +292,9 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     int newUnderlyingBase = int(tradeHelperVars.underlyingBase);
 
     // early exit if we are withdrawing everything
-    if (tradeHelperVars.isBaseTrade && isWithdrawal) {
+    if (isWithdrawal) {
+      require(tradeHelperVars.isBaseTrade && amtDelta < 0, LBT_InvalidDeltaChange());
+
       // only for base withdrawals will underlyingBase be reduced
       newUnderlyingBase += amtDelta;
 
@@ -362,7 +369,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
 
     // Note, we don't include fee in the loss calculation
     int lossPerUnitCash = tradeData.isBid ? tradeData.limitPrice - priceToCheck : priceToCheck - tradeData.limitPrice;
-    int lossPerUnitBase = lossPerUnitCash * 1e18 / int(tradeHelperVars.basePrice);
+    int lossPerUnitBase = lossPerUnitCash.divideDecimal(int(tradeHelperVars.basePrice));
 
     // Require that at most we lose X% of the trade value per unit.
     require(

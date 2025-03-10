@@ -161,7 +161,6 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
     }
 
     // Might not be technically insolvent (could have enough depositAsset to cover the deficit), but we block deposits
-    // and withdrawals whenever the margin is negative (i.e. liquidatable)
     if (convertedMtM < 0) {
       revert CMTSA_PositionInsolvent();
     }
