@@ -18,7 +18,6 @@ import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IDepositModule} from "../interfaces/IDepositModule.sol";
 import {IWithdrawalModule} from "../interfaces/IWithdrawalModule.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
-import {IRfqModule} from "../interfaces/IRfqModule.sol";
 import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
 
 import {
@@ -80,7 +79,6 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     IDepositModule depositModule;
     IWithdrawalModule withdrawalModule;
     ITradeModule tradeModule;
-    IRfqModule rfqModule;
     IPerpAsset perpAsset;
     ISpotFeed baseFeed;
     LBTSAParams lbParams;
@@ -189,7 +187,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   ///////////////////////
   // Action Validation //
   ///////////////////////
-  function _verifyAction(IMatching.Action memory action, bytes32 actionHash, bytes memory extraData)
+  function _verifyAction(IMatching.Action memory action, bytes32 actionHash, bytes memory /*extraData*/ )
     internal
     virtual
     override
@@ -204,6 +202,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
       revert LBT_InvalidActionExpiry();
     }
 
+    // if the action hash is the same as the last one, we revoke and then re-enable it afterwards (see _signActionData)
     _revokeSignature($.lastSeenHash);
     $.lastSeenHash = actionHash;
 
@@ -265,12 +264,6 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   //////////////////////////
   // Verification Helpers //
   //////////////////////////
-
-  function getTradeHelperVars(address asset) external view returns (TradeHelperVars memory tradeHelperVars) {
-    tradeHelperVars = _getTradeHelperVars(
-      asset, address(getBaseTSAAddresses().wrappedDepositAsset), address(_getLBTSAStorage().perpAsset)
-    );
-  }
 
   function _getTradeHelperVars(address asset, address wrappedDepositAsset, address perpAsset)
     internal
@@ -431,10 +424,6 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   function _getBasePrice() internal view override returns (uint spotPrice) {
     (spotPrice,) = _getLBTSAStorage().baseFeed.getSpot();
   }
-  //
-  //  function _getSpotPrice() internal view returns (uint spotPrice) {
-  //    (spotPrice,) = _getLBTSAStorage().spotFeed.getSpot();
-  //  }
 
   function _getPerpPrice() internal view returns (uint perpPrice) {
     (perpPrice,) = _getLBTSAStorage().perpAsset.getPerpPrice();
@@ -443,13 +432,19 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   ///////////
   // Views //
   ///////////
+  function getTradeHelperVars(address asset) external view returns (TradeHelperVars memory tradeHelperVars) {
+    tradeHelperVars = _getTradeHelperVars(
+      asset, address(getBaseTSAAddresses().wrappedDepositAsset), address(_getLBTSAStorage().perpAsset)
+    );
+  }
+
   function getAccountValue(bool includePending) public view returns (uint) {
     return _getAccountValue(includePending);
   }
-  //
-  //  function getSubAccountStats() public view returns (uint openPositiveSpreads, uint baseBalance, int cashBalance) {
-  //    return _getSubAccountStats();
-  //  }
+
+  function getSubAccountStats() public view returns (int perpPosition, uint baseBalance, int cashBalance) {
+    return _getSubAccountStats();
+  }
 
   function getBasePrice() public view returns (uint) {
     return _getBasePrice();
@@ -474,10 +469,10 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   function getLBTSAAddresses()
     public
     view
-    returns (ISpotFeed, IDepositModule, IWithdrawalModule, IRfqModule, IPerpAsset)
+    returns (ISpotFeed, IDepositModule, IWithdrawalModule, ITradeModule, IPerpAsset)
   {
     LBTSAStorage storage $ = _getLBTSAStorage();
-    return ($.baseFeed, $.depositModule, $.withdrawalModule, $.rfqModule, $.perpAsset);
+    return ($.baseFeed, $.depositModule, $.withdrawalModule, $.tradeModule, $.perpAsset);
   }
 
   ///////////////////

@@ -146,7 +146,7 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     // Note: scenario 0 wont calculate full margin for PMRM subaccounts
-    (int margin, int mtm) = tsaAddresses.manager.getMarginAndMarkToMarket(subAccount(), false, 0);
+    (, int mtm) = tsaAddresses.manager.getMarginAndMarkToMarket(subAccount(), false, 0);
     uint spotPrice = _getBasePrice();
 
     // convert to depositAsset value but in 18dp
