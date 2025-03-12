@@ -13,6 +13,8 @@ import {SubAccountCreator} from "../src/periphery/SubAccountCreator.sol";
 import {LyraSettlementUtils} from "../src/periphery/LyraSettlementUtils.sol";
 import {LyraAuctionUtils} from "../src/periphery/LyraAuctionUtils.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
+import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
+import {AtomicSigningExecutor} from "../src/AtomicSigningExecutor.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {ICashAsset} from "v2-core/src/interfaces/ICashAsset.sol";
@@ -49,6 +51,9 @@ contract DeployAll is Utils {
 
     deployment.matching = new Matching(ISubAccounts(config.subAccounts));
 
+    ////
+    // Modules
+
     deployment.deposit = new DepositModule(deployment.matching);
     deployment.trade = new TradeModule(deployment.matching, IAsset(config.cash), defaultFeeRecipient);
     deployment.transfer = new TransferModule(deployment.matching);
@@ -64,21 +69,20 @@ contract DeployAll is Utils {
     deployment.matching.setAllowedModule(address(deployment.liquidate), true);
     deployment.matching.setAllowedModule(address(deployment.rfq), true);
 
-    deployment.matching.setTradeExecutor(0xf00A105BC009eA3a250024cbe1DCd0509c71C52b, true);
-
-    console2.log("subAccounts", address(config.subAccounts));
-    console2.log("cash", address(config.cash));
-
-    deployment.subAccountCreator = new SubAccountCreator(ISubAccounts(config.subAccounts), deployment.matching);
-    console2.log("subAccountCreator: ", address(deployment.subAccountCreator));
+    /////
+    // helpers
 
     deployment.settlementUtil = new LyraSettlementUtils();
-    console2.log("settlementUtil: ", address(deployment.settlementUtil));
-
+    deployment.subAccountCreator = new SubAccountCreator(ISubAccounts(config.subAccounts), deployment.matching);
     deployment.auctionUtil = new LyraAuctionUtils(
       ISubAccounts(config.subAccounts), DutchAuction(config.auction), config.srm
     );
-    console2.log("settlementUtil: ", address(deployment.settlementUtil));
+    deployment.tsaShareHandler = new TSAShareHandler();
+    deployment.atomicSigningExecutor = new AtomicSigningExecutor(deployment.matching);
+
+    // whitelist helpers
+    deployment.matching.setTradeExecutor(0xf00A105BC009eA3a250024cbe1DCd0509c71C52b, true);
+    deployment.matching.setTradeExecutor(address(deployment.atomicSigningExecutor), true);
 
     // write to output
     __writeToDeploymentsJson(deployment);
@@ -102,6 +106,8 @@ contract DeployAll is Utils {
     vm.serializeAddress(objKey, "auctionUtil", address(deployment.auctionUtil));
     vm.serializeAddress(objKey, "liquidate", address(deployment.liquidate));
     vm.serializeAddress(objKey, "rfq", address(deployment.rfq));
+    vm.serializeAddress(objKey, "tsaShareHandler", address(deployment.tsaShareHandler));
+    vm.serializeAddress(objKey, "atomicSigningExecutor", address(deployment.atomicSigningExecutor));
 
     string memory finalObj = vm.serializeAddress(objKey, "withdrawal", address(deployment.withdrawal));
 

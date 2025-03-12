@@ -47,9 +47,9 @@ cp lib/v2-core/deployments/$chainId/strands.json deployments/$chainId/strands.js
 cp lib/v2-core/deployments/$chainId/SFP.json deployments/$chainId/SFP.json
 cp lib/v2-core/deployments/$chainId/SOL.json deployments/$chainId/SOL.json
 cp lib/v2-core/deployments/$chainId/DOGE.json deployments/$chainId/DOGE.json
-cp lib/v2-core/scripts/input/$chainId/config.json deployments/$chainId/shared.json
+cp lib/v2-core/deployments/$chainId/shared.json deployments/$chainId/shared.json
 
-
+echo "Deployed core contracts"
 
 # Deploy matching contracts
 forge script scripts/deploy-all.s.sol --rpc-url $ETH_RPC_URL --broadcast
@@ -59,6 +59,7 @@ MARKET_NAME=SOL forge script scripts/add-perp-to-modules.s.sol --rpc-url $ETH_RP
 MARKET_NAME=DOGE forge script scripts/add-perp-to-modules.s.sol --rpc-url $ETH_RPC_URL --broadcast
 
 forge script scripts/deploy-tsa.s.sol --rpc-url $ETH_RPC_URL --broadcast
+DEPOSIT_ASSET=WSTETH PERP_ASSET=ETH forge script scripts/deploy-lbtsa.s.sol --rpc-url $ETH_RPC_URL --broadcast
 
 if [[ "$ETH_RPC_URL" =~ .*local.* ]]; then
   forge script scripts/update-callees.s.sol --rpc-url $ETH_RPC_URL --broadcast

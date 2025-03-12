@@ -11,6 +11,8 @@ import {LyraSettlementUtils} from "../src/periphery/LyraSettlementUtils.sol";
 import {LyraAuctionUtils} from "../src/periphery/LyraAuctionUtils.sol";
 import {RfqModule} from "../src/modules/RfqModule.sol";
 import {LiquidateModule} from "../src/modules/LiquidateModule.sol";
+import {AtomicSigningExecutor} from "../src/AtomicSigningExecutor.sol";
+import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
 
 
 struct NetworkConfig {
@@ -34,4 +36,6 @@ struct Deployment {
   SubAccountCreator subAccountCreator;
   LyraSettlementUtils settlementUtil;
   LyraAuctionUtils auctionUtil;
+  AtomicSigningExecutor atomicSigningExecutor;
+  TSAShareHandler tsaShareHandler;
 }

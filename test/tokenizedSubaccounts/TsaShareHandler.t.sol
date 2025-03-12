@@ -2,7 +2,7 @@
 pragma solidity ^0.8.18;
 
 import "forge-std/console2.sol";
-import "./TSATestUtils.sol";
+import "./utils/CCTSATestUtils.sol";
 import "../../src/tokenizedSubaccounts/TSAShareHandler.sol";
 
 contract MockConnector {
@@ -54,11 +54,11 @@ contract TSAShareHandlerTest is CCTSATestUtils {
 
   function setUp() public override {
     super.setUp();
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToCCTSA("weth");
+    deployPredeposit(address(markets[MARKET].erc20));
+    upgradeToCCTSA(MARKET);
     setupCCTSA();
 
-    bridgeIn = address(new MockBridge(address(markets["weth"].erc20)));
+    bridgeIn = address(new MockBridge(address(markets[MARKET].erc20)));
     bridgeOut = address(new MockBridge(address(tsa)));
 
     connectorIn = address(new MockConnector(bridgeIn, 1));
@@ -69,12 +69,12 @@ contract TSAShareHandlerTest is CCTSATestUtils {
   }
 
   function testCanUseShareHandlerWithoutConnector() public {
-    markets["weth"].erc20.mint(address(this), 10e18);
-    markets["weth"].erc20.approve(address(shareHandler), 10e18);
+    markets[MARKET].erc20.mint(address(this), 10e18);
+    markets[MARKET].erc20.approve(address(shareHandler), 10e18);
 
     // make shares worth 2e18
     _depositToTSA(1e18);
-    markets["weth"].erc20.mint(address(tsa), 1e18);
+    markets[MARKET].erc20.mint(address(tsa), 1e18);
 
     // BaseTSA toVault, address fallbackDest, address withdrawalConnector, address withdrawalRecipient, uint amount
     shareHandler.initiateDeposit(IBaseTSA(address(tsa)), address(alice), address(0), address(this), 1e18);
@@ -144,7 +144,7 @@ contract TSAShareHandlerTest is CCTSATestUtils {
     assertEq(actions[0].withdrawalConnector, address(0));
     assertEq(actions[0].withdrawalRecipient, address(this));
 
-    assertEq(markets["weth"].erc20.balanceOf(address(shareHandler)), 1e18);
+    assertEq(markets[MARKET].erc20.balanceOf(address(shareHandler)), 1e18);
 
     shareHandler.completeAction(IBaseTSA(address(tsa)), actions[0].actionId);
 
@@ -153,16 +153,16 @@ contract TSAShareHandlerTest is CCTSATestUtils {
     assertEq(actions.length, 0);
     assertEq(tsa.balanceOf(address(alice)), 0);
     assertEq(tsa.balanceOf(address(shareHandler)), 0);
-    assertEq(markets["weth"].erc20.balanceOf(address(alice)), 1e18);
+    assertEq(markets[MARKET].erc20.balanceOf(address(alice)), 1e18);
   }
 
   function testCanUseShareHandlerWithConnector() public {
-    markets["weth"].erc20.mint(address(this), 10e18);
-    markets["weth"].erc20.approve(address(shareHandler), 10e18);
+    markets[MARKET].erc20.mint(address(this), 10e18);
+    markets[MARKET].erc20.approve(address(shareHandler), 10e18);
 
     // make shares worth 2e18
     _depositToTSA(1e18);
-    markets["weth"].erc20.mint(address(tsa), 1e18);
+    markets[MARKET].erc20.mint(address(tsa), 1e18);
 
     // BaseTSA toVault, address fallbackDest, address withdrawalConnector, address withdrawalRecipient, uint amount
     shareHandler.initiateDeposit(IBaseTSA(address(tsa)), address(alice), address(connectorOut), address(this), 1e18);
@@ -234,7 +234,7 @@ contract TSAShareHandlerTest is CCTSATestUtils {
     assertEq(actions[0].withdrawalConnector, address(connectorIn));
     assertEq(actions[0].withdrawalRecipient, address(this));
 
-    assertEq(markets["weth"].erc20.balanceOf(address(shareHandler)), 1e18);
+    assertEq(markets[MARKET].erc20.balanceOf(address(shareHandler)), 1e18);
 
     shareHandler.completeAction(IBaseTSA(address(tsa)), actions[0].actionId);
 
@@ -242,7 +242,7 @@ contract TSAShareHandlerTest is CCTSATestUtils {
 
     assertEq(actions.length, 0);
     assertEq(tsa.balanceOf(address(alice)), 0);
-    assertEq(markets["weth"].erc20.balanceOf(address(bridgeIn)), 1e18);
+    assertEq(markets[MARKET].erc20.balanceOf(address(bridgeIn)), 1e18);
 
     actions = shareHandler.getAllUserActions(alice);
 

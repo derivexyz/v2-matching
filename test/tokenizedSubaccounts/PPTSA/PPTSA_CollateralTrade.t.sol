@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "../TSATestUtils.sol";
+import "../utils/PPTSATestUtils.sol";
 
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 
@@ -10,8 +10,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
   function setUp() public override {
     super.setUp();
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToPPTSA("weth", true, true);
+    deployPredeposit(address(markets[MARKET].erc20));
+    upgradeToPPTSA(MARKET, true, true);
     setupPPTSA();
   }
 
@@ -23,13 +23,13 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     uint64 expiry = uint64(block.timestamp + 7 days);
     _tradeRfqAsMaker(1e18, 1e18, expiry, 400e18, 4e18, 800e18, true);
 
-    (uint openSpreads, uint base, int cash) = tsa.getSubAccountStats();
+    (uint openSpreads, uint base, int cash) = pptsa.getSubAccountStats();
     assertEq(openSpreads, 1e18);
     assertEq(base, 10e18);
     assertEq(cash, 3e18);
 
     ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
-      asset: address(markets["weth"].base),
+      asset: address(markets[MARKET].base),
       subId: OptionEncoding.toSubId(expiry, 2200e18, true),
       limitPrice: int(1e18),
       desiredAmount: 2e18,
@@ -53,26 +53,26 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     tradeData.desiredAmount = 0;
     action.data = abi.encode(tradeData);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidDesiredAmount.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     tradeData.desiredAmount = 2.0e18;
     action.module = IMatchingModule(address(10));
     action.data = abi.encode(tradeData);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidModule.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     action.module = tradeModule;
-    tradeData.asset = address(markets["weth"].option);
+    tradeData.asset = address(markets[MARKET].option);
     action.data = abi.encode(tradeData);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidAsset.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
-    tradeData.asset = address(markets["weth"].base);
+    tradeData.asset = address(markets[MARKET].base);
     action.data = abi.encode(tradeData);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     vm.warp(block.timestamp + 1 days);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidActionExpiry.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
   }
 }

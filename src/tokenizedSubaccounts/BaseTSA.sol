@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.20;
 
-import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
-import {ILiquidatableManager} from "v2-core/src/interfaces/ILiquidatableManager.sol";
-import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
-import {IMatching} from "../interfaces/IMatching.sol";
-import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
-import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
-import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 import {CashAsset} from "v2-core/src/assets/CashAsset.sol";
+import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
+import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
 import {ERC20Upgradeable} from "openzeppelin-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
+import {ILiquidatableManager} from "v2-core/src/interfaces/ILiquidatableManager.sol";
+import {IMatching} from "../interfaces/IMatching.sol";
+import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
+import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "openzeppelin-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
@@ -294,6 +294,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
       WithdrawalRequest storage request = $.queuedWithdrawals[$.queuedWithdrawalHead];
 
       uint totalBalance = $.depositAsset.balanceOf(address(this)) - $.totalPendingDeposits;
+
       uint requiredAmount = _getSharesToWithdrawAmount(request.amountShares);
 
       if (totalBalance == 0) {
@@ -301,6 +302,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
       }
 
       if (totalBalance < requiredAmount) {
+
         // withdraw a portion
         uint withdrawAmount = totalBalance;
         uint difference = requiredAmount - withdrawAmount;
