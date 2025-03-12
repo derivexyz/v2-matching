@@ -10,8 +10,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
   function setUp() public override {
     super.setUp();
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToPPTSA("weth", true, true);
+    deployPredeposit(address(markets[MARKET].erc20));
+    upgradeToPPTSA(MARKET, true, true);
     setupPPTSA();
   }
 
@@ -29,7 +29,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     assertEq(cash, 3e18);
 
     ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
-      asset: address(markets["weth"].base),
+      asset: address(markets[MARKET].base),
       subId: OptionEncoding.toSubId(expiry, 2200e18, true),
       limitPrice: int(1e18),
       desiredAmount: 2e18,
@@ -62,12 +62,12 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     pptsa.signActionData(action, "");
 
     action.module = tradeModule;
-    tradeData.asset = address(markets["weth"].option);
+    tradeData.asset = address(markets[MARKET].option);
     action.data = abi.encode(tradeData);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidAsset.selector);
     pptsa.signActionData(action, "");
 
-    tradeData.asset = address(markets["weth"].base);
+    tradeData.asset = address(markets[MARKET].base);
     action.data = abi.encode(tradeData);
     pptsa.signActionData(action, "");
 

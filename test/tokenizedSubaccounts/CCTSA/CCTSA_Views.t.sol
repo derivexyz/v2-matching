@@ -24,7 +24,7 @@ contract CCTSA_ViewsTests is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToCCTSA("weth");
+    upgradeToCCTSA(MARKET);
     setupCCTSA();
   }
 
@@ -43,7 +43,7 @@ contract CCTSA_ViewsTests is CCTSATestUtils {
     assertEq(cctsa.getAccountValue(true), 1e18);
 
     // changing spot doesnt affect withdrawal amount since there are no options/cash
-    _setSpotPrice("weth", 3000e18, 1e18);
+    _setSpotPrice(MARKET, uint96(MARKET_REF_SPOT * 4 / 5), 1e18);
 
     tsa.processWithdrawalRequests(1);
 
@@ -85,12 +85,12 @@ contract CCTSA_ViewsTests is CCTSATestUtils {
     vm.warp(block.timestamp + 1);
 
     // set mtm to be negative (slash base collateral margin and value options highly)
-    _setForwardPrice("weth", uint64(refTime + 1 weeks), 4000e18, 1e18);
-    _setForwardPrice("weth", uint64(refTime + 1 weeks + 1 hours), 4000e18, 1e18);
-    _setForwardPrice("weth", uint64(refTime + 1 weeks + 2 hours), 4000e18, 1e18);
+    _setForwardPrice(MARKET, uint64(refTime + 1 weeks), MARKET_REF_SPOT, 1e18);
+    _setForwardPrice(MARKET, uint64(refTime + 1 weeks + 1 hours), MARKET_REF_SPOT, 1e18);
+    _setForwardPrice(MARKET, uint64(refTime + 1 weeks + 2 hours), MARKET_REF_SPOT, 1e18);
 
     // value base at 1% for IM
-    srm.setBaseAssetMarginFactor(markets["weth"].id, 0.01e18, 0.01e18);
+    srm.setBaseAssetMarginFactor(markets[MARKET].id, 0.01e18, 0.01e18);
 
     (int margin, int mtm) = srm.getMarginAndMarkToMarket(cctsa.subAccount(), true, 0);
     assertLt(margin, 0, "mm: mm < 0 but mtm > 0");
@@ -103,9 +103,9 @@ contract CCTSA_ViewsTests is CCTSATestUtils {
 
     // but if mtm is < 0 will revert
     // set margin to be negative (slash base collateral margin and value options highly)
-    _setForwardPrice("weth", uint64(refTime + 1 weeks), 8000e18, 1e18);
-    _setForwardPrice("weth", uint64(refTime + 1 weeks + 1 hours), 8000e18, 1e18);
-    _setForwardPrice("weth", uint64(refTime + 1 weeks + 2 hours), 8000e18, 1e18);
+    _setForwardPrice(MARKET, uint64(refTime + 1 weeks), MARKET_REF_SPOT * 4, 1e18);
+    _setForwardPrice(MARKET, uint64(refTime + 1 weeks + 1 hours), MARKET_REF_SPOT * 4, 1e18);
+    _setForwardPrice(MARKET, uint64(refTime + 1 weeks + 2 hours), MARKET_REF_SPOT * 4, 1e18);
 
     (margin, mtm) = srm.getMarginAndMarkToMarket(cctsa.subAccount(), true, 0);
     assertLt(margin, 0, "mm: mm & mtm < 0");
@@ -116,15 +116,15 @@ contract CCTSA_ViewsTests is CCTSATestUtils {
   }
 
   function testGetters() public {
-    assertEq(cctsa.getBasePrice(), 2000e18);
+    assertEq(cctsa.getBasePrice(), MARKET_REF_SPOT);
 
     (ISpotFeed sf, IDepositModule dm, IWithdrawalModule wm, ITradeModule tm, IOptionAsset oa) =
       cctsa.getCCTSAAddresses();
 
-    assertEq(address(sf), address(markets["weth"].spotFeed));
+    assertEq(address(sf), address(markets[MARKET].spotFeed));
     assertEq(address(dm), address(depositModule));
     assertEq(address(wm), address(withdrawalModule));
     assertEq(address(tm), address(tradeModule));
-    assertEq(address(oa), address(markets["weth"].option));
+    assertEq(address(oa), address(markets[MARKET].option));
   }
 }

@@ -8,7 +8,7 @@ contract PPTSA_ViewsTests is PPTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToPPTSA("weth", true, true);
+    upgradeToPPTSA(MARKET, true, true);
     setupPPTSA();
   }
 
@@ -30,14 +30,14 @@ contract PPTSA_ViewsTests is PPTSATestUtils {
     assertEq(base, 1e18);
     assertEq(cash, 0);
 
-    assertEq(pptsa.getBasePrice(), ETH_PRICE.toUint256());
+    assertEq(pptsa.getBasePrice(), MARKET_REF_SPOT);
     assertEq(keccak256(abi.encode(pptsa.getPPTSAParams())), keccak256(abi.encode(defaultPPTSAParams)));
     (ISpotFeed sf, IDepositModule dm, IWithdrawalModule wm, IRfqModule rm, IOptionAsset oa) = pptsa.getPPTSAAddresses();
 
-    assertEq(address(sf), address(markets["weth"].spotFeed));
+    assertEq(address(sf), address(markets[MARKET].spotFeed));
     assertEq(address(dm), address(depositModule));
     assertEq(address(wm), address(withdrawalModule));
     assertEq(address(rm), address(rfqModule));
-    assertEq(address(oa), address(markets["weth"].option));
+    assertEq(address(oa), address(markets[MARKET].option));
   }
 }

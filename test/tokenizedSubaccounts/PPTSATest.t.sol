@@ -9,15 +9,15 @@ contract PPTSATest is PPTSATestUtils {
 
   function setUp() public override {
     super.setUp();
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToPPTSA("weth", true, true);
+    deployPredeposit(address(markets[MARKET].erc20));
+    upgradeToPPTSA(MARKET, true, true);
     setupPPTSA();
   }
 
   // test this as maker too
   function testPPCanDepositTradeWithdraw() public {
-    markets["weth"].erc20.mint(address(this), 10e18);
-    markets["weth"].erc20.approve(address(tsa), 10e18);
+    markets[MARKET].erc20.mint(address(this), 10e18);
+    markets[MARKET].erc20.approve(address(tsa), 10e18);
     uint depositId = pptsa.initiateDeposit(1e18, address(this));
     pptsa.processDeposit(depositId);
 
@@ -26,8 +26,8 @@ contract PPTSATest is PPTSATestUtils {
 
     _executeDeposit(0.8e18);
 
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), 0.2e18);
-    assertEq(subAccounts.getBalance(pptsa.subAccount(), markets["weth"].base, 0), 0.8e18);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), 0.2e18);
+    assertEq(subAccounts.getBalance(pptsa.subAccount(), markets[MARKET].base, 0), 0.8e18);
 
     depositId = pptsa.initiateDeposit(1e18, address(this));
     pptsa.processDeposit(depositId);
@@ -48,7 +48,7 @@ contract PPTSATest is PPTSATestUtils {
     assertEq(pptsa.balanceOf(address(this)), 1.75e18);
     assertEq(pptsa.totalPendingWithdrawals(), 0);
 
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 8.25e18); // holding 8 previously
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 8.25e18); // holding 8 previously
 
     _executeDeposit(0.5e18);
 
@@ -60,17 +60,17 @@ contract PPTSATest is PPTSATestUtils {
     assertEq(cashBalance, 1e17);
 
     vm.warp(block.timestamp + 8 days);
-    _setSettlementPrice("weth", expiry, 2500e18);
-    srm.settleOptions(markets["weth"].option, pptsa.subAccount());
+    _setSettlementPrice(MARKET, expiry, 2500e18);
+    srm.settleOptions(markets[MARKET].option, pptsa.subAccount());
     (,, cashBalance) = pptsa.getSubAccountStats();
     _executeWithdrawal(0.5e18);
 
-    assertEq(subAccounts.getBalance(pptsa.subAccount(), markets["weth"].base, 0), 0.8e18);
+    assertEq(subAccounts.getBalance(pptsa.subAccount(), markets[MARKET].base, 0), 0.8e18);
   }
 
   function testPPCanTradeAsTaker() public {
-    markets["weth"].erc20.mint(address(this), 10e18);
-    markets["weth"].erc20.approve(address(tsa), 10e18);
+    markets[MARKET].erc20.mint(address(this), 10e18);
+    markets[MARKET].erc20.approve(address(tsa), 10e18);
     uint depositId = pptsa.initiateDeposit(4e18, address(this));
     pptsa.processDeposit(depositId);
 

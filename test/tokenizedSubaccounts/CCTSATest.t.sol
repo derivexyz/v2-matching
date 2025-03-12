@@ -8,14 +8,14 @@ import "./utils/CCTSATestUtils.sol";
 contract CCTSATest is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToCCTSA("weth");
+    deployPredeposit(address(markets[MARKET].erc20));
+    upgradeToCCTSA(MARKET);
     setupCCTSA();
   }
 
   function testCanDepositTradeWithdraw() public {
-    markets["weth"].erc20.mint(address(this), 10e18);
-    markets["weth"].erc20.approve(address(tsa), 10e18);
+    markets[MARKET].erc20.mint(address(this), 10e18);
+    markets[MARKET].erc20.approve(address(tsa), 10e18);
     uint depositId = cctsa.initiateDeposit(1e18, address(this));
     cctsa.processDeposit(depositId);
 
@@ -24,8 +24,8 @@ contract CCTSATest is CCTSATestUtils {
 
     _executeDeposit(0.8e18);
 
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), 0.2e18);
-    assertEq(subAccounts.getBalance(cctsa.subAccount(), markets["weth"].base, 0), 0.8e18);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), 0.2e18);
+    assertEq(subAccounts.getBalance(cctsa.subAccount(), markets[MARKET].base, 0), 0.8e18);
 
     depositId = cctsa.initiateDeposit(1e18, address(this));
     cctsa.processDeposit(depositId);
@@ -46,7 +46,7 @@ contract CCTSATest is CCTSATestUtils {
     assertEq(cctsa.balanceOf(address(this)), 1.75e18);
     assertEq(cctsa.totalPendingWithdrawals(), 0);
 
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 8.25e18); // holding 8 previously
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 8.25e18); // holding 8 previously
 
     _executeDeposit(0.5e18);
 
@@ -56,7 +56,7 @@ contract CCTSATest is CCTSATestUtils {
     _tradeOption(-1e18, 200e18, expiry, 2400e18);
 
     (, int mtmPre) = srm.getMarginAndMarkToMarket(cctsa.subAccount(), true, 0);
-    _setForwardPrice("weth", uint64(expiry), 2400e18, 1e18);
+    _setForwardPrice(MARKET, uint64(expiry), 2400e18, 1e18);
     (, int mtmPost) = srm.getMarginAndMarkToMarket(cctsa.subAccount(), true, 0);
 
     console2.log("MTM pre: %d", mtmPre);
@@ -76,6 +76,6 @@ contract CCTSATest is CCTSATestUtils {
     assertEq(cctsa.balanceOf(address(this)), 1.5e18);
     assertEq(cctsa.totalPendingWithdrawals(), 0);
 
-    assertApproxEqRel(markets["weth"].erc20.balanceOf(address(this)), 8.5016e18, 0.001e18);
+    assertApproxEqRel(markets[MARKET].erc20.balanceOf(address(this)), 8.5016e18, 0.001e18);
   }
 }

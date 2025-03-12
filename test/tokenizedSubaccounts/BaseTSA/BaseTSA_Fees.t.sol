@@ -13,7 +13,7 @@ contract CCTSA_BaseTSA_FeesTests is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToCCTSA("weth");
+    upgradeToCCTSA(MARKET);
     setupCCTSA();
   }
 
@@ -68,7 +68,7 @@ contract CCTSA_BaseTSA_FeesTests is CCTSATestUtils {
 
     // - check fees are collected correctly with pending withdrawals
 
-    markets["weth"].spotFeed.setHeartbeat(1000 weeks);
+    markets[MARKET].spotFeed.setHeartbeat(1000 weeks);
     cctsa.requestWithdrawal(0.5e18);
 
     vm.warp(block.timestamp + 365 days);
@@ -90,8 +90,8 @@ contract CCTSA_BaseTSA_FeesTests is CCTSATestUtils {
     assertEq(cctsa.balanceOf(address(alice)), 0);
     assertEq(cctsa.balanceOf(address(this)), 0);
 
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), uint(1e18) * 10000 / 10201);
-    assertEq(markets["weth"].erc20.balanceOf(address(alice)), uint(1e18) * 201 / 10201);
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), uint(1e18) * 10000 / 10201);
+    assertEq(markets[MARKET].erc20.balanceOf(address(alice)), uint(1e18) * 201 / 10201);
   }
 
   function testFeeCollectionWithNoShares() public {

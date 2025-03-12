@@ -12,7 +12,7 @@ contract CCTSA_BaseTSA_Admin is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToCCTSA("weth");
+    upgradeToCCTSA(MARKET);
     setupCCTSA();
   }
 
@@ -22,8 +22,8 @@ contract CCTSA_BaseTSA_Admin is CCTSATestUtils {
     assertEq(address(baseAddresses.subAccounts), address(subAccounts));
     assertEq(address(baseAddresses.auction), address(auction));
     assertEq(address(baseAddresses.cash), address(cash));
-    assertEq(address(baseAddresses.wrappedDepositAsset), address(markets["weth"].base));
-    assertEq(address(baseAddresses.depositAsset), address(markets["weth"].erc20));
+    assertEq(address(baseAddresses.wrappedDepositAsset), address(markets[MARKET].base));
+    assertEq(address(baseAddresses.depositAsset), address(markets[MARKET].erc20));
     assertEq(address(baseAddresses.manager), address(srm));
     assertEq(address(baseAddresses.matching), address(matching));
 
@@ -62,10 +62,10 @@ contract CCTSA_BaseTSA_Admin is CCTSATestUtils {
 
   function testCanApproveModule() public {
     cctsa.approveModule(address(tradeModule), type(uint).max);
-    assertEq(markets["weth"].erc20.allowance(address(tsa), address(tradeModule)), type(uint).max);
+    assertEq(markets[MARKET].erc20.allowance(address(tsa), address(tradeModule)), type(uint).max);
 
     cctsa.approveModule(address(tradeModule), 0);
-    assertEq(markets["weth"].erc20.allowance(address(tsa), address(tradeModule)), 0);
+    assertEq(markets[MARKET].erc20.allowance(address(tsa), address(tradeModule)), 0);
 
     vm.expectRevert(BaseTSA.BTSA_ModuleNotPartOfMatching.selector);
     cctsa.approveModule(address(alice), type(uint).max);

@@ -109,8 +109,8 @@ contract PPTSATestUtils is TSATestUtils {
   }
 
   function _setupPPTSAWithDeposit(bool isCallSpread, bool isLongSpread) internal {
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToPPTSA("weth", isCallSpread, isLongSpread);
+    deployPredeposit(address(markets[MARKET].erc20));
+    upgradeToPPTSA(MARKET, isCallSpread, isLongSpread);
     setupPPTSA();
     _depositToTSA(100e18);
     _executeDeposit(100e18);

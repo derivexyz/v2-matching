@@ -9,6 +9,7 @@ contract LBTSATestUtils is TSATestUtils {
   using SignedMath for int;
 
   PublicLBTSA public tsaImplementation;
+
   PublicLBTSA internal lbtsa;
 
   LeveragedBasisTSA.LBTSAParams public defaultLBTSAParams = LeveragedBasisTSA.LBTSAParams({
@@ -28,9 +29,9 @@ contract LBTSATestUtils is TSATestUtils {
   CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
     .CollateralManagementParams({
     feeFactor: 0.01e18,
-    spotTransactionLeniency: 1.01e18,
-    worstSpotBuyPrice: 1.01e18,
-    worstSpotSellPrice: 0.99e18
+    spotTransactionLeniency: 0,
+    worstSpotBuyPrice: 0,
+    worstSpotSellPrice: 0
   });
 
   function upgradeToLBTSA() internal {
@@ -40,7 +41,7 @@ contract LBTSATestUtils is TSATestUtils {
       subAccounts: subAccounts,
       auction: auction,
       cash: cash,
-      wrappedDepositAsset: markets["weth"].base,
+      wrappedDepositAsset: markets[MARKET].base,
       manager: srm,
       matching: matching,
       symbol: "LBTSA",
@@ -51,11 +52,9 @@ contract LBTSATestUtils is TSATestUtils {
       depositModule: depositModule,
       withdrawalModule: withdrawalModule,
       tradeModule: tradeModule,
-      baseFeed: markets["weth"].spotFeed,
-      perpAsset: markets["weth"].perp
+      baseFeed: markets[MARKET].spotFeed,
+      perpAsset: markets[MARKET].perp
     });
-
-    console.log("address(markets[\"weth\"].perp)", address(markets["weth"].perp));
 
     proxyAdmin.upgradeAndCall(
       ITransparentUpgradeableProxy(address(proxy)),

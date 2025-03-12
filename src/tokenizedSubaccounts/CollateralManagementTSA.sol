@@ -139,10 +139,10 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
       depositAssetBalance -= totalPendingDeposits();
     }
 
-    return _getConvertedMtM() + depositAssetBalance;
+    return _getConvertedMtM(true) + depositAssetBalance;
   }
 
-  function _getConvertedMtM() internal view returns (uint) {
+  function _getConvertedMtM(bool nativeDecimals) internal view returns (uint) {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     // Note: scenario 0 wont calculate full margin for PMRM subaccounts
@@ -152,12 +152,14 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
     // convert to depositAsset value but in 18dp
     int convertedMtM = mtm.divideDecimal(spotPrice.toInt256());
 
-    // Now convert to appropriate decimals
-    uint8 decimals = tsaAddresses.depositAsset.decimals();
-    if (decimals > 18) {
-      convertedMtM = convertedMtM * int(10 ** (decimals - 18));
-    } else if (decimals < 18) {
-      convertedMtM = convertedMtM / int(10 ** (18 - decimals));
+    if (nativeDecimals) {
+      // Now convert to appropriate decimals
+      uint8 decimals = tsaAddresses.depositAsset.decimals();
+      if (decimals > 18) {
+        convertedMtM = convertedMtM * int(10 ** (decimals - 18));
+      } else if (decimals < 18) {
+        convertedMtM = convertedMtM / int(10 ** (18 - decimals));
+      }
     }
 
     // Might not be technically insolvent (could have enough depositAsset to cover the deficit), but we block deposits

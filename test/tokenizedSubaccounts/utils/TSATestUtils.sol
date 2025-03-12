@@ -29,6 +29,10 @@ import {MockTSA} from "./MockTSA.sol";
 contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   using SignedMath for int;
 
+  string public MARKET = "wbtc";
+  uint public MARKET_UNIT;
+  uint public MARKET_REF_SPOT;
+
   uint internal signerPk;
   address internal signer;
   uint internal tsaNonce = 0;
@@ -53,40 +57,47 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     _setupMarketFeeds();
     _setupTradeModule();
     _setupRfqModule();
+
+    MARKET_UNIT = 10 ** markets[MARKET].erc20.decimals();
+
+    _setSpotPrice("weth", 2000e18, 1e18);
+    _setSpotPrice("wbtc", 25000e18, 1e18);
+    (uint spot, uint conf) = markets[MARKET].spotFeed.getSpot();
+    MARKET_REF_SPOT = spot;
   }
 
   function _setupMatching() internal {
     MatchingHelpers._deployMatching(subAccounts, address(cash), auction, 0);
-    cash.setWhitelistManager(address(markets["weth"].pmrm), true);
+    cash.setWhitelistManager(address(markets[MARKET].pmrm), true);
   }
 
   function _setupTaker() internal {
     nonVaultPk = 0xDEAD;
     nonVaultAddr = vm.addr(nonVaultPk);
-    nonVaultSubacc = subAccounts.createAccount(address(this), markets["weth"].pmrm);
+    nonVaultSubacc = subAccounts.createAccount(address(this), markets[MARKET].pmrm);
     usdc.mint(address(this), 1_000_000e6);
     usdc.approve(address(cash), 1_000_000e6);
     cash.deposit(nonVaultSubacc, 1_000_000e6);
 
-    markets["weth"].base.setTotalPositionCap(markets["weth"].pmrm, 1_000_000e18);
-    markets["weth"].base.setTotalPositionCap(srm, 1_000_000e18);
+    markets[MARKET].base.setTotalPositionCap(markets[MARKET].pmrm, 1_000_000e18);
+    markets[MARKET].base.setTotalPositionCap(srm, 1_000_000e18);
 
-    markets["weth"].erc20.mint(address(this), 100_000e18);
-    markets["weth"].erc20.approve(address(markets["weth"].base), 100_000e18);
-    markets["weth"].base.deposit(nonVaultSubacc, 100_000e18);
+    markets[MARKET].erc20.mint(address(this), 100_000e18);
+    markets[MARKET].erc20.approve(address(markets[MARKET].base), 100_000e18);
+    markets[MARKET].base.deposit(nonVaultSubacc, 100_000e18);
 
     subAccounts.setApprovalForAll(address(matching), true);
     matching.depositSubAccountFor(nonVaultSubacc, nonVaultAddr);
   }
 
   function _setupMarketFeeds() internal {
-    markets["weth"].spotFeed.setHeartbeat(100 weeks);
-    markets["weth"].forwardFeed.setHeartbeat(100 weeks);
-    markets["weth"].volFeed.setHeartbeat(100 weeks);
-    markets["weth"].perpFeed.setHeartbeat(100 weeks);
-    markets["weth"].ibpFeed.setHeartbeat(100 weeks);
-    markets["weth"].iapFeed.setHeartbeat(100 weeks);
-    markets["weth"].rateFeed.setHeartbeat(100 weeks);
+    markets[MARKET].spotFeed.setHeartbeat(100 weeks);
+    markets[MARKET].forwardFeed.setHeartbeat(100 weeks);
+    markets[MARKET].volFeed.setHeartbeat(100 weeks);
+    markets[MARKET].perpFeed.setHeartbeat(100 weeks);
+    markets[MARKET].ibpFeed.setHeartbeat(100 weeks);
+    markets[MARKET].iapFeed.setHeartbeat(100 weeks);
+    markets[MARKET].rateFeed.setHeartbeat(100 weeks);
   }
 
   function _setupTradeModule() internal {
@@ -94,12 +105,12 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     srm.setBorrowingEnabled(true);
     srm.setBaseAssetMarginFactor(markets["weth"].id, 0.8e18, 0.8e18);
     srm.setBaseAssetMarginFactor(markets["wbtc"].id, 0.8e18, 0.8e18);
-    tradeModule.setPerpAsset(markets["weth"].perp, true);
+    tradeModule.setPerpAsset(markets[MARKET].perp, true);
   }
 
   function _setupRfqModule() internal {
     rfqModule.setFeeRecipient(bobAcc);
-    rfqModule.setPerpAsset(markets["weth"].perp, true);
+    rfqModule.setPerpAsset(markets[MARKET].perp, true);
   }
 
   function deployPredeposit(address erc20) internal {
@@ -218,12 +229,12 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   }
 
   function _tradeOption(int amount, uint price, uint expiry, uint strike) internal {
-    _setForwardPrice("weth", uint64(expiry), 2000e18, 1e18);
-    _setFixedSVIDataForExpiry("weth", uint64(expiry));
+    _setForwardPrice(MARKET, uint64(expiry), 2000e18, 1e18);
+    _setFixedSVIDataForExpiry(MARKET, uint64(expiry));
 
     bytes memory tradeData = abi.encode(
       ITradeModule.TradeData({
-        asset: address(markets["weth"].option),
+        asset: address(markets[MARKET].option),
         subId: OptionEncoding.toSubId(expiry, strike, true),
         limitPrice: int(price),
         desiredAmount: int(amount.abs()),
@@ -235,7 +246,7 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
 
     bytes memory tradeMaker = abi.encode(
       ITradeModule.TradeData({
-        asset: address(markets["weth"].option),
+        asset: address(markets[MARKET].option),
         subId: OptionEncoding.toSubId(expiry, strike, true),
         limitPrice: int(price),
         desiredAmount: int(amount.abs()),
@@ -290,7 +301,7 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   function _tradeSpot(int amount, uint price) internal {
     bytes memory tradeData = abi.encode(
       ITradeModule.TradeData({
-        asset: address(markets["weth"].base),
+        asset: address(markets[MARKET].base),
         subId: 0,
         limitPrice: int(price),
         desiredAmount: int(amount.abs()),
@@ -302,7 +313,7 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
 
     bytes memory tradeMaker = abi.encode(
       ITradeModule.TradeData({
-        asset: address(markets["weth"].base),
+        asset: address(markets[MARKET].base),
         subId: 0,
         limitPrice: int(price),
         desiredAmount: int(amount.abs()),
@@ -361,7 +372,7 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
       module: tradeModule,
       data: abi.encode(
         ITradeModule.TradeData({
-          asset: address(markets["weth"].base),
+          asset: address(markets[MARKET].base),
           subId: 0,
           limitPrice: int(price),
           desiredAmount: int(amount.abs()),
@@ -381,7 +392,7 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   function _tradePerp(int amount, uint price) internal {
     bytes memory tradeMaker = abi.encode(
       ITradeModule.TradeData({
-        asset: address(markets["weth"].perp),
+        asset: address(markets[MARKET].perp),
         subId: 0,
         limitPrice: int(price),
         desiredAmount: int(amount.abs()),
@@ -400,7 +411,7 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
       module: tradeModule,
       data: abi.encode(
         ITradeModule.TradeData({
-          asset: address(markets["weth"].perp),
+          asset: address(markets[MARKET].perp),
           subId: 0,
           limitPrice: int(price),
           desiredAmount: int(amount.abs()),
@@ -432,7 +443,7 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   }
 
   function _createDepositAction(uint amount) internal returns (IActionVerifier.Action memory) {
-    bytes memory depositData = _encodeDepositData(amount, address(markets["weth"].base), address(0));
+    bytes memory depositData = _encodeDepositData(amount, address(markets[MARKET].base), address(0));
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: tsaSubacc,
@@ -456,7 +467,7 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   }
 
   function _createWithdrawalAction(uint amount) internal returns (IActionVerifier.Action memory) {
-    bytes memory withdrawalData = _encodeWithdrawData(amount, address(markets["weth"].base));
+    bytes memory withdrawalData = _encodeWithdrawData(amount, address(markets[MARKET].base));
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: tsaSubacc,
@@ -488,8 +499,8 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   }
 
   function _depositToTSA(uint amount) internal {
-    markets["weth"].erc20.mint(address(this), amount);
-    markets["weth"].erc20.approve(address(tsa), amount);
+    markets[MARKET].erc20.mint(address(this), amount);
+    markets[MARKET].erc20.approve(address(tsa), amount);
     uint depositId = tsa.initiateDeposit(amount, address(this));
     tsa.processDeposit(depositId);
   }
@@ -498,14 +509,17 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     auction.setSMAccount(securityModule.accountId());
 
     uint newSubacc = subAccounts.createAccount(address(this), srm);
+    vm.warp(block.timestamp + 1);
+    _setSpotPrice("wbtc", 1_000_000e18, 1e18);
+
     markets["wbtc"].erc20.mint(address(this), 1e18);
     markets["wbtc"].erc20.approve(address(markets["wbtc"].base), 1e18);
     markets["wbtc"].base.deposit(newSubacc, 1e18);
 
-    cash.withdraw(newSubacc, 10_000e6, address(1234));
+    cash.withdraw(newSubacc, 200_000e6, address(1234));
 
     vm.warp(block.timestamp + 1);
-    _setSpotPrice("wbtc", 0, 1e18);
+    _setSpotPrice("wbtc", 25000e18, 1e18);
 
     auction.startAuction(newSubacc, 0);
 
@@ -529,19 +543,19 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     internal
     returns (IRfqModule.RfqOrder memory order, IRfqModule.TakerOrder memory takerOrder)
   {
-    _setForwardPrice("weth", uint64(expiry), 2000e18, 1e18);
-    _setFixedSVIDataForExpiry("weth", uint64(expiry));
+    _setForwardPrice(MARKET, uint64(expiry), 2000e18, 1e18);
+    _setFixedSVIDataForExpiry(MARKET, uint64(expiry));
 
     IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](2);
     trades[0] = IRfqModule.TradeData({
-      asset: address(markets["weth"].option),
+      asset: address(markets[MARKET].option),
       subId: OptionEncoding.toSubId(expiry, strike, isCallSpread),
       price: price,
       amount: amount
     });
 
     trades[1] = IRfqModule.TradeData({
-      asset: address(markets["weth"].option),
+      asset: address(markets[MARKET].option),
       subId: OptionEncoding.toSubId(expiry, strike2, isCallSpread),
       price: price2,
       amount: -amount

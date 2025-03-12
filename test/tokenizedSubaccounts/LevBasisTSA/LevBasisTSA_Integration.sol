@@ -17,7 +17,7 @@ contract LevBasisTSA_IntegrationTests is LBTSATestUtils {
     _depositToTSA(10e18);
     _executeDeposit(10e18);
 
-    IActionVerifier.Action memory action = _getSpotTradeAction(10e18, 2000e18);
+    IActionVerifier.Action memory action = _getSpotTradeAction(10e18, MARKET_REF_SPOT);
 
     vm.prank(signer);
     vm.expectRevert(LeveragedBasisTSA.LBT_PostTradeDeltaOutOfRange.selector);
@@ -26,19 +26,26 @@ contract LevBasisTSA_IntegrationTests is LBTSATestUtils {
     // Open basis position 3 times
     for (uint i = 0; i < 1; i++) {
       // Buy spot
-      _tradeSpot(0.2e18, 2000e18);
+      _tradeSpot(0.2e18, MARKET_REF_SPOT);
 
       // Short perp
-      _tradePerp(-0.2e18, 2000e18);
+      _tradePerp(-0.2e18, MARKET_REF_SPOT);
     }
+
+    LeveragedBasisTSA.TradeHelperVars memory vars = lbtsa.getTradeHelperVars(address(markets[MARKET].perp));
+
+    assertEq(vars.perpPosition, -0.2e18);
+    assertEq(vars.baseBalance, 10.2e18);
+    assertEq(vars.cashBalance, -int(MARKET_REF_SPOT) * 0.2e18 / 1e18);
+    assertEq(vars.underlyingBase, 10e18);
 
     // Close out positions in reverse
     for (uint i = 0; i < 1; i++) {
       // Buy back perp
-      _tradePerp(0.2e18, 2000e18);
+      _tradePerp(0.2e18, MARKET_REF_SPOT);
 
       // Sell spot
-      _tradeSpot(-0.2e18, 2000e18);
+      _tradeSpot(-0.2e18, MARKET_REF_SPOT);
     }
   }
 
@@ -50,12 +57,12 @@ contract LevBasisTSA_IntegrationTests is LBTSATestUtils {
 
     matching.setTradeExecutor(address(executor), true);
 
-    uint price = 2000e18;
+    uint price = MARKET_REF_SPOT;
     int amount = 0.2e18;
 
     bytes memory tradeData = abi.encode(
       ITradeModule.TradeData({
-        asset: address(markets["weth"].base),
+        asset: address(markets[MARKET].base),
         subId: 0,
         limitPrice: int(price),
         desiredAmount: int(amount.abs()),
@@ -67,7 +74,7 @@ contract LevBasisTSA_IntegrationTests is LBTSATestUtils {
 
     bytes memory tradeMaker = abi.encode(
       ITradeModule.TradeData({
-        asset: address(markets["weth"].base),
+        asset: address(markets[MARKET].base),
         subId: 0,
         limitPrice: int(price),
         desiredAmount: int(amount.abs()),

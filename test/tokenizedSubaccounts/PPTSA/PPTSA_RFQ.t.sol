@@ -13,9 +13,11 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
   using DecimalMath for uint;
 
   function setUp() public override {
+    MARKET = "weth";
+
     super.setUp();
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToPPTSA("weth", true, true);
+    deployPredeposit(address(markets[MARKET].erc20));
+    upgradeToPPTSA(MARKET, true, true);
     setupPPTSA();
   }
 
@@ -40,21 +42,21 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // Should fail if the asset is not the option asset
-    makerOrder.trades[0].asset = address(markets["weth"].base);
-    makerOrder.trades[1].asset = address(markets["weth"].base);
+    makerOrder.trades[0].asset = address(markets[MARKET].base);
+    makerOrder.trades[1].asset = address(markets[MARKET].base);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidMakerTradeDetails.selector);
     pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
     // Should fail when the assets between both legs are not the same
-    makerOrder.trades[0].asset = address(markets["weth"].option);
+    makerOrder.trades[0].asset = address(markets[MARKET].option);
     takerOrder.orderHash = keccak256(abi.encode(makerOrder.trades));
     action.data = abi.encode(takerOrder);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidMakerTradeDetails.selector);
     pptsa.signActionData(action, abi.encode(makerOrder.trades));
 
-    makerOrder.trades[1].asset = address(markets["weth"].option);
+    makerOrder.trades[1].asset = address(markets[MARKET].option);
 
     // Should fail with the wrong length of trades (only 1)
     (IRfqModule.RfqOrder memory smallerMakerOrder,) = _setupRfq(amount, price, expiry, strike, price2, strike2, true);
@@ -211,8 +213,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
   }
 
   function testShortSpreadCostToleranceValidations() public {
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToPPTSA("weth", true, false);
+    deployPredeposit(address(markets[MARKET].erc20));
+    upgradeToPPTSA(MARKET, true, false);
     setupPPTSA();
     _depositToTSA(10e18);
     _executeDeposit(10e18);
@@ -323,18 +325,18 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     uint highStrike = 2000e18;
     uint higherPrice = 151e18;
     uint lowStrike = 1600e18;
-    _setForwardPrice("weth", uint64(expiry), 2000e18, 1e18);
-    _setFixedSVIDataForExpiry("weth", uint64(expiry));
+    _setForwardPrice(MARKET, uint64(expiry), 2000e18, 1e18);
+    _setFixedSVIDataForExpiry(MARKET, uint64(expiry));
     IRfqModule.TradeData[] memory trades = new IRfqModule.TradeData[](2);
     trades[0] = IRfqModule.TradeData({
-      asset: address(markets["weth"].option),
+      asset: address(markets[MARKET].option),
       subId: OptionEncoding.toSubId(expiry, lowStrike, true),
       price: higherPrice,
       amount: amount
     });
 
     trades[1] = IRfqModule.TradeData({
-      asset: address(markets["weth"].option),
+      asset: address(markets[MARKET].option),
       subId: OptionEncoding.toSubId(expiry, highStrike, true),
       price: lowerPrice,
       amount: -amount
@@ -461,18 +463,18 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     assertEq(cashBalance, -200e18);
 
     IAllowances.AssetAllowance[] memory assetAllowances = new IAllowances.AssetAllowance[](1);
-    assetAllowances[0] = IAllowances.AssetAllowance({asset: markets["weth"].option, positive: 1e18, negative: 1e18});
+    assetAllowances[0] = IAllowances.AssetAllowance({asset: markets[MARKET].option, positive: 1e18, negative: 1e18});
     vm.prank(address(subAccounts.manager(nonVaultSubacc)));
     subAccounts.setAssetAllowances(nonVaultSubacc, signer, assetAllowances);
 
-    assetAllowances[0] = IAllowances.AssetAllowance({asset: markets["weth"].option, positive: 1e18, negative: 1e18});
+    assetAllowances[0] = IAllowances.AssetAllowance({asset: markets[MARKET].option, positive: 1e18, negative: 1e18});
     vm.prank(address(subAccounts.manager(tsaSubacc)));
     subAccounts.setAssetAllowances(tsaSubacc, signer, assetAllowances);
 
     // transfer some option asset from a non vault account to the vault
     vm.prank(signer);
     ISubAccounts.AssetTransfer memory assetTransfer = ISubAccounts.AssetTransfer({
-      asset: markets["weth"].option,
+      asset: markets[MARKET].option,
       amount: 0.01e18,
       fromAcc: tsaSubacc,
       toAcc: nonVaultSubacc,
@@ -507,8 +509,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     pptsa.setPPTSAParams(defaultPPTSAParams);
 
     vm.warp(block.timestamp + 8 days);
-    _setSettlementPrice("weth", expiry, 2500e18);
-    srm.settleOptions(markets["weth"].option, pptsa.subAccount());
+    _setSettlementPrice(MARKET, expiry, 2500e18);
+    srm.settleOptions(markets[MARKET].option, pptsa.subAccount());
 
     pptsa.setPPTSAParams(defaultPPTSAParams);
   }

@@ -48,9 +48,11 @@ Trading
 
 contract CCTSA_ValidationTests is CCTSATestUtils {
   function setUp() public override {
+    MARKET = "weth";
+
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToCCTSA("weth");
+    upgradeToCCTSA(MARKET);
     setupCCTSA();
     cctsa = CoveredCallTSA(address(tsa));
   }
@@ -254,8 +256,8 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
   function testCanWithdrawFromSubaccountSuccessfully() public {
     // Mint some tokens and approve the TSA contract to spend them
     uint depositAmount = 1e18;
-    markets["weth"].erc20.mint(address(this), depositAmount);
-    markets["weth"].erc20.approve(address(tsa), depositAmount);
+    markets[MARKET].erc20.mint(address(this), depositAmount);
+    markets[MARKET].erc20.approve(address(tsa), depositAmount);
 
     // Initiate and process a deposit
     uint depositId = cctsa.initiateDeposit(depositAmount, address(this));
@@ -270,7 +272,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
     (sc, base, cash) = cctsa.getSubAccountStats();
     assertEq(base, 0.5e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), 0.5e18);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), 0.5e18);
 
     // Process a withdrawal of 1
     cctsa.requestWithdrawal(1e18);
@@ -278,16 +280,16 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     (sc, base, cash) = cctsa.getSubAccountStats();
     // 0.5 still in subaccount
     assertEq(base, 0.5e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), 0);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), 0);
 
     _executeWithdrawal(0.5e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), 0.5e18);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), 0.5e18);
 
     cctsa.processWithdrawalRequests(1);
 
     (sc, base, cash) = cctsa.getSubAccountStats();
     assertEq(base, 0);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), 0);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), 0);
   }
 
   function testRevertsForInvalidWithdrawals() public {
@@ -312,8 +314,8 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
     // Create negative cash in the account
     vm.warp(block.timestamp + 8 days);
-    _setSettlementPrice("weth", expiry, 2500e18);
-    srm.settleOptions(markets["weth"].option, cctsa.subAccount());
+    _setSettlementPrice(MARKET, expiry, 2500e18);
+    srm.settleOptions(markets[MARKET].option, cctsa.subAccount());
 
     (sc, base, cash) = cctsa.getSubAccountStats();
     assertEq(base, 0.8e18);
@@ -357,7 +359,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     cctsa.signActionData(action, "");
 
     tradeData.desiredAmount = 0;
-    tradeData.asset = address(markets["weth"].option);
+    tradeData.asset = address(markets[MARKET].option);
     action.data = abi.encode(tradeData);
 
     vm.prank(signer);
@@ -389,7 +391,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
     // Cant buy more than cash you have
     ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
-      asset: address(markets["weth"].base),
+      asset: address(markets[MARKET].base),
       subId: 0,
       limitPrice: int(2000e18),
       desiredAmount: 0.5e18,
@@ -450,8 +452,8 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     assertEq(cash, 1000e18);
 
     vm.warp(block.timestamp + 8 days);
-    _setSettlementPrice("weth", expiry, 2500e18);
-    srm.settleOptions(markets["weth"].option, cctsa.subAccount());
+    _setSettlementPrice(MARKET, expiry, 2500e18);
+    srm.settleOptions(markets[MARKET].option, cctsa.subAccount());
 
     (sc, base, cash) = cctsa.getSubAccountStats();
 
@@ -469,7 +471,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
     // Cant sell more than you have
     ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
-      asset: address(markets["weth"].base),
+      asset: address(markets[MARKET].base),
       subId: 0,
       limitPrice: int(2500e18),
       desiredAmount: 0.5e18,
@@ -533,7 +535,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     assertEq(cash, 800e18);
 
     ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
-      asset: address(markets["weth"].option),
+      asset: address(markets[MARKET].option),
       subId: OptionEncoding.toSubId(expiry, 2200e18, true),
       limitPrice: int(100e18),
       desiredAmount: 2e18,
@@ -625,10 +627,10 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
     // Create negative cash in the account
     vm.warp(block.timestamp + 8 days);
-    _setSettlementPrice("weth", expiry, 2500e18);
-    srm.settleOptions(markets["weth"].option, cctsa.subAccount());
+    _setSettlementPrice(MARKET, expiry, 2500e18);
+    srm.settleOptions(markets[MARKET].option, cctsa.subAccount());
     ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
-      asset: address(markets["weth"].option),
+      asset: address(markets[MARKET].option),
       subId: OptionEncoding.toSubId(expiry, 2200e18, true),
       limitPrice: int(100e18),
       desiredAmount: int(1e18),
@@ -660,7 +662,7 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
     // Create negative cash in the account
     ITradeModule.TradeData memory tradeData = ITradeModule.TradeData({
-      asset: address(markets["weth"].option),
+      asset: address(markets[MARKET].option),
       subId: OptionEncoding.toSubId(expiry, 2200e18, true),
       limitPrice: int(100e18),
       desiredAmount: int(1e18),
@@ -688,8 +690,8 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
     tradeData.worstFee = 2000e18;
     action.data = abi.encode(tradeData);
 
-    _setForwardPrice("weth", uint64(expiry), 2000e18, 1e18);
-    _setFixedSVIDataForExpiry("weth", uint64(expiry));
+    _setForwardPrice(MARKET, uint64(expiry), 2000e18, 1e18);
+    _setFixedSVIDataForExpiry(MARKET, uint64(expiry));
 
     vm.prank(signer);
     vm.expectRevert(CollateralManagementTSA.CMTSA_FeeTooHigh.selector);

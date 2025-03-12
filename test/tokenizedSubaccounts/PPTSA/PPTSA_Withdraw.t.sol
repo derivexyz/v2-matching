@@ -13,8 +13,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
   function setUp() public override {
     super.setUp();
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToPPTSA("weth", true, true);
+    deployPredeposit(address(markets[MARKET].erc20));
+    upgradeToPPTSA(MARKET, true, true);
     setupPPTSA();
   }
 
@@ -45,8 +45,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     pptsa.signActionData(action, "");
 
     vm.warp(block.timestamp + 8 days);
-    _setSettlementPrice("weth", uint64(expiry), 1500e18);
-    srm.settleOptions(markets["weth"].option, pptsa.subAccount());
+    _setSettlementPrice(MARKET, uint64(expiry), 1500e18);
+    srm.settleOptions(markets[MARKET].option, pptsa.subAccount());
 
     vm.startPrank(signer);
     // now try to withdraw all of the base asset. Should fail
@@ -73,7 +73,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     cash.withdraw(tsaSubacc, 10_000e6, address(1234));
 
     vm.warp(block.timestamp + 1);
-    _setSpotPrice("weth", 0, 1e18);
+    _setSpotPrice(MARKET, 0, 1e18);
     auction.startAuction(tsaSubacc, 0);
 
     // cant act while in auction
@@ -93,7 +93,7 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     usdc.mint(address(cash), 1e18);
     cash.disableWithdrawFee();
     vm.warp(block.timestamp + 1);
-    _setSpotPrice("weth", 200_000e18, 1e18);
+    _setSpotPrice(MARKET, 200_000e18, 1e18);
     auction.terminateAuction(tsaSubacc);
 
     // half of base has been auctioned off, and we still have half negative cash
@@ -123,11 +123,11 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     ppTSA.setShareKeeper(address(this), true);
 
     // send some weth to the tsa to make sure it fail insolvency checks
-    vm.prank(address(markets["weth"].base));
+    vm.prank(address(markets[MARKET].base));
     subAccounts.assetAdjustment(
       ISubAccounts.AssetAdjustment({
         acc: tsaSubacc,
-        asset: markets["weth"].base,
+        asset: markets[MARKET].base,
         subId: 0,
         amount: 10e18,
         assetData: bytes32(0)

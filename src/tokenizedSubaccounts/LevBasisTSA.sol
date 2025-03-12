@@ -122,7 +122,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     address initialOwner,
     BaseTSA.BaseTSAInitParams memory initParams,
     LBTSAInitParams memory lbInitParams
-  ) external reinitializer(1) {
+  ) external reinitializer(3) {
     __BaseTSA_init(initialOwner, initParams);
 
     LBTSAStorage storage $ = _getLBTSAStorage();
@@ -143,7 +143,6 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   ///////////
   function setLBTSAParams(LBTSAParams memory lbtsaParams) external onlyOwner {
     if (
-      // Note: because of atomic singing, these can be very low. Signatures might come in last second.
       lbtsaParams.maxPerpFee > 0.01e18 // Max 1% fee
         || lbtsaParams.deltaFloor > 1e18 || lbtsaParams.deltaCeil < 1e18 // 1 delta is always allowed
         || lbtsaParams.leverageCeil < lbtsaParams.leverageFloor || lbtsaParams.leverageCeil > 5e18 // Must be > floor
@@ -151,6 +150,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
         || lbtsaParams.markLossEmaTarget > 0.5e18 // Max param 50%
         || lbtsaParams.maxBaseLossPerBase < 0 || lbtsaParams.maxBaseLossPerBase > 0.1e18 // 0-10%
         || lbtsaParams.maxBaseLossPerPerp < 0 || lbtsaParams.maxBaseLossPerPerp > 0.1e18 // 0-10%
+        // Note: because of atomic singing, these can be very low. Signatures might come in last second.
         || lbtsaParams.minSignatureExpiry > lbtsaParams.maxSignatureExpiry
     ) {
       revert LBT_InvalidParams();
@@ -166,11 +166,12 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     override
     onlyOwner
   {
+    // Note, only the feeFactor is used in the LevBasisTSA
     if (
-      newCollateralMgmtParams.worstSpotBuyPrice < 1e18 || newCollateralMgmtParams.worstSpotBuyPrice > 1.2e18
-        || newCollateralMgmtParams.worstSpotSellPrice > 1e18 || newCollateralMgmtParams.worstSpotSellPrice < 0.8e18
-        || newCollateralMgmtParams.spotTransactionLeniency < 1e18
-        || newCollateralMgmtParams.spotTransactionLeniency > 1.2e18 || newCollateralMgmtParams.feeFactor > 0.05e18
+      newCollateralMgmtParams.spotTransactionLeniency != 0
+        || newCollateralMgmtParams.worstSpotSellPrice != 0
+        || newCollateralMgmtParams.worstSpotBuyPrice != 0
+        || newCollateralMgmtParams.feeFactor > 0.05e18
     ) {
       revert LBT_InvalidParams();
     }
@@ -282,7 +283,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     tradeHelperVars.basePrice = _getBasePrice();
     tradeHelperVars.perpPrice = _getPerpPrice();
     (tradeHelperVars.perpPosition, tradeHelperVars.baseBalance, tradeHelperVars.cashBalance) = _getSubAccountStats();
-    tradeHelperVars.underlyingBase = _getConvertedMtM();
+    tradeHelperVars.underlyingBase = _getConvertedMtM(false);
   }
 
   function _verifyTradeDelta(TradeHelperVars memory tradeHelperVars, int amtDelta, bool isWithdrawal) internal view {

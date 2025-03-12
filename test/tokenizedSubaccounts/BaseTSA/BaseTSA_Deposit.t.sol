@@ -18,19 +18,19 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToCCTSA("weth");
+    upgradeToCCTSA(MARKET);
     setupCCTSA();
   }
 
   function testMessyDeposits() public {
-    markets["weth"].erc20.mint(address(this), 10e18);
-    markets["weth"].erc20.approve(address(tsa), 10e18);
+    markets[MARKET].erc20.mint(address(this), 10e18);
+    markets[MARKET].erc20.approve(address(tsa), 10e18);
     uint depositId = cctsa.initiateDeposit(1e18, address(this));
     cctsa.processDeposit(depositId);
     assertEq(cctsa.balanceOf(address(this)), 1e18);
     _executeDeposit(0.8e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), 0.2e18);
-    assertEq(subAccounts.getBalance(cctsa.subAccount(), markets["weth"].base, 0), 0.8e18);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), 0.2e18);
+    assertEq(subAccounts.getBalance(cctsa.subAccount(), markets[MARKET].base, 0), 0.8e18);
     depositId = cctsa.initiateDeposit(1e18, address(this));
     cctsa.processDeposit(depositId);
     assertEq(cctsa.balanceOf(address(this)), 2e18);
@@ -46,8 +46,8 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     // Mint some tokens and approve the TSA contract to spend them
     uint depositAmount = 1e18;
     uint numDeposits = 5;
-    markets["weth"].erc20.mint(address(this), depositAmount * numDeposits);
-    markets["weth"].erc20.approve(address(tsa), depositAmount * numDeposits);
+    markets[MARKET].erc20.mint(address(this), depositAmount * numDeposits);
+    markets[MARKET].erc20.approve(address(tsa), depositAmount * numDeposits);
 
     uint[] memory depositIds = new uint[](numDeposits);
     // Initiate and process multiple deposits
@@ -57,7 +57,7 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
 
     // Check state is as expected
     assertEq(cctsa.balanceOf(address(this)), 0);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount * numDeposits);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), depositAmount * numDeposits);
 
     for (uint i = 0; i < numDeposits; i++) {
       BaseTSA.DepositRequest memory depReq = cctsa.queuedDeposit(depositIds[i]);
@@ -85,8 +85,8 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     // Mint some tokens and approve the TSA contract to spend them
     uint depositAmount = 1e18;
     uint numDeposits = 5;
-    markets["weth"].erc20.mint(address(this), depositAmount * numDeposits);
-    markets["weth"].erc20.approve(address(tsa), depositAmount * numDeposits);
+    markets[MARKET].erc20.mint(address(this), depositAmount * numDeposits);
+    markets[MARKET].erc20.approve(address(tsa), depositAmount * numDeposits);
 
     uint[] memory depositIds = new uint[](numDeposits);
     // Initiate and process multiple deposits
@@ -97,7 +97,7 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     // Check state is as expected
     assertEq(cctsa.balanceOf(address(this)), 0);
     assertEq(cctsa.totalPendingDeposits(), depositAmount * numDeposits);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount * numDeposits);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), depositAmount * numDeposits);
     assertEq(cctsa.getNumShares(1e18), 1e18);
     assertEq(cctsa.getSharesValue(1e18), 1e18);
 
@@ -128,7 +128,7 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     assertEq(cctsa.getSharesValue(1e18), 1e18);
 
     // Double the value of the pool
-    markets["weth"].erc20.mint(address(tsa), depositAmount * 2);
+    markets[MARKET].erc20.mint(address(tsa), depositAmount * 2);
 
     assertEq(cctsa.getNumShares(1e18), 0.5e18);
     assertEq(cctsa.getSharesValue(1e18), 2e18);
@@ -148,7 +148,7 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     assertEq(cctsa.balanceOf(address(this)), depositAmount * 3, "Share balance");
 
     // Double the value of the pool (has 6)
-    markets["weth"].erc20.mint(address(tsa), depositAmount * 6);
+    markets[MARKET].erc20.mint(address(tsa), depositAmount * 6);
 
     cctsa.processDeposit(depositIds[4]);
 
@@ -164,8 +164,8 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
   function testDepositsAreBlockedWhenThereIsALiquidation() public {
     // Mint some tokens and approve the TSA contract to spend them
     uint depositAmount = 1e18;
-    markets["weth"].erc20.mint(address(this), depositAmount);
-    markets["weth"].erc20.approve(address(tsa), depositAmount);
+    markets[MARKET].erc20.mint(address(this), depositAmount);
+    markets[MARKET].erc20.approve(address(tsa), depositAmount);
 
     // Initiate a deposit
     uint depositId = cctsa.initiateDeposit(depositAmount, address(this));
@@ -173,7 +173,7 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     // Check state is as expected
     assertEq(cctsa.balanceOf(address(this)), 0);
     assertEq(cctsa.totalPendingDeposits(), depositAmount);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), depositAmount);
 
     // Create an insolvent auction
     uint liquidationId = _createInsolventAuction();
@@ -186,14 +186,14 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     // Check state is as expected
     assertEq(cctsa.balanceOf(address(this)), 0);
     assertEq(cctsa.totalPendingDeposits(), depositAmount);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), depositAmount);
   }
 
   function testDepositsCannotBeProcessedIfTheyAreAlreadyProcessed() public {
     // Mint some tokens and approve the TSA contract to spend them
     uint depositAmount = 1e18;
-    markets["weth"].erc20.mint(address(this), depositAmount);
-    markets["weth"].erc20.approve(address(tsa), depositAmount);
+    markets[MARKET].erc20.mint(address(this), depositAmount);
+    markets[MARKET].erc20.approve(address(tsa), depositAmount);
 
     // Initiate a deposit
     uint depositId = cctsa.initiateDeposit(depositAmount, address(this));
@@ -201,7 +201,7 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     // Check state is as expected
     assertEq(cctsa.balanceOf(address(this)), 0);
     assertEq(cctsa.totalPendingDeposits(), depositAmount);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), depositAmount);
 
     // Process the deposit
     cctsa.processDeposit(depositId);
@@ -209,7 +209,7 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
     // Check state is as expected
     assertEq(cctsa.balanceOf(address(this)), depositAmount);
     assertEq(cctsa.totalPendingDeposits(), 0);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), depositAmount);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), depositAmount);
 
     // Try to process the deposit again
     vm.expectRevert(BaseTSA.BTSA_DepositAlreadyProcessed.selector);
@@ -219,8 +219,8 @@ contract CCTSA_BaseTSA_DepositTests is CCTSATestUtils {
   function testDepositsQueueFailureReasons() public {
     // Mint some tokens and approve the TSA contract to spend them
     uint depositAmount = 1e18;
-    markets["weth"].erc20.mint(address(this), depositAmount);
-    markets["weth"].erc20.approve(address(tsa), depositAmount);
+    markets[MARKET].erc20.mint(address(this), depositAmount);
+    markets[MARKET].erc20.approve(address(tsa), depositAmount);
 
     BaseTSA.TSAParams memory params = cctsa.getTSAParams();
 

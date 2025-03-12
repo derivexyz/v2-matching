@@ -10,8 +10,8 @@ contract PPTSA_Admin is PPTSATestUtils {
 
   function setUp() public override {
     super.setUp();
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToPPTSA("weth", true, true);
+    deployPredeposit(address(markets[MARKET].erc20));
+    upgradeToPPTSA(MARKET, true, true);
     setupPPTSA();
   }
 

@@ -27,24 +27,24 @@ contract DeployLBTSA is Utils {
 
   LeveragedBasisTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
   .CollateralManagementParams({
-    feeFactor: 0.01e17,
-    spotTransactionLeniency: 1.01e18,
-    worstSpotSellPrice: 0.985e18,
-    worstSpotBuyPrice: 1.015e18
+    feeFactor: 0.01e18,
+    spotTransactionLeniency: 0,
+    worstSpotSellPrice: 0,
+    worstSpotBuyPrice: 0
   });
 
   LeveragedBasisTSA.LBTSAParams public defaultLbtsaTSAParams = LeveragedBasisTSA.LBTSAParams({
     maxPerpFee: 0.01e18,
     maxBaseLossPerBase: 0.02e18,
     maxBaseLossPerPerp: 0.02e18,
-    deltaFloor: 0.5e18,
-    deltaCeil: 1.5e18,
-    leverageFloor: 0.9e18,
-    leverageCeil: 3e18,
+    deltaFloor: 0.7e18,
+    deltaCeil: 1.3e18,
+    leverageFloor: 0.95e18,
+    leverageCeil: 3.05e18,
     emaDecayFactor: 0.0002e18,
-    markLossEmaTarget: 0.02e18,
-    minSignatureExpiry: 60,
-    maxSignatureExpiry: 60 * 60 * 24 * 7
+    markLossEmaTarget: 0.015e18,
+    minSignatureExpiry: 0,
+    maxSignatureExpiry: 30 minutes
   });
 
   /// @dev main function
@@ -99,7 +99,7 @@ contract DeployLBTSA is Utils {
         depositCap: 10000000e18,
         minDepositValue: 0,
         depositScale: 1e18,
-      // slight withdrawal fee
+        // slight withdrawal fee
         withdrawScale: 0.998e18,
         managementFee: 0,
         feeRecipient: address(0)

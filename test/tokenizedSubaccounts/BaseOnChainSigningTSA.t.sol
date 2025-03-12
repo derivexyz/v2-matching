@@ -16,7 +16,7 @@ contract CCTSA_BaseOnChainSigningTSATests is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToCCTSA("weth");
+    upgradeToCCTSA(MARKET);
     setupCCTSA();
     _depositToTSA(1e18);
   }
