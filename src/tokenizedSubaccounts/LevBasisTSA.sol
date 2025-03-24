@@ -122,7 +122,7 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     address initialOwner,
     BaseTSA.BaseTSAInitParams memory initParams,
     LBTSAInitParams memory lbInitParams
-  ) external reinitializer(3) {
+  ) external reinitializer(5) {
     __BaseTSA_init(initialOwner, initParams);
 
     LBTSAStorage storage $ = _getLBTSAStorage();
@@ -143,14 +143,14 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   ///////////
   function setLBTSAParams(LBTSAParams memory lbtsaParams) external onlyOwner {
     if (
+      // Note: because of atomic singing, signature expiry can be very low. Signatures might come in last second.
       lbtsaParams.maxPerpFee > 0.01e18 // Max 1% fee
         || lbtsaParams.deltaFloor > 1e18 || lbtsaParams.deltaCeil < 1e18 // 1 delta is always allowed
-        || lbtsaParams.leverageCeil < lbtsaParams.leverageFloor || lbtsaParams.leverageCeil > 5e18 // Must be > floor
+        || lbtsaParams.leverageCeil <= lbtsaParams.leverageFloor || lbtsaParams.leverageCeil > 5e18 // Must be > floor
         || lbtsaParams.emaDecayFactor == 0 // Must be non-zero
         || lbtsaParams.markLossEmaTarget > 0.5e18 // Max param 50%
         || lbtsaParams.maxBaseLossPerBase < 0 || lbtsaParams.maxBaseLossPerBase > 0.1e18 // 0-10%
         || lbtsaParams.maxBaseLossPerPerp < 0 || lbtsaParams.maxBaseLossPerPerp > 0.1e18 // 0-10%
-        // Note: because of atomic singing, these can be very low. Signatures might come in last second.
         || lbtsaParams.minSignatureExpiry > lbtsaParams.maxSignatureExpiry
     ) {
       revert LBT_InvalidParams();
@@ -168,10 +168,8 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
   {
     // Note, only the feeFactor is used in the LevBasisTSA
     if (
-      newCollateralMgmtParams.spotTransactionLeniency != 0
-        || newCollateralMgmtParams.worstSpotSellPrice != 0
-        || newCollateralMgmtParams.worstSpotBuyPrice != 0
-        || newCollateralMgmtParams.feeFactor > 0.05e18
+      newCollateralMgmtParams.spotTransactionLeniency != 0 || newCollateralMgmtParams.worstSpotSellPrice != 0
+        || newCollateralMgmtParams.worstSpotBuyPrice != 0 || newCollateralMgmtParams.feeFactor > 0.05e18
     ) {
       revert LBT_InvalidParams();
     }

@@ -15,6 +15,8 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     bool signaturesDisabled;
     mapping(address => bool) signers;
     mapping(bytes32 => bool) signedData;
+    /// @dev Submitters are allowed to submit actions on behalf of the TSA, only with a signature from a signer
+    mapping(address => bool) submitters;
   }
 
   // keccak256(abi.encode(uint256(keccak256("lyra.storage.BaseOnChainSigningTSA")) - 1)) & ~bytes32(uint256(0xff))
@@ -42,6 +44,12 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     emit SignaturesDisabledUpdated(disabled);
   }
 
+  function setSubmitter(address submitter, bool _isSubmitter) external onlyOwner {
+    _getBaseSigningTSAStorage().submitters[submitter] = _isSubmitter;
+
+    emit SubmitterUpdated(submitter, _isSubmitter);
+  }
+
   /////////////
   // Signing //
   /////////////
@@ -53,6 +61,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   function signActionViaPermit(IMatching.Action memory action, bytes memory extraData, bytes memory signerSig)
     external
     virtual
+    onlySubmitters
   {
     bytes32 hash = getActionTypedDataHash(action);
 
@@ -147,10 +156,18 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     _;
   }
 
+  modifier onlySubmitters() {
+    if (!_getBaseSigningTSAStorage().submitters[msg.sender]) {
+      revert BOCST_OnlySigner();
+    }
+    _;
+  }
+
   ///////////////////
   // Events/Errors //
   ///////////////////
   event SignerUpdated(address indexed signer, bool isSigner);
+  event SubmitterUpdated(address indexed submitter, bool isSubmitter);
   event SignaturesDisabledUpdated(bool enabled);
 
   event ActionSigned(address indexed signer, bytes32 indexed hash, IMatching.Action action);

@@ -302,7 +302,6 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
       }
 
       if (totalBalance < requiredAmount) {
-
         // withdraw a portion
         uint withdrawAmount = totalBalance;
         uint difference = requiredAmount - withdrawAmount;

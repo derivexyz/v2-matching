@@ -59,8 +59,7 @@ contract CCTSA_BaseTSA_WithdrawalTests is CCTSATestUtils {
   }
 
   function testWithdrawalReverts() public {
-
-    _depositToTSA( 1000 * MARKET_UNIT);
+    _depositToTSA(1000 * MARKET_UNIT);
 
     // withdrawals are blocked when there is a liquidation
     uint w1 = cctsa.requestWithdrawal(100 * MARKET_UNIT);

@@ -26,7 +26,7 @@ abstract contract CollateralManagementTSA is BaseOnChainSigningTSA {
     int spotTransactionLeniency;
     /// @dev Percentage of spot price that the TSA will sell baseAsset at in the worst case (e.g. 0.98e18)
     uint worstSpotSellPrice;
-    /// @dev Percentage of spot price that the TSA will sell baseAsset at in the worst case (e.g. 0.98e18)
+    /// @dev Percentage of spot price that the TSA will buy baseAsset at in the worst case (e.g. 1.02e18)
     uint worstSpotBuyPrice;
   }
 

@@ -56,6 +56,7 @@ contract LevBasisTSA_IntegrationTests is LBTSATestUtils {
     AtomicSigningExecutor executor = new AtomicSigningExecutor(matching);
 
     matching.setTradeExecutor(address(executor), true);
+    lbtsa.setSubmitter(address(executor), true);
 
     uint price = MARKET_REF_SPOT;
     int amount = 0.2e18;
