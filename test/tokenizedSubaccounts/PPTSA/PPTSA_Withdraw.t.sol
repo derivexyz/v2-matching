@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "../TSATestUtils.sol";
+import "../utils/PPTSATestUtils.sol";
 
 import {SignedMath} from "openzeppelin/utils/math/SignedMath.sol";
 import "lyra-utils/decimals/SignedDecimalMath.sol";
@@ -13,8 +13,8 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
   function setUp() public override {
     super.setUp();
-    deployPredeposit(address(markets["weth"].erc20));
-    upgradeToPPTSA("weth", true, true);
+    deployPredeposit(address(markets[MARKET].erc20));
+    upgradeToPPTSA(MARKET, true, true);
     setupPPTSA();
   }
 
@@ -25,12 +25,12 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     // correctly verifies withdrawal actions.
     IActionVerifier.Action memory action = _createWithdrawalAction(3e18);
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidBaseBalance.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     // reverts for invalid assets.
     action.data = _encodeWithdrawData(3e18, address(11111));
     vm.expectRevert(PrincipalProtectedTSA.PPT_InvalidAsset.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     vm.stopPrank();
 
@@ -42,21 +42,21 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     action = _createWithdrawalAction(3e18);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_WithdrawingWithOpenTrades.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     vm.warp(block.timestamp + 8 days);
-    _setSettlementPrice("weth", uint64(expiry), 1500e18);
-    srm.settleOptions(markets["weth"].option, tsa.subAccount());
+    _setSettlementPrice(MARKET, uint64(expiry), 1500e18);
+    srm.settleOptions(markets[MARKET].option, pptsa.subAccount());
 
     vm.startPrank(signer);
     // now try to withdraw all of the base asset. Should fail
     action = _createWithdrawalAction(3e18);
     vm.expectRevert(PrincipalProtectedTSA.PPT_WithdrawingUtilisedCollateral.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     // now try to a small 5% of the base asset. Should pass
     action = _createWithdrawalAction(0.15e18);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     vm.stopPrank();
   }
@@ -73,14 +73,14 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     cash.withdraw(tsaSubacc, 10_000e6, address(1234));
 
     vm.warp(block.timestamp + 1);
-    _setSpotPrice("weth", 0, 1e18);
+    _setSpotPrice(MARKET, 0, 1e18);
     auction.startAuction(tsaSubacc, 0);
 
     // cant act while in auction
     IActionVerifier.Action memory action = _createWithdrawalAction(3e18);
     vm.prank(signer);
     vm.expectRevert(BaseTSA.BTSA_Blocked.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
 
     // clear auction and have half of assets auctioned off
     uint newSubacc = subAccounts.createAccount(address(this), srm);
@@ -93,26 +93,26 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     usdc.mint(address(cash), 1e18);
     cash.disableWithdrawFee();
     vm.warp(block.timestamp + 1);
-    _setSpotPrice("weth", 200_000e18, 1e18);
+    _setSpotPrice(MARKET, 200_000e18, 1e18);
     auction.terminateAuction(tsaSubacc);
 
     // half of base has been auctioned off, and we still have half negative cash
     int borrowInterestRate = int(mockModel.getBorrowInterestFactor(0, 0));
-    (, uint base, int cashBalance) = tsa.getSubAccountStats();
+    (, uint base, int cashBalance) = pptsa.getSubAccountStats();
     assertEq(base, 10e18);
     // dividing by interest rate to ignore interest accrued.
     assertEq(cashBalance.divideDecimal(1e18 + borrowInterestRate), -5_000e18);
 
     // assert can still do withdrawals, but not too large
     _executeWithdrawal(1e18);
-    (, base,) = tsa.getSubAccountStats();
+    (, base,) = pptsa.getSubAccountStats();
     assertEq(base, 9e18);
 
     // try to withdraw too much
     action = _createWithdrawalAction(9e18);
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_WithdrawingUtilisedCollateral.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
   }
 
   function testPPTCannotWithdrawWithNegativeBaseBalance() public {
@@ -123,11 +123,11 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
     ppTSA.setShareKeeper(address(this), true);
 
     // send some weth to the tsa to make sure it fail insolvency checks
-    vm.prank(address(markets["weth"].base));
+    vm.prank(address(markets[MARKET].base));
     subAccounts.assetAdjustment(
       ISubAccounts.AssetAdjustment({
         acc: tsaSubacc,
-        asset: markets["weth"].base,
+        asset: markets[MARKET].base,
         subId: 0,
         amount: 10e18,
         assetData: bytes32(0)
@@ -151,6 +151,6 @@ contract PPTSA_ValidationTests is PPTSATestUtils {
 
     vm.prank(signer);
     vm.expectRevert(PrincipalProtectedTSA.PPT_NegativeBaseBalance.selector);
-    tsa.signActionData(action, "");
+    pptsa.signActionData(action, "");
   }
 }

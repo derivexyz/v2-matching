@@ -15,6 +15,8 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     bool signaturesDisabled;
     mapping(address => bool) signers;
     mapping(bytes32 => bool) signedData;
+    /// @dev Submitters are allowed to submit actions on behalf of the TSA, only with a signature from a signer
+    mapping(address => bool) submitters;
   }
 
   // keccak256(abi.encode(uint256(keccak256("lyra.storage.BaseOnChainSigningTSA")) - 1)) & ~bytes32(uint256(0xff))
@@ -42,11 +44,35 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     emit SignaturesDisabledUpdated(disabled);
   }
 
+  function setSubmitter(address submitter, bool _isSubmitter) external onlyOwner {
+    _getBaseSigningTSAStorage().submitters[submitter] = _isSubmitter;
+
+    emit SubmitterUpdated(submitter, _isSubmitter);
+  }
+
   /////////////
   // Signing //
   /////////////
 
   function signActionData(IMatching.Action memory action, bytes memory extraData) external virtual onlySigner {
+    _signActionData(action, extraData);
+  }
+
+  function signActionViaPermit(IMatching.Action memory action, bytes memory extraData, bytes memory signerSig)
+    external
+    virtual
+    onlySubmitters
+  {
+    bytes32 hash = getActionTypedDataHash(action);
+
+    (address recovered, ECDSA.RecoverError error) = ECDSA.tryRecover(hash, signerSig);
+    require(error == ECDSA.RecoverError.NoError && _getBaseSigningTSAStorage().signers[recovered], "Invalid signature");
+
+    // require signerSig is a valid signature of signer on hash
+    _signActionData(action, extraData);
+  }
+
+  function _signActionData(IMatching.Action memory action, bytes memory extraData) internal {
     bytes32 hash = getActionTypedDataHash(action);
 
     if (action.signer != address(this)) {
@@ -55,7 +81,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     _verifyAction(action, hash, extraData);
     _getBaseSigningTSAStorage().signedData[hash] = true;
 
-    emit ActionSigned(msg.sender, hash, action);
+    emit ActionSigned(action.signer, hash, action);
   }
 
   function revokeActionSignature(IMatching.Action memory action) external virtual onlySigner {
@@ -130,10 +156,18 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     _;
   }
 
+  modifier onlySubmitters() {
+    if (!_getBaseSigningTSAStorage().submitters[msg.sender]) {
+      revert BOCST_OnlySigner();
+    }
+    _;
+  }
+
   ///////////////////
   // Events/Errors //
   ///////////////////
   event SignerUpdated(address indexed signer, bool isSigner);
+  event SubmitterUpdated(address indexed submitter, bool isSubmitter);
   event SignaturesDisabledUpdated(bool enabled);
 
   event ActionSigned(address indexed signer, bytes32 indexed hash, IMatching.Action action);

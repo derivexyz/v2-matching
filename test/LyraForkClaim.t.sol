@@ -1,4 +1,4 @@
-pragma solidity 0.8.20;
+pragma solidity ^0.8.20;
 
 import "forge-std/console.sol";
 import "v2-core/scripts/types.sol";
@@ -28,14 +28,5 @@ contract LyraForkClaim is ForkBase {
       address(0x7499d654422023a407d92e1D83D387d81BC68De1),
       hex"7cbc23730000000000000000000000000000000000000000000000964ac76731fcf800000000000000000000000000000000000000000000000000000000000000000000"
     );
-  }
-
-  function _call(address target, bytes memory data) internal returns (bytes memory) {
-    console.log(target);
-    console.log(",");
-    console.logBytes(data);
-    (bool success, bytes memory result) = target.call(data);
-    require(success, "call failed");
-    return result;
   }
 }

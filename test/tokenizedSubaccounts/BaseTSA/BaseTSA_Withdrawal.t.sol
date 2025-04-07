@@ -1,6 +1,6 @@
 pragma solidity ^0.8.18;
 
-import "../TSATestUtils.sol";
+import "../utils/CCTSATestUtils.sol";
 /*
 Withdrawals:
 - ✅withdrawals are processed sequentially
@@ -20,57 +20,57 @@ contract CCTSA_BaseTSA_WithdrawalTests is CCTSATestUtils {
   function setUp() public override {
     super.setUp();
     deployPredeposit(address(0));
-    upgradeToCCTSA("weth");
+    upgradeToCCTSA(MARKET);
     setupCCTSA();
   }
 
   function testWithdrawals() public {
-    _depositToTSA(1000e18);
+    _depositToTSA(1000 * MARKET_UNIT);
 
     // withdrawals are processed sequentially
 
-    tsa.requestWithdrawal(100e18);
-    tsa.requestWithdrawal(200e18);
-    tsa.requestWithdrawal(300e18);
+    cctsa.requestWithdrawal(100 * MARKET_UNIT);
+    cctsa.requestWithdrawal(200 * MARKET_UNIT);
+    cctsa.requestWithdrawal(300 * MARKET_UNIT);
 
     // totalSupply includes pending withdrawals
-    assertEq(tsa.totalPendingWithdrawals(), 600e18);
-    assertEq(tsa.totalSupply(), 1000e18);
-    assertEq(tsa.balanceOf(address(this)), 400e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 0);
+    assertEq(cctsa.totalPendingWithdrawals(), 600 * MARKET_UNIT);
+    assertEq(cctsa.totalSupply(), 1000 * MARKET_UNIT);
+    assertEq(cctsa.balanceOf(address(this)), 400 * MARKET_UNIT);
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 0);
 
-    tsa.processWithdrawalRequests(1);
-    assertEq(tsa.totalPendingWithdrawals(), 500e18);
-    assertEq(tsa.totalSupply(), 900e18);
-    assertEq(tsa.balanceOf(address(this)), 400e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 100e18);
+    cctsa.processWithdrawalRequests(1);
+    assertEq(cctsa.totalPendingWithdrawals(), 500 * MARKET_UNIT);
+    assertEq(cctsa.totalSupply(), 900 * MARKET_UNIT);
+    assertEq(cctsa.balanceOf(address(this)), 400 * MARKET_UNIT);
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 100 * MARKET_UNIT);
 
-    tsa.processWithdrawalRequests(1);
-    assertEq(tsa.totalPendingWithdrawals(), 300e18);
-    assertEq(tsa.totalSupply(), 700e18);
-    assertEq(tsa.balanceOf(address(this)), 400e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 300e18);
+    cctsa.processWithdrawalRequests(1);
+    assertEq(cctsa.totalPendingWithdrawals(), 300 * MARKET_UNIT);
+    assertEq(cctsa.totalSupply(), 700 * MARKET_UNIT);
+    assertEq(cctsa.balanceOf(address(this)), 400 * MARKET_UNIT);
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 300 * MARKET_UNIT);
 
-    tsa.processWithdrawalRequests(1);
-    assertEq(tsa.totalPendingWithdrawals(), 0);
-    assertEq(tsa.totalSupply(), 400e18);
-    assertEq(tsa.balanceOf(address(this)), 400e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 600e18);
+    cctsa.processWithdrawalRequests(1);
+    assertEq(cctsa.totalPendingWithdrawals(), 0);
+    assertEq(cctsa.totalSupply(), 400 * MARKET_UNIT);
+    assertEq(cctsa.balanceOf(address(this)), 400 * MARKET_UNIT);
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 600 * MARKET_UNIT);
   }
 
   function testWithdrawalReverts() public {
-    _depositToTSA(1000e18);
+    _depositToTSA(1000 * MARKET_UNIT);
 
     // withdrawals are blocked when there is a liquidation
-    uint w1 = tsa.requestWithdrawal(100e18);
-    uint w2 = tsa.requestWithdrawal(200e18);
-    uint w3 = tsa.requestWithdrawal(300e18);
+    uint w1 = cctsa.requestWithdrawal(100 * MARKET_UNIT);
+    uint w2 = cctsa.requestWithdrawal(200 * MARKET_UNIT);
+    uint w3 = cctsa.requestWithdrawal(300 * MARKET_UNIT);
 
     uint auctionId = _createInsolventAuction();
     assertTrue(auction.getIsWithdrawBlocked());
 
     vm.expectRevert(BaseTSA.BTSA_Blocked.selector);
-    tsa.processWithdrawalRequests(1);
+    cctsa.processWithdrawalRequests(1);
 
     // clear auction
     _clearAuction(auctionId);
@@ -78,135 +78,135 @@ contract CCTSA_BaseTSA_WithdrawalTests is CCTSATestUtils {
     // only shareKeeper can process withdrawals before the withdrawal delay
     vm.prank(address(0xaa));
     vm.expectRevert(BaseTSA.BTSA_OnlyShareKeeper.selector);
-    tsa.processWithdrawalRequests(1);
+    cctsa.processWithdrawalRequests(1);
 
     // nothing happened, check state
-    assertEq(tsa.totalPendingWithdrawals(), 600e18);
-    assertEq(tsa.totalSupply(), 1000e18);
-    assertEq(tsa.balanceOf(address(this)), 400e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 0);
+    assertEq(cctsa.totalPendingWithdrawals(), 600 * MARKET_UNIT);
+    assertEq(cctsa.totalSupply(), 1000 * MARKET_UNIT);
+    assertEq(cctsa.balanceOf(address(this)), 400 * MARKET_UNIT);
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 0);
 
-    tsa.processWithdrawalRequests(1);
+    cctsa.processWithdrawalRequests(1);
 
     // check state
-    assertEq(tsa.totalPendingWithdrawals(), 500e18);
-    assertEq(tsa.totalSupply(), 900e18);
-    assertEq(tsa.balanceOf(address(this)), 400e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 100e18);
+    assertEq(cctsa.totalPendingWithdrawals(), 500 * MARKET_UNIT);
+    assertEq(cctsa.totalSupply(), 900 * MARKET_UNIT);
+    assertEq(cctsa.balanceOf(address(this)), 400 * MARKET_UNIT);
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 100 * MARKET_UNIT);
 
     // cannot be processed if no funds available for withdraw
-    _executeDeposit(900e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(tsa)), 0);
+    _executeDeposit(900 * MARKET_UNIT);
+    assertEq(markets[MARKET].erc20.balanceOf(address(tsa)), 0);
 
-    tsa.processWithdrawalRequests(1);
+    cctsa.processWithdrawalRequests(1);
 
     // check state
-    assertEq(tsa.totalPendingWithdrawals(), 500e18);
-    assertEq(tsa.totalSupply(), 900e18);
-    assertEq(tsa.balanceOf(address(this)), 400e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 100e18);
+    assertEq(cctsa.totalPendingWithdrawals(), 500 * MARKET_UNIT);
+    assertEq(cctsa.totalSupply(), 900 * MARKET_UNIT);
+    assertEq(cctsa.balanceOf(address(this)), 400 * MARKET_UNIT);
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 100 * MARKET_UNIT);
 
     // can be processed partially if not enough funds available
 
     // partially withdraw, so 50 can be filled of the withdrawal request
-    _executeWithdrawal(50e18);
+    _executeWithdrawal(50 * MARKET_UNIT);
 
-    tsa.processWithdrawalRequests(1);
+    cctsa.processWithdrawalRequests(1);
 
-    BaseTSA.WithdrawalRequest memory withdrawReq = tsa.queuedWithdrawal(w2);
-    assertEq(withdrawReq.amountShares, 150e18);
-    assertEq(withdrawReq.assetsReceived, 50e18);
+    BaseTSA.WithdrawalRequest memory withdrawReq = cctsa.queuedWithdrawal(w2);
+    assertEq(withdrawReq.amountShares, 150 * MARKET_UNIT);
+    assertEq(withdrawReq.assetsReceived, 50 * MARKET_UNIT);
 
     // check state
-    assertEq(tsa.totalPendingWithdrawals(), 450e18);
-    assertEq(tsa.totalSupply(), 850e18);
-    assertEq(tsa.balanceOf(address(this)), 400e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 150e18);
+    assertEq(cctsa.totalPendingWithdrawals(), 450 * MARKET_UNIT);
+    assertEq(cctsa.totalSupply(), 850 * MARKET_UNIT);
+    assertEq(cctsa.balanceOf(address(this)), 400 * MARKET_UNIT);
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 150 * MARKET_UNIT);
 
     // withdrawals cannot be processed if already processed
-    _executeWithdrawal(350e18);
+    _executeWithdrawal(350 * MARKET_UNIT);
 
-    tsa.processWithdrawalRequests(2);
+    cctsa.processWithdrawalRequests(2);
 
     // check state
     // 100 remaining for w3
-    assertEq(tsa.totalPendingWithdrawals(), 100e18);
-    assertEq(tsa.totalSupply(), 500e18);
-    assertEq(tsa.balanceOf(address(this)), 400e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 500e18);
+    assertEq(cctsa.totalPendingWithdrawals(), 100 * MARKET_UNIT);
+    assertEq(cctsa.totalSupply(), 500 * MARKET_UNIT);
+    assertEq(cctsa.balanceOf(address(this)), 400 * MARKET_UNIT);
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 500 * MARKET_UNIT);
 
-    withdrawReq = tsa.queuedWithdrawal(w2);
+    withdrawReq = cctsa.queuedWithdrawal(w2);
     assertEq(withdrawReq.amountShares, 0);
-    assertEq(withdrawReq.assetsReceived, 200e18);
+    assertEq(withdrawReq.assetsReceived, 200 * MARKET_UNIT);
 
-    withdrawReq = tsa.queuedWithdrawal(w3);
-    assertEq(withdrawReq.amountShares, 100e18);
-    assertEq(withdrawReq.assetsReceived, 200e18);
+    withdrawReq = cctsa.queuedWithdrawal(w3);
+    assertEq(withdrawReq.amountShares, 100 * MARKET_UNIT);
+    assertEq(withdrawReq.assetsReceived, 200 * MARKET_UNIT);
   }
 
   function testWithdrawalMultiple() public {
-    _depositToTSA(1000e18);
+    _depositToTSA(1000 * MARKET_UNIT);
 
     // can have multiple processed in one transaction, will stop once no funds available
-    tsa.requestWithdrawal(100e18);
+    cctsa.requestWithdrawal(100 * MARKET_UNIT);
     vm.warp(block.timestamp + 1 days);
-    tsa.requestWithdrawal(200e18);
+    cctsa.requestWithdrawal(200 * MARKET_UNIT);
     vm.warp(block.timestamp + 2 days);
-    tsa.requestWithdrawal(300e18);
+    cctsa.requestWithdrawal(300 * MARKET_UNIT);
 
     vm.warp(block.timestamp + 5 days);
 
-    tsa.processWithdrawalRequests(2);
+    cctsa.processWithdrawalRequests(2);
 
     // check state
-    assertEq(tsa.totalPendingWithdrawals(), 300e18);
-    assertEq(tsa.totalSupply(), 700e18);
-    assertEq(tsa.balanceOf(address(this)), 400e18);
-    assertEq(markets["weth"].erc20.balanceOf(address(this)), 300e18);
+    assertEq(cctsa.totalPendingWithdrawals(), 300 * MARKET_UNIT);
+    assertEq(cctsa.totalSupply(), 700 * MARKET_UNIT);
+    assertEq(cctsa.balanceOf(address(this)), 400 * MARKET_UNIT);
+    assertEq(markets[MARKET].erc20.balanceOf(address(this)), 300 * MARKET_UNIT);
   }
 
   function testWithdrawScale() public {
-    _depositToTSA(1000e18);
+    _depositToTSA(1000 * MARKET_UNIT);
 
-    BaseTSA.TSAParams memory params = tsa.getTSAParams();
+    BaseTSA.TSAParams memory params = cctsa.getTSAParams();
     params.withdrawScale = 0.9e18;
-    tsa.setTSAParams(params);
+    cctsa.setTSAParams(params);
 
-    uint w1 = tsa.requestWithdrawal(100e18);
-    uint w2 = tsa.requestWithdrawal(200e18);
-    uint w3 = tsa.requestWithdrawal(300e18);
+    uint w1 = cctsa.requestWithdrawal(100 * MARKET_UNIT);
+    uint w2 = cctsa.requestWithdrawal(200 * MARKET_UNIT);
+    uint w3 = cctsa.requestWithdrawal(300 * MARKET_UNIT);
 
-    tsa.processWithdrawalRequests(3);
+    cctsa.processWithdrawalRequests(3);
 
     // Each withdrawal will get half of the requested amount, meaning future ones will
     // get more and more
 
-    assertEq(tsa.totalPendingWithdrawals(), 0);
-    assertEq(tsa.totalSupply(), 400e18);
-    assertEq(tsa.balanceOf(address(this)), 400e18);
+    assertEq(cctsa.totalPendingWithdrawals(), 0);
+    assertEq(cctsa.totalSupply(), 400 * MARKET_UNIT);
+    assertEq(cctsa.balanceOf(address(this)), 400 * MARKET_UNIT);
 
-    BaseTSA.WithdrawalRequest memory withdrawReq = tsa.queuedWithdrawal(w1);
+    BaseTSA.WithdrawalRequest memory withdrawReq = cctsa.queuedWithdrawal(w1);
     assertEq(withdrawReq.amountShares, 0);
-    assertEq(withdrawReq.assetsReceived, 90e18);
+    assertEq(withdrawReq.assetsReceived, 90 * MARKET_UNIT);
 
-    withdrawReq = tsa.queuedWithdrawal(w2);
+    withdrawReq = cctsa.queuedWithdrawal(w2);
     assertEq(withdrawReq.amountShares, 0);
     // (200 * 0.9 / 900) * 910
-    assertApproxEqAbs(withdrawReq.assetsReceived, 182e18, 0.000001e18);
+    assertApproxEqAbs(withdrawReq.assetsReceived, 182 * MARKET_UNIT, 0.000001e18);
 
-    withdrawReq = tsa.queuedWithdrawal(w3);
+    withdrawReq = cctsa.queuedWithdrawal(w3);
     assertEq(withdrawReq.amountShares, 0);
     // (300 * 0.9 / 700) * 728
-    assertApproxEqAbs(withdrawReq.assetsReceived, 280.8e18, 0.000001e18);
+    assertApproxEqAbs(withdrawReq.assetsReceived, 2808 * MARKET_UNIT / 10, 0.000001e18);
 
-    assertApproxEqAbs(markets["weth"].erc20.balanceOf(address(this)), 552.8e18, 0.000001e18);
+    assertApproxEqAbs(markets[MARKET].erc20.balanceOf(address(this)), 5528 * MARKET_UNIT / 10, 0.000001e18);
   }
 
   function testWithdrawReverts() public {
     vm.expectRevert(BaseTSA.BTSA_InsufficientBalance.selector);
-    tsa.requestWithdrawal(100e18);
+    cctsa.requestWithdrawal(100 * MARKET_UNIT);
 
     vm.expectRevert(BaseTSA.BTSA_InvalidWithdrawalAmount.selector);
-    tsa.requestWithdrawal(0);
+    cctsa.requestWithdrawal(0);
   }
 }

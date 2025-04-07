@@ -53,4 +53,12 @@ contract UtilBase is Script {
 
     console.log("Written to deployment ", string.concat(deploymentDir, chainDir, file));
   }
+
+  function _getCoreContract(string memory name) internal view returns (address) {
+    return _getV2CoreContract("core", name);
+  }
+
+  function _getMatchingModule(string memory module) internal view returns (address) {
+    return _getMatchingContract("matching", module);
+  }
 }

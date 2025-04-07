@@ -13,10 +13,11 @@ broadcast/
 docs/
 
 # Dotenv file
-.env
+../../socket/socket-plugs/.env
 
 # IDE files
 .idea/
+.vscode/
 
 lcov.info
 

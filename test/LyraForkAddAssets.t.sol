@@ -1,4 +1,4 @@
-pragma solidity 0.8.20;
+pragma solidity ^0.8.20;
 
 import "forge-std/console.sol";
 import "v2-core/scripts/types.sol";
@@ -124,12 +124,4 @@ contract LyraForkAddAssetsTest is ForkBase {
     }
   }
 
-  function _call(address target, bytes memory data) internal returns (bytes memory) {
-    console.log(target);
-    console.log(",");
-    console.logBytes(data);
-    (bool success, bytes memory result) = target.call(data);
-    require(success, "call failed");
-    return result;
-  }
 }
