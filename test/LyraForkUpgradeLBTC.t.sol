@@ -36,6 +36,8 @@ contract LyraForkUpgradeTestLBTC is ForkBase {
 
     address owner = 0xB176A44D819372A38cee878fB0603AEd4d26C5a5;
 
+    LeveragedBasisTSA implementation = LeveragedBasisTSA(0x61B7A841965aC574E0f82644aD15327d50E7431C);
+
     vm.deal(owner, 1 ether);
     vm.startPrank(owner);
 
@@ -65,8 +67,6 @@ contract LyraForkUpgradeTestLBTC is ForkBase {
         tradeModule: ITradeModule(_getMatchingModule("trade")),
         perpAsset: IPerpAsset(_getV2CoreContract(perpMarketName, "perp"))
       });
-
-      LeveragedBasisTSA implementation = new LeveragedBasisTSA();
 
       ProxyAdmin(_getMatchingContract(vaultFileName, "proxyAdmin")).upgradeAndCall(
         ITransparentUpgradeableProxy(_getMatchingContract(vaultFileName, "token")),
@@ -104,8 +104,6 @@ contract LyraForkUpgradeTestLBTC is ForkBase {
         tradeModule: ITradeModule(_getMatchingModule("trade")),
         perpAsset: IPerpAsset(_getV2CoreContract(perpMarketName, "perp"))
       });
-
-      LeveragedBasisTSA implementation = new LeveragedBasisTSA();
 
       ProxyAdmin(_getMatchingContract(vaultFileName, "proxyAdmin")).upgradeAndCall(
         ITransparentUpgradeableProxy(_getMatchingContract(vaultFileName, "token")),

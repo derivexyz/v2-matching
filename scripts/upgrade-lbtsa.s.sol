@@ -54,15 +54,18 @@ contract UpgradeLBTSA is UtilBase {
   }
 
   function deployLBTSA() private {
-    vm.chainId(957);
+    if (block.chainid != 901) {
+      revert("Only deploy on testnet");
+    }
 
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
     vm.startBroadcast(deployerPrivateKey);
 
     address deployer = vm.addr(deployerPrivateKey);
     console.log("deployer: ", deployer);
+    address owner = deployer;
 
-//    LeveragedBasisTSA implementation = new LeveragedBasisTSA();
+    LeveragedBasisTSA implementation = new LeveragedBasisTSA();
 
 
     // bLBTC
@@ -82,17 +85,19 @@ contract UpgradeLBTSA is UtilBase {
 //    console.log("proxyAdmin: ", address(proxyAdmin));
 //    console.log("proxy: ", address(proxy));
 //    console.log("implementation: ", address(implementation));
-    LeveragedBasisTSA(address(proxy)).initialize(
-      0xB176A44D819372A38cee878fB0603AEd4d26C5a5,
+
+    proxyAdmin.upgradeAndCall(proxy, address(implementation), abi.encodeWithSelector(
+      implementation.initialize.selector,
+      deployer,
       BaseTSA.BaseTSAInitParams({
         subAccounts: ISubAccounts(_getCoreContract("subAccounts")),
         auction: DutchAuction(_getCoreContract("auction")),
         cash: CashAsset(_getCoreContract("cash")),
         wrappedDepositAsset: IWrappedERC20Asset(_getV2CoreContract(marketName, "base")),
         manager: ILiquidatableManager(_getCoreContract("srm")),
-        matching: IMatching(_getMatchingContract("matching","matching")),
+        matching: IMatching(_getMatchingContract("matching", "matching")),
         symbol: string.concat("b", marketName),
-        name: string.concat("Basis traded", marketName)
+        name: string.concat("Basis traded ", marketName)
       }),
       LeveragedBasisTSA.LBTSAInitParams({
         baseFeed: ISpotFeed(_getV2CoreContract(marketName, "spotFeed")),
@@ -101,7 +106,9 @@ contract UpgradeLBTSA is UtilBase {
         tradeModule: ITradeModule(_getMatchingContract("matching","trade")),
         perpAsset: IPerpAsset(_getV2CoreContract(perpName, "perp"))
       })
-    );
+    ));
+
+    LeveragedBasisTSA(address(proxy)).setSubmitter(0x47E946f9027B0e7E0117afa482AF4C4053C53b40, true);
 //
 //    LeveragedBasisTSA(address(proxy)).setLBTSAParams(defaultLbtsaTSAParams);
 //    LeveragedBasisTSA(address(proxy)).setCollateralManagementParams(defaultCollateralManagementParams);
@@ -119,17 +126,18 @@ contract UpgradeLBTSA is UtilBase {
     console.log("proxyAdmin: ", address(proxyAdmin));
     console.log("proxy: ", address(proxy));
 
-    LeveragedBasisTSA(address(proxy)).initialize(
-      0xB176A44D819372A38cee878fB0603AEd4d26C5a5,
+    proxyAdmin.upgradeAndCall(proxy, address(implementation), abi.encodeWithSelector(
+      implementation.initialize.selector,
+      deployer,
       BaseTSA.BaseTSAInitParams({
         subAccounts: ISubAccounts(_getCoreContract("subAccounts")),
         auction: DutchAuction(_getCoreContract("auction")),
         cash: CashAsset(_getCoreContract("cash")),
         wrappedDepositAsset: IWrappedERC20Asset(_getV2CoreContract(marketName, "base")),
         manager: ILiquidatableManager(_getCoreContract("srm")),
-        matching: IMatching(_getMatchingContract("matching","matching")),
+        matching: IMatching(_getMatchingContract("matching", "matching")),
         symbol: string.concat("b", marketName),
-        name: string.concat("Basis traded", marketName)
+        name: string.concat("Basis traded ", marketName)
       }),
       LeveragedBasisTSA.LBTSAInitParams({
         baseFeed: ISpotFeed(_getV2CoreContract(marketName, "spotFeed")),
@@ -138,30 +146,11 @@ contract UpgradeLBTSA is UtilBase {
         tradeModule: ITradeModule(_getMatchingContract("matching","trade")),
         perpAsset: IPerpAsset(_getV2CoreContract(perpName, "perp"))
       })
-    );
+    ));
+
+    LeveragedBasisTSA(address(proxy)).setSubmitter(0x47E946f9027B0e7E0117afa482AF4C4053C53b40, true);
+
 //    console.log("implementation: ", address(implementation));
-//
-//    proxyAdmin.upgradeAndCall(proxy, address(implementation), abi.encodeWithSelector(
-//      implementation.initialize.selector,
-//      deployer,
-//      BaseTSA.BaseTSAInitParams({
-//        subAccounts: ISubAccounts(_getCoreContract("subAccounts")),
-//        auction: DutchAuction(_getCoreContract("auction")),
-//        cash: CashAsset(_getCoreContract("cash")),
-//        wrappedDepositAsset: IWrappedERC20Asset(_getV2CoreContract(marketName, "base")),
-//        manager: ILiquidatableManager(_getCoreContract("srm")),
-//        matching: IMatching(_getMatchingContract("matching", "matching")),
-//        symbol: string.concat("b", marketName),
-//        name: string.concat("Basis traded", marketName)
-//      }),
-//      LeveragedBasisTSA.LBTSAInitParams({
-//        baseFeed: ISpotFeed(_getV2CoreContract(marketName, "spotFeed")),
-//        depositModule: IDepositModule(_getMatchingContract("matching","deposit")),
-//        withdrawalModule: IWithdrawalModule(_getMatchingContract("matching","withdrawal")),
-//        tradeModule: ITradeModule(_getMatchingContract("matching","trade")),
-//        perpAsset: IPerpAsset(_getV2CoreContract(perpName, "perp"))
-//      })
-//    ));
 
 //    LeveragedBasisTSA(address(proxy)).setLBTSAParams(defaultLbtsaTSAParams);
 //    LeveragedBasisTSA(address(proxy)).setCollateralManagementParams(defaultCollateralManagementParams);
