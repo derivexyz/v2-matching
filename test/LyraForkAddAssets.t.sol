@@ -123,5 +123,4 @@ contract LyraForkAddAssetsTest is ForkBase {
       );
     }
   }
-
 }
