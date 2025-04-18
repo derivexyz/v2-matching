@@ -17,6 +17,7 @@ import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {IManager} from "v2-core/src/interfaces/IManager.sol";
 import {ECDSA} from "openzeppelin/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "openzeppelin/utils/cryptography/MessageHashUtils.sol";
 import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
 import "../../src/modules/LiquidateModule.sol";
 import "../../src/modules/RfqModule.sol";
@@ -67,7 +68,7 @@ contract MatchingHelpers is Test {
   function _signAction(bytes32 actionHash, uint signerPk) internal view returns (bytes memory) {
     //    console2.log("typed hash");
     //    console2.logBytes32(domainSeparator);
-    (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, ECDSA.toTypedDataHash(domainSeparator, actionHash));
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, MessageHashUtils.toTypedDataHash(domainSeparator, actionHash));
     return bytes.concat(r, s, bytes1(v));
   }
 

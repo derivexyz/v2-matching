@@ -115,12 +115,22 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
 
   function deployPredeposit(address erc20) internal {
     TokenizedSubAccount tsaImplementation = new TokenizedSubAccount();
-    proxyAdmin = new ProxyAdmin();
+
+    vm.recordLogs();
     proxy = new TransparentUpgradeableProxy(
       address(tsaImplementation),
-      address(proxyAdmin),
+      address(this),
       abi.encodeWithSelector(tsaImplementation.initialize.selector, "TSA", "TSA", erc20)
     );
+
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    for (uint i = 0; i < logs.length; i++) {
+      if (logs[i].topics[0] == keccak256("AdminChanged(address,address)")) {
+        (address oldAdmin, address newAdmin) = abi.decode(logs[i].data, (address, address));
+        proxyAdmin = ProxyAdmin(newAdmin);
+        break;
+      }
+    }
   }
 
   function upgradeToMockTSA(address wrappedDepositAsset) internal {

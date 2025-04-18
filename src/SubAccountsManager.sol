@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 // Inherited
-import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
+import {Ownable2Step, Ownable} from "openzeppelin/access/Ownable2Step.sol";
 import {ISubAccountsManager} from "./interfaces/ISubAccountsManager.sol";
 
 // Interfaces
@@ -26,7 +26,7 @@ contract SubAccountsManager is ISubAccountsManager, Ownable2Step {
   ///@dev Mapping of account to withdraw cooldown start time
   mapping(uint => uint) public withdrawTimestamp;
 
-  constructor(ISubAccounts _subAccounts) {
+  constructor(ISubAccounts _subAccounts) Ownable(msg.sender) {
     subAccounts = _subAccounts;
   }
 

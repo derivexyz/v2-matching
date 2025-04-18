@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "./BaseTSA.sol";
 import "openzeppelin/utils/cryptography/ECDSA.sol";
+import "openzeppelin/utils/cryptography/MessageHashUtils.sol";
 
 /// @title BaseOnChainSigningTSA
 /// @dev Prices shares in USD, but accepts baseAsset as deposit. Vault intended to try remain delta neutral.
@@ -65,7 +66,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   {
     bytes32 hash = getActionTypedDataHash(action);
 
-    (address recovered, ECDSA.RecoverError error) = ECDSA.tryRecover(hash, signerSig);
+    (address recovered, ECDSA.RecoverError error, ) = ECDSA.tryRecover(hash, signerSig);
     require(error == ECDSA.RecoverError.NoError && _getBaseSigningTSAStorage().signers[recovered], "Invalid signature");
 
     // require signerSig is a valid signature of signer on hash
@@ -103,7 +104,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   function getActionTypedDataHash(IMatching.Action memory action) public view returns (bytes32) {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
-    return ECDSA.toTypedDataHash(tsaAddresses.matching.domainSeparator(), tsaAddresses.matching.getActionHash(action));
+    return MessageHashUtils.toTypedDataHash(tsaAddresses.matching.domainSeparator(), tsaAddresses.matching.getActionHash(action));
   }
 
   ////////////////
@@ -134,6 +135,10 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     return _getBaseSigningTSAStorage().signers[signer];
   }
 
+  function isSubmitter(address submitter) external view returns (bool) {
+    return _getBaseSigningTSAStorage().submitters[submitter];
+  }
+
   function signaturesDisabled() external view returns (bool) {
     return _getBaseSigningTSAStorage().signaturesDisabled;
   }
@@ -158,7 +163,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
 
   modifier onlySubmitters() {
     if (!_getBaseSigningTSAStorage().submitters[msg.sender]) {
-      revert BOCST_OnlySigner();
+      revert BOCST_OnlySubmitter();
     }
     _;
   }
@@ -175,4 +180,5 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
 
   error BOCST_InvalidAction();
   error BOCST_OnlySigner();
+  error BOCST_OnlySubmitter();
 }

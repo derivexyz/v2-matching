@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
+import {Ownable2Step, Ownable} from "openzeppelin/access/Ownable2Step.sol";
 import {EnumerableSet} from "openzeppelin/utils/structs/EnumerableSet.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 
@@ -98,7 +98,7 @@ contract TSAShareHandler is Ownable2Step {
   mapping(address fallbackDest => EnumerableSet.Bytes32Set vaultActionId) internal allActionIds;
   EnumerableSet.AddressSet internal pendingUsers;
 
-  constructor() {}
+  constructor() Ownable(msg.sender) {}
 
   receive() external payable {}
 

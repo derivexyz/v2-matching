@@ -14,7 +14,7 @@ contract LyraStakingSink is Ownable {
   // Constructor //
   /////////////////
 
-  constructor(IERC20 _token) {
+  constructor(IERC20 _token) Ownable(msg.sender) {
     token = _token;
   }
 

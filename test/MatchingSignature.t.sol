@@ -74,7 +74,7 @@ contract MatchingSignatureTest is MatchingBase {
     (IActionVerifier.Action[] memory actions, bytes[] memory signatures) =
       _getTransferOrder(newCamAcc, camAcc, cam, cam, camPk);
 
-    vm.expectRevert("ERC721: transfer from incorrect owner");
+    vm.expectRevert(); // "ERC721: transfer from incorrect owner"
     _verifyAndMatch(actions, signatures, "");
   }
 

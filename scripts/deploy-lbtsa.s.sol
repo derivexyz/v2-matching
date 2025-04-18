@@ -64,11 +64,10 @@ contract DeployLBTSA is Utils {
     console.log("deployer: ", deployer);
 
     LeveragedBasisTSA lbtsaImplementation = new LeveragedBasisTSA();
-    ProxyAdmin proxyAdmin = new ProxyAdmin();
 
     TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
       address(lbtsaImplementation),
-      address(proxyAdmin),
+      address(deployer),
       abi.encodeWithSelector(
         lbtsaImplementation.initialize.selector,
         deployer,

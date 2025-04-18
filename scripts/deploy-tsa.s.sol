@@ -21,6 +21,7 @@ import "openzeppelin/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {TokenizedSubAccount} from "../src/tokenizedSubaccounts/TSA.sol";
 import "openzeppelin/proxy/transparent/ProxyAdmin.sol";
 import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 
 contract DeployTSA is Utils {
@@ -74,12 +75,23 @@ contract DeployTSA is Utils {
     console2.log("deployer: ", deployer);
 
     TokenizedSubAccount tsaImplementation = new TokenizedSubAccount();
-    ProxyAdmin proxyAdmin = new ProxyAdmin();
+    ProxyAdmin proxyAdmin;
+
+    vm.recordLogs();
     TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
       address(tsaImplementation),
-      address(proxyAdmin),
+      address(deployer),
       abi.encodeWithSelector(tsaImplementation.initialize.selector, "TSA", "TSA", address(0))
     );
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    proxyAdmin;
+    for (uint i = 0; i < logs.length; i++) {
+      if (logs[i].topics[0] == keccak256("AdminChanged(address,address)")) {
+        (address oldAdmin, address newAdmin) = abi.decode(logs[i].data, (address, address));
+        proxyAdmin = ProxyAdmin(newAdmin);
+        break;
+      }
+    }
 
     CoveredCallTSA lrtcctsaImplementation = new CoveredCallTSA();
 
@@ -145,12 +157,23 @@ contract DeployTSA is Utils {
     console2.log("deployer: ", deployer);
 
     TokenizedSubAccount tsaImplementation = new TokenizedSubAccount();
-    ProxyAdmin proxyAdmin = new ProxyAdmin();
+    ProxyAdmin proxyAdmin;
+
+    vm.recordLogs();
     TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
       address(tsaImplementation),
-      address(proxyAdmin),
+      address(deployer),
       abi.encodeWithSelector(tsaImplementation.initialize.selector, "TSA", "TSA", address(0))
     );
+    Vm.Log[] memory logs = vm.getRecordedLogs();
+    proxyAdmin;
+    for (uint i = 0; i < logs.length; i++) {
+      if (logs[i].topics[0] == keccak256("AdminChanged(address,address)")) {
+        (address oldAdmin, address newAdmin) = abi.decode(logs[i].data, (address, address));
+        proxyAdmin = ProxyAdmin(newAdmin);
+        break;
+      }
+    }
 
     PrincipalProtectedTSA lrtpptsaImplementation = new PrincipalProtectedTSA();
     console2.log("implementation address: ", address(lrtpptsaImplementation));
