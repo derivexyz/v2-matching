@@ -45,100 +45,78 @@ contract UpdateCallees is Utils {
     string memory btcMarket = _readV2CoreDeploymentFile("BTC");
     string memory snxMarket = _readV2CoreDeploymentFile("SNX");
 
-    // USDC
+    address[] memory managers = new address[](3);
+    managers[0] = _getV2CoreContract(core, "srm");
+    managers[1] = _getPMRM(ethMarket);
+    managers[2] = _getPMRM(btcMarket);
 
-    _addWhitelistedCallee(_getV2CoreContract(core, "srm"), _getV2CoreContract(core, "stableFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(core, "stableFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(core, "stableFeed"));
+    for (uint i=0; i<managers.length; ++i) {
+      address manager = managers[i];
+      // USDC
+      _addWhitelistedCallee(manager, _getV2CoreContract(core, "stableFeed"));
 
-    LyraERC20(_getV2CoreContract(shared, "usdc")).configureMinter(deployer, true);
+      // ETH
+      _addWhitelistedCallee(manager, _getV2CoreContract(ethMarket, "spotFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(ethMarket, "volFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(ethMarket, "forwardFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(ethMarket, "perpFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(ethMarket, "ibpFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(ethMarket, "iapFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(ethMarket, "rateFeed"));
 
-    // ETH
+      // BTC
+      _addWhitelistedCallee(manager, _getV2CoreContract(btcMarket, "spotFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(btcMarket, "volFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(btcMarket, "forwardFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(btcMarket, "perpFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(btcMarket, "ibpFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(btcMarket, "iapFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(btcMarket, "rateFeed"));
 
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(ethMarket, "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(ethMarket, "volFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(ethMarket, "forwardFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(ethMarket, "perpFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(ethMarket, "ibpFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(ethMarket, "iapFeed"));
+      // USDT
 
-    LyraRateFeedStatic(_getV2CoreContract(ethMarket, "rateFeed")).setRate(0, 1 ether);
+      _addWhitelistedCallee(manager, _getV2CoreContract(_readV2CoreDeploymentFile("USDT"), "spotFeed"));
 
-    LyraERC20(_getV2CoreContract(shared, "eth")).configureMinter(deployer, true);
-
-    // BTC
-
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(btcMarket, "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(btcMarket, "volFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(btcMarket, "forwardFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(btcMarket, "perpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(btcMarket, "ibpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(btcMarket, "iapFeed"));
-
-    LyraRateFeedStatic(_getV2CoreContract(btcMarket, "rateFeed")).setRate(0, 1 ether);
-
-    LyraERC20(_getV2CoreContract(shared, "btc")).configureMinter(deployer, true);
-
-    // USDT
-
-    _addWhitelistedCallee(_getV2CoreContract(core, "srm"), _getV2CoreContract(_readV2CoreDeploymentFile("USDT"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(_readV2CoreDeploymentFile("USDT"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(_readV2CoreDeploymentFile("USDT"), "spotFeed"));
-
-    LyraERC20(_getV2CoreContract(shared, "usdt")).configureMinter(deployer, true);
-
-    // SNX
-
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(snxMarket, "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(snxMarket, "volFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(snxMarket, "forwardFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(snxMarket, "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(snxMarket, "volFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(snxMarket, "forwardFeed"));
-
-    LyraERC20(_getV2CoreContract(shared, "snx")).configureMinter(deployer, true);
-
-    // WSTETH
-
-    _addWhitelistedCallee(_getV2CoreContract(core, "srm"), _getV2CoreContract(_readV2CoreDeploymentFile("WSTETH"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(_readV2CoreDeploymentFile("WSTETH"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(_readV2CoreDeploymentFile("WSTETH"), "spotFeed"));
-
-    LyraERC20(_getV2CoreContract(shared, "wsteth")).configureMinter(deployer, true);
+      // SNX
+      _addWhitelistedCallee(manager, _getV2CoreContract(snxMarket, "spotFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(snxMarket, "volFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(snxMarket, "forwardFeed"));
 
 
-    // SOL
+      // WSTETH
+      _addWhitelistedCallee(manager, _getV2CoreContract(_readV2CoreDeploymentFile("WSTETH"), "spotFeed"));
 
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "perpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "ibpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "iapFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "perpFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "ibpFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "iapFeed"));
+      // SOL
+      _addWhitelistedCallee(manager, _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "spotFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "perpFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "ibpFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(_readV2CoreDeploymentFile("SOL"), "iapFeed"));
 
-    // DOGE
 
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "perpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "ibpFeed"));
-    _addWhitelistedCallee(_getPMRM(ethMarket), _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "iapFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "spotFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "perpFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "ibpFeed"));
-    _addWhitelistedCallee(_getPMRM(btcMarket), _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "iapFeed"));
+      // DOGE
+      _addWhitelistedCallee(manager, _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "spotFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "perpFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "ibpFeed"));
+      _addWhitelistedCallee(manager, _getV2CoreContract(_readV2CoreDeploymentFile("DOGE"), "iapFeed"));
+
+    }
 
     // Set custom caps for local testing
+    LyraERC20(_getV2CoreContract(shared, "usdc")).configureMinter(deployer, true);
+    LyraERC20(_getV2CoreContract(shared, "eth")).configureMinter(deployer, true);
+    LyraERC20(_getV2CoreContract(shared, "btc")).configureMinter(deployer, true);
+    LyraERC20(_getV2CoreContract(shared, "usdt")).configureMinter(deployer, true);
+    LyraERC20(_getV2CoreContract(shared, "wsteth")).configureMinter(deployer, true);
+    LyraERC20(_getV2CoreContract(shared, "snx")).configureMinter(deployer, true);
 
     WrappedERC20Asset(_getV2CoreContract(ethMarket, "base")).setTotalPositionCap(
-      IManager(_getV2CoreContract(core, "srm")), 10_000 ether
+      IManager(managers[0]), 10_000 ether
     );
     WrappedERC20Asset(_getV2CoreContract(btcMarket, "base")).setTotalPositionCap(
-      IManager(_getV2CoreContract(core, "srm")), 10_000 ether
+      IManager(managers[0]), 10_000 ether
     );
     WrappedERC20Asset(_getV2CoreContract(_readV2CoreDeploymentFile("USDT"), "base")).setTotalPositionCap(
-      IManager(_getV2CoreContract(core, "srm")), 100_000 ether
+      IManager(managers[0]), 100_000 ether
     );
 
     vm.stopBroadcast();

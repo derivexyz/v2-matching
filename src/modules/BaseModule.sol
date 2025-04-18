@@ -6,7 +6,7 @@ import {IBaseModule} from "../interfaces/IBaseModule.sol";
 
 // Interfaces
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
-import {Ownable2Step} from "openzeppelin/access/Ownable2Step.sol";
+import {Ownable2Step, Ownable} from "openzeppelin/access/Ownable2Step.sol";
 import {IMatching} from "../interfaces/IMatching.sol";
 import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 
@@ -20,7 +20,7 @@ abstract contract BaseModule is IBaseModule, Ownable2Step {
 
   mapping(address owner => mapping(uint nonce => bool used)) public usedNonces;
 
-  constructor(IMatching _matching) {
+  constructor(IMatching _matching) Ownable(msg.sender) {
     matching = _matching;
     subAccounts = _matching.subAccounts();
   }
