@@ -66,7 +66,7 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   {
     bytes32 hash = getActionTypedDataHash(action);
 
-    (address recovered, ECDSA.RecoverError error, ) = ECDSA.tryRecover(hash, signerSig);
+    (address recovered, ECDSA.RecoverError error,) = ECDSA.tryRecover(hash, signerSig);
     require(error == ECDSA.RecoverError.NoError && _getBaseSigningTSAStorage().signers[recovered], "Invalid signature");
 
     // require signerSig is a valid signature of signer on hash
@@ -104,7 +104,9 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
   function getActionTypedDataHash(IMatching.Action memory action) public view returns (bytes32) {
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
-    return MessageHashUtils.toTypedDataHash(tsaAddresses.matching.domainSeparator(), tsaAddresses.matching.getActionHash(action));
+    return MessageHashUtils.toTypedDataHash(
+      tsaAddresses.matching.domainSeparator(), tsaAddresses.matching.getActionHash(action)
+    );
   }
 
   ////////////////
