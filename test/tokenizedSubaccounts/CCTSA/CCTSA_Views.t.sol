@@ -1,6 +1,7 @@
 pragma solidity ^0.8.18;
 
 import "../utils/CCTSATestUtils.sol";
+import {EmptyTSA} from "src/tokenizedSubaccounts/EmptyTSA.sol";
 /*
 Account Value
 - correctly calculates the account value when there is no ongoing liquidation.
@@ -111,7 +112,7 @@ contract CCTSA_ViewsTests is CCTSATestUtils {
     assertLt(margin, 0, "mm: mm & mtm < 0");
     assertLt(mtm, 0, "mtm: mm & mtm < 0");
 
-    vm.expectRevert(CollateralManagementTSA.CMTSA_PositionInsolvent.selector);
+    vm.expectRevert(EmptyTSA.ETSA_PositionInsolvent.selector);
     cctsa.getAccountValue(false);
   }
 

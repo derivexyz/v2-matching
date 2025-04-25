@@ -109,7 +109,17 @@ contract DeployTSA is Utils {
           manager: ILiquidatableManager(_getCoreContract("srm")),
           matching: IMatching(_getMatchingModule("matching")),
           symbol: "ETH",
-          name: "ETH Covered Call"
+          name: "ETH Covered Call",
+          initialParams: BaseTSA.TSAParams({
+            depositCap: 10000000e18,
+            minDepositValue: 0.01e18,
+            depositScale: 1e18,
+            withdrawScale: 1e18,
+            managementFee: 0,
+            feeRecipient: address(0),
+            performanceFeeWindow: 1 weeks,
+            performanceFee: 0
+          })
         }),
         CoveredCallTSA.CCTSAInitParams({
           baseFeed: ISpotFeed(_getMarketAddress("ETH", "spotFeed")),
@@ -121,16 +131,6 @@ contract DeployTSA is Utils {
       )
     );
 
-    CoveredCallTSA(address(proxy)).setTSAParams(
-      BaseTSA.TSAParams({
-        depositCap: 10000000e18,
-        minDepositValue: 0.01e18,
-        depositScale: 1e18,
-        withdrawScale: 1e18,
-        managementFee: 0,
-        feeRecipient: address(0)
-      })
-    );
     CoveredCallTSA cctsa = CoveredCallTSA(address(proxy));
     cctsa.setCCTSAParams(defaultLrtccTSAParams);
     cctsa.setCollateralManagementParams(defaultCollateralManagementParams);
@@ -192,7 +192,17 @@ contract DeployTSA is Utils {
           manager: ILiquidatableManager(_getCoreContract("srm")),
           matching: IMatching(_getMatchingModule("matching")),
           symbol: "sUSDe",
-          name: "sUSDe Principal Protected Bull Call Spread"
+          name: "sUSDe Principal Protected Bull Call Spread",
+          initialParams: BaseTSA.TSAParams({
+            depositCap: 10000000e18,
+            minDepositValue: 0.01e18,
+            depositScale: 1e18,
+            withdrawScale: 1e18,
+            managementFee: 0,
+            feeRecipient: address(0),
+            performanceFeeWindow: 1 weeks,
+            performanceFee: 0
+          })
         }),
         PrincipalProtectedTSA.PPTSAInitParams({
           baseFeed: ISpotFeed(_getMarketAddress("sUSDe", "spotFeed")),
@@ -207,16 +217,6 @@ contract DeployTSA is Utils {
       )
     );
 
-    PrincipalProtectedTSA(address(proxy)).setTSAParams(
-      BaseTSA.TSAParams({
-        depositCap: 10000000e18,
-        minDepositValue: 0.01e18,
-        depositScale: 1e18,
-        withdrawScale: 1e18,
-        managementFee: 0,
-        feeRecipient: address(0)
-      })
-    );
     PrincipalProtectedTSA pptsa = PrincipalProtectedTSA(address(proxy));
     pptsa.setPPTSAParams(defaultLrtppTSAParams);
     pptsa.setCollateralManagementParams(defaultCollateralManagementParams);

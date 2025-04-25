@@ -78,7 +78,17 @@ contract LyraForkUpgradeTest is ForkBase {
           manager: ILiquidatableManager(_getV2CoreContract("core", "srm")),
           matching: IMatching(_getV2CoreContract("matching", "matching")),
           symbol: tsaName,
-          name: string.concat("sUSDe ", "Principal Protected Bull Call Spread")
+          name: string.concat("sUSDe ", "Principal Protected Bull Call Spread"),
+          initialParams: BaseTSA.TSAParams({
+          depositCap: 100000000e18,
+          minDepositValue: 0.01e18,
+          depositScale: 1e18,
+          withdrawScale: 1e18,
+          managementFee: 0,
+          feeRecipient: address(0),
+          performanceFeeWindow: 1 weeks,
+          performanceFee: 0
+        })
         }),
         PrincipalProtectedTSA.PPTSAInitParams({
           baseFeed: ISpotFeed(_getV2CoreContract("sUSDe", "spotFeed")),
@@ -95,16 +105,6 @@ contract LyraForkUpgradeTest is ForkBase {
 
     PrincipalProtectedTSA pptsa = PrincipalProtectedTSA(address(_getV2CoreContract(tsaName, "proxy")));
 
-    pptsa.setTSAParams(
-      BaseTSA.TSAParams({
-        depositCap: 100000000e18,
-        minDepositValue: 0.01e18,
-        depositScale: 1e18,
-        withdrawScale: 1e18,
-        managementFee: 0,
-        feeRecipient: address(0)
-      })
-    );
     pptsa.setPPTSAParams(defaultLrtppTSAParams);
     pptsa.setCollateralManagementParams(defaultCollateralManagementParams);
     pptsa.setShareKeeper(deployer, true);

@@ -114,7 +114,18 @@ contract DeployTSA is Utils {
                     manager: ILiquidatableManager(_getCoreContract("srm")),
                     matching: IMatching(_getMatchingModule("matching")),
                     symbol: tsaName,
-                    name: string.concat(marketName, " Covered Call")
+                    name: string.concat(marketName, " Covered Call"),
+                    initialParams: BaseTSA.TSAParams({
+                        depositCap: 10000000e18,
+                        minDepositValue: 0.01e18,
+                        depositScale: 1e18,
+                        withdrawScale: 1e18,
+                        managementFee: 0.015e18,
+                    // TODO: Mainnet fee recipient should be different
+                        feeRecipient: address(deployer),
+                        performanceFeeWindow: 1 weeks,
+                        performanceFee: 0
+                    })
                 }),
                 CoveredCallTSA.CCTSAInitParams({
                     baseFeed: ISpotFeed(
@@ -134,17 +145,6 @@ contract DeployTSA is Utils {
             )
         );
 
-        CoveredCallTSA(address(proxy)).setTSAParams(
-            BaseTSA.TSAParams({
-                depositCap: 10000000e18,
-                minDepositValue: 0.01e18,
-                depositScale: 1e18,
-                withdrawScale: 1e18,
-                managementFee: 0.015e18,
-                // TODO: Mainnet fee recipient should be different
-                feeRecipient: address(deployer)
-            })
-        );
         CoveredCallTSA cctsa = CoveredCallTSA(address(proxy));
         cctsa.setCCTSAParams(defaultLrtccTSAParams);
         cctsa.setCollateralManagementParams(defaultCollateralManagementParams);
@@ -185,7 +185,17 @@ contract DeployTSA is Utils {
                     manager: ILiquidatableManager(_getCoreContract("srm")),
                     matching: IMatching(_getMatchingModule("matching")),
                     symbol: tsaName,
-                    name: string.concat(marketName, "Covered Put Spread")
+                    name: string.concat(marketName, "Covered Put Spread"),
+                    initialParams: BaseTSA.TSAParams({
+                        depositCap: 100000000e18,
+                        minDepositValue: 0,
+                        depositScale: 1e18,
+                        withdrawScale: 1e18,
+                        managementFee: 0,
+                        feeRecipient: address(0),
+                        performanceFeeWindow: 1 weeks,
+                        performanceFee: 0
+                    })
                 }),
                 PrincipalProtectedTSA.PPTSAInitParams({
                     baseFeed: ISpotFeed(
@@ -208,16 +218,6 @@ contract DeployTSA is Utils {
             )
         );
 
-        PrincipalProtectedTSA(address(proxy)).setTSAParams(
-            BaseTSA.TSAParams({
-                depositCap: 100000000e18,
-                minDepositValue: 0,
-                depositScale: 1e18,
-                withdrawScale: 1e18,
-                managementFee: 0,
-                feeRecipient: address(0)
-            })
-        );
         PrincipalProtectedTSA pptsa = PrincipalProtectedTSA(address(proxy));
         pptsa.setPPTSAParams(defaultLrtppTSAParams); 
         pptsa.setCollateralManagementParams(defaultCollateralManagementParams);

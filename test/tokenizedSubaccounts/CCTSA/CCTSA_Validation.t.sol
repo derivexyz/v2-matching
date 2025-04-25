@@ -1,6 +1,7 @@
 pragma solidity ^0.8.18;
 
 import "../utils/CCTSATestUtils.sol";
+import {EmptyTSA} from "../../../src/tokenizedSubaccounts/EmptyTSA.sol";
 /*
 TODO: liquidation of subaccount
 
@@ -214,12 +215,12 @@ contract CCTSA_ValidationTests is CCTSATestUtils {
 
     // cannot deposit more than is available
     IActionVerifier.Action memory action = _createDepositAction(2e18);
-    vm.expectRevert(CollateralManagementTSA.CMTSA_DepositingTooMuch.selector);
+    vm.expectRevert(EmptyTSA.ETSA_DepositingTooMuch.selector);
     cctsa.signActionData(action, "");
 
     // reverts for invalid assets.
     action.data = _encodeDepositData(1e18, address(11111), address(0));
-    vm.expectRevert(CollateralManagementTSA.CMTSA_InvalidAsset.selector);
+    vm.expectRevert(EmptyTSA.ETSA_InvalidAsset.selector);
     cctsa.signActionData(action, "");
 
     action.expiry = block.timestamp + defaultCCTSAParams.minSignatureExpiry - 1;

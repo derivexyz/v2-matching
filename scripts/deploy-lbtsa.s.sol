@@ -79,7 +79,18 @@ contract DeployLBTSA is Utils {
           manager: ILiquidatableManager(_getCoreContract("srm")),
           matching: IMatching(_getMatchingModule("matching")),
           symbol: vaultTokenName,
-          name: string.concat(marketName, " Basis Trade")
+          name: string.concat(marketName, " Basis Trade"),
+          initialParams: BaseTSA.TSAParams({
+            depositCap: 10000000e18,
+            minDepositValue: 0,
+            depositScale: 1e18,
+            // slight withdrawal fee
+            withdrawScale: 0.998e18,
+            managementFee: 0,
+            feeRecipient: address(0),
+            performanceFeeWindow: 1 weeks,
+            performanceFee: 0
+          })
         }),
         LeveragedBasisTSA.LBTSAInitParams({
           baseFeed: ISpotFeed(_getMarketAddress(marketName, "spotFeed")),
@@ -93,17 +104,6 @@ contract DeployLBTSA is Utils {
 
     LeveragedBasisTSA lbtsa = LeveragedBasisTSA(address(proxy));
 
-    lbtsa.setTSAParams(
-      BaseTSA.TSAParams({
-        depositCap: 10000000e18,
-        minDepositValue: 0,
-        depositScale: 1e18,
-        // slight withdrawal fee
-        withdrawScale: 0.998e18,
-        managementFee: 0,
-        feeRecipient: address(0)
-      })
-    );
     lbtsa.setLBTSAParams(defaultLbtsaTSAParams);
     lbtsa.setCollateralManagementParams(defaultCollateralManagementParams);
 

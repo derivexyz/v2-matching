@@ -65,7 +65,17 @@ contract PPTSATestUtils is TSATestUtils {
           manager: srm,
           matching: matching,
           symbol: "Tokenised SubAccount",
-          name: "TSA"
+          name: "TSA",
+          initialParams: BaseTSA.TSAParams({
+          depositCap: 10000e18,
+          minDepositValue: 1e18,
+          depositScale: 1e18,
+          withdrawScale: 1e18,
+          managementFee: 0,
+          feeRecipient: address(0),
+          performanceFeeWindow: 1 weeks,
+          performanceFee: 0
+        })
         }),
         PrincipalProtectedTSA.PPTSAInitParams({
           baseFeed: baseFeed,
@@ -79,25 +89,13 @@ contract PPTSATestUtils is TSATestUtils {
         })
       )
     );
-
     tsa = BaseOnChainSigningTSA(address(proxy));
     pptsa = PrincipalProtectedTSA(address(tsa));
+    pptsa.setPPTSAParams(defaultPPTSAParams);
     tsaSubacc = pptsa.subAccount();
   }
 
   function setupPPTSA() internal {
-    tsa.setTSAParams(
-      BaseTSA.TSAParams({
-        depositCap: 10000e18,
-        minDepositValue: 1e18,
-        depositScale: 1e18,
-        withdrawScale: 1e18,
-        managementFee: 0,
-        feeRecipient: address(0)
-      })
-    );
-
-    PrincipalProtectedTSA(address(tsa)).setPPTSAParams(defaultPPTSAParams);
     PrincipalProtectedTSA(address(tsa)).setCollateralManagementParams(defaultCollateralManagementParams);
 
     tsa.setShareKeeper(address(this), true);

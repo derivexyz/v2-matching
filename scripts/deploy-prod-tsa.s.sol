@@ -60,7 +60,9 @@ contract DeployTSA is Utils {
     depositScale: 1e18,
     withdrawScale: 1e18,
     managementFee: 0,
-    feeRecipient: address(0)
+    feeRecipient: address(0),
+    performanceFeeWindow: 1 weeks,
+    performanceFee: 0
   });
 
   CollateralManagementTSA.CollateralManagementParams public defaultCollateralManagementParams = CollateralManagementTSA
@@ -132,7 +134,8 @@ contract DeployTSA is Utils {
           manager: ILiquidatableManager(_getCoreContract("srm")),
           matching: IMatching(_getMatchingModule("matching")),
           symbol: settings.vaultSymbol,
-          name: settings.vaultName
+          name: settings.vaultName,
+          initialParams: defaultBaseTSAParams
         }),
         CoveredCallTSA.CCTSAInitParams({
           baseFeed: ISpotFeed(_getMarketAddress(settings.depositAssetName, "spotFeed")),
@@ -146,7 +149,6 @@ contract DeployTSA is Utils {
 
     console.log("proxy: ", address(proxy));
 
-    CoveredCallTSA(address(proxy)).setTSAParams(defaultBaseTSAParams);
     CoveredCallTSA cctsa = CoveredCallTSA(address(proxy));
     cctsa.setCCTSAParams(defaultLrtccTSAParams);
     cctsa.setCollateralManagementParams(defaultCollateralManagementParams);
@@ -179,7 +181,8 @@ contract DeployTSA is Utils {
           manager: ILiquidatableManager(_getCoreContract("srm")),
           matching: IMatching(_getMatchingModule("matching")),
           symbol: settings.vaultSymbol,
-          name: settings.vaultName
+          name: settings.vaultName,
+          initialParams: defaultBaseTSAParams
         }),
         PrincipalProtectedTSA.PPTSAInitParams({
           baseFeed: ISpotFeed(_getMarketAddress(settings.depositAssetName, "spotFeed")),
@@ -198,7 +201,6 @@ contract DeployTSA is Utils {
 
     PrincipalProtectedTSA pptsa = PrincipalProtectedTSA(address(proxy));
 
-    pptsa.setTSAParams(defaultBaseTSAParams);
     pptsa.setPPTSAParams(defaultLrtppTSAParams);
     pptsa.setCollateralManagementParams(defaultCollateralManagementParams);
 
