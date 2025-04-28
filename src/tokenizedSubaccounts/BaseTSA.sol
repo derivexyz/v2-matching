@@ -97,7 +97,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     /// @dev Last time the fee was collected
     uint lastFeeCollected;
     // Performance fee
-    uint lastPerfSnapshot;
+    uint lastPerfSnapshotTime;
     uint lastPerfSnapshotValue;
   }
 
@@ -156,10 +156,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     uint scaleRatio = _params.depositScale * 1e18 / _params.withdrawScale;
 
     require(
-      _params.managementFee <= 0.2e18
-        && scaleRatio <= 1.12e18
-        && scaleRatio >= 0.9e18
-        && _params.performanceFee <= 1e18
+      _params.managementFee <= 0.2e18 && scaleRatio <= 1.12e18 && scaleRatio >= 0.9e18 && _params.performanceFee <= 1e18
         && _params.performanceFeeWindow > 0,
       BTSA_InvalidParams()
     );
@@ -386,8 +383,8 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
 
     uint sharePrice = _getSharePrice();
 
-    if ($.lastPerfSnapshot == 0) {
-      $.lastPerfSnapshot = block.timestamp;
+    if ($.lastPerfSnapshotTime == 0) {
+      $.lastPerfSnapshotTime = block.timestamp;
       $.lastPerfSnapshotValue = sharePrice;
     }
 
@@ -401,12 +398,12 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     uint percentToCollect = timeSinceLastCollect * $.tsaParams.managementFee / 365 days;
     uint amountCollected = totalShares * percentToCollect / 1e18;
 
-    if ($.lastPerfSnapshot + $.tsaParams.performanceFeeWindow > block.timestamp) {
+    if ($.lastPerfSnapshotTime + $.tsaParams.performanceFeeWindow > block.timestamp) {
       if (sharePrice > $.lastPerfSnapshotValue) {
         uint perfFee = (sharePrice - $.lastPerfSnapshotValue) * $.tsaParams.performanceFee / sharePrice;
         amountCollected += totalShares * perfFee / 1e18;
       }
-      $.lastPerfSnapshot = block.timestamp;
+      $.lastPerfSnapshotTime = block.timestamp;
       $.lastPerfSnapshotValue = sharePrice;
     }
 
@@ -421,22 +418,21 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
     if (
-      $.tsaParams.performanceFee == 0
-      || $.tsaParams.feeRecipient == address(0)
-      || $.lastPerfSnapshot == block.timestamp
+      $.tsaParams.performanceFee == 0 || $.tsaParams.feeRecipient == address(0)
+        || $.lastPerfSnapshotTime == block.timestamp
     ) {
       return finalWithdrawAmount;
     }
 
-    if ($.lastPerfSnapshot == 0) {
-      $.lastPerfSnapshot = block.timestamp;
+    if ($.lastPerfSnapshotTime == 0) {
+      $.lastPerfSnapshotTime = block.timestamp;
       $.lastPerfSnapshotValue = _getSharePrice();
       return finalWithdrawAmount;
     }
 
     uint sharePrice = _getSharePrice();
 
-    if ($.lastPerfSnapshot + $.tsaParams.performanceFeeWindow > block.timestamp) {
+    if ($.lastPerfSnapshotTime + $.tsaParams.performanceFeeWindow > block.timestamp) {
       if (sharePrice > $.lastPerfSnapshotValue) {
         uint perfFee = (sharePrice - $.lastPerfSnapshotValue) * $.tsaParams.performanceFee / sharePrice;
         uint amountCollected = sharesBurnt * perfFee / 1e18;
@@ -527,8 +523,13 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     return _isBlocked();
   }
 
-  function lastFeeCollected() public view returns (uint) {
-    return _getBaseTSAStorage().lastFeeCollected;
+  function getFeeValues()
+    public
+    view
+    returns (uint lastManagementFeeTime, uint lastPerfSnapshotTime, uint lastPerfSnapshotValue)
+  {
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+    return ($.lastFeeCollected, $.lastPerfSnapshotTime, $.lastPerfSnapshotValue);
   }
 
   ///////////////

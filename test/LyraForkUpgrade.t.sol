@@ -80,15 +80,15 @@ contract LyraForkUpgradeTest is ForkBase {
           symbol: tsaName,
           name: string.concat("sUSDe ", "Principal Protected Bull Call Spread"),
           initialParams: BaseTSA.TSAParams({
-          depositCap: 100000000e18,
-          minDepositValue: 0.01e18,
-          depositScale: 1e18,
-          withdrawScale: 1e18,
-          managementFee: 0,
-          feeRecipient: address(0),
-          performanceFeeWindow: 1 weeks,
-          performanceFee: 0
-        })
+            depositCap: 100000000e18,
+            minDepositValue: 0.01e18,
+            depositScale: 1e18,
+            withdrawScale: 1e18,
+            managementFee: 0,
+            feeRecipient: address(0),
+            performanceFeeWindow: 1 weeks,
+            performanceFee: 0
+          })
         }),
         PrincipalProtectedTSA.PPTSAInitParams({
           baseFeed: ISpotFeed(_getV2CoreContract("sUSDe", "spotFeed")),

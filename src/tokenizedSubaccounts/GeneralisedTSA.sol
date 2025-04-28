@@ -85,7 +85,7 @@ contract GeneralisedTSA is EmptyTSA {
     address initialOwner,
     BaseTSA.BaseTSAInitParams memory initParams,
     GTSAInitParams memory lbInitParams
-  ) external reinitializer(5) {
+  ) external reinitializer(2) {
     __BaseTSA_init(initialOwner, initParams);
 
     GTSAStorage storage $ = _getGTSAStorage();
@@ -105,7 +105,7 @@ contract GeneralisedTSA is EmptyTSA {
   ///////////
   // Admin //
   ///////////
-  function setLBTSAParams(uint emaDecayFactor, uint markLossEmaTarget) external onlyOwner {
+  function setGTSAParams(uint emaDecayFactor, uint markLossEmaTarget) external onlyOwner {
     // Decay factor must be non-zero
     require(emaDecayFactor != 0 && markLossEmaTarget < 0.5e18, GT_InvalidParams());
 
@@ -273,11 +273,11 @@ contract GeneralisedTSA is EmptyTSA {
     return _getGTSAStorage().lastSeenHash;
   }
 
-  function getLBTSAEmaValues() public view returns (int markLossEma, uint markLossLastTs) {
+  function getEmaValues() public view returns (int markLossEma, uint markLossLastTs) {
     return (_getGTSAStorage().markLossEma, _getGTSAStorage().markLossLastTs);
   }
 
-  function getLBTSAAddresses()
+  function getGTSAAddresses()
     public
     view
     returns (ISpotFeed, IDepositModule, IWithdrawalModule, ITradeModule, IRfqModule)

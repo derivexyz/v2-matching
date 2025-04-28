@@ -47,15 +47,15 @@ contract LBTSATestUtils is TSATestUtils {
       symbol: "LBTSA",
       name: "Leveraged Basis TSA",
       initialParams: BaseTSA.TSAParams({
-      depositCap: 10000e18,
-      minDepositValue: 1e18,
-      depositScale: 1e18,
-      withdrawScale: 1e18,
-      managementFee: 0,
-      feeRecipient: address(0),
-      performanceFeeWindow: 1 weeks,
-      performanceFee: 0
-    })
+        depositCap: 10000e18,
+        minDepositValue: 1e18,
+        depositScale: 1e18,
+        withdrawScale: 1e18,
+        managementFee: 0,
+        feeRecipient: address(0),
+        performanceFeeWindow: 1 weeks,
+        performanceFee: 0
+      })
     });
 
     LeveragedBasisTSA.LBTSAInitParams memory lbInitParams = LeveragedBasisTSA.LBTSAInitParams({
@@ -78,7 +78,6 @@ contract LBTSATestUtils is TSATestUtils {
   }
 
   function setupLBTSA() internal {
-
     LeveragedBasisTSA(address(tsa)).setLBTSAParams(defaultLBTSAParams);
     LeveragedBasisTSA(address(tsa)).setCollateralManagementParams(defaultCollateralManagementParams);
 

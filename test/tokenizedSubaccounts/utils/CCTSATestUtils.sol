@@ -62,15 +62,15 @@ contract CCTSATestUtils is TSATestUtils {
           symbol: "Tokenised SubAccount",
           name: "TSA",
           initialParams: BaseTSA.TSAParams({
-          depositCap: 10000e18,
-          minDepositValue: 1e18,
-          depositScale: 1e18,
-          withdrawScale: 1e18,
-          managementFee: 0,
-          feeRecipient: address(0),
-          performanceFeeWindow: 1 weeks,
-          performanceFee: 0
-        })
+            depositCap: 10000e18,
+            minDepositValue: 1e18,
+            depositScale: 1e18,
+            withdrawScale: 1e18,
+            managementFee: 0,
+            feeRecipient: address(0),
+            performanceFeeWindow: 1 weeks,
+            performanceFee: 0
+          })
         }),
         CoveredCallTSA.CCTSAInitParams({
           baseFeed: baseFeed,

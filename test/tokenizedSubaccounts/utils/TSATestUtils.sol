@@ -151,15 +151,15 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
           symbol: "Tokenised SubAccount",
           name: "TSA",
           initialParams: BaseTSA.TSAParams({
-          depositCap: type(uint).max,
-          minDepositValue: 0,
-          depositScale: 1e18,
-          withdrawScale: 1e18,
-          managementFee: 0,
-          feeRecipient: address(0),
-          performanceFeeWindow: 1 weeks,
-          performanceFee: 0
-        })
+            depositCap: type(uint).max,
+            minDepositValue: 0,
+            depositScale: 1e18,
+            withdrawScale: 1e18,
+            managementFee: 0,
+            feeRecipient: address(0),
+            performanceFeeWindow: 1 weeks,
+            performanceFee: 0
+          })
         })
       )
     );
