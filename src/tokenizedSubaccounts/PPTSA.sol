@@ -112,8 +112,6 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     BaseTSA.BaseTSAInitParams memory initParams,
     PPTSAInitParams memory ppInitParams
   ) external reinitializer(5) {
-    __BaseTSA_init(initialOwner, initParams);
-
     PPTSAStorage storage $ = _getPPTSAStorage();
 
     $.depositModule = ppInitParams.depositModule;
@@ -124,6 +122,9 @@ contract PrincipalProtectedTSA is CollateralManagementTSA {
     $.baseFeed = ppInitParams.baseFeed;
     $.isCallSpread = ppInitParams.isCallSpread;
     $.isLongSpread = ppInitParams.isLongSpread;
+
+    __BaseTSA_init(initialOwner, initParams);
+
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
     tsaAddresses.depositAsset.approve(address($.depositModule), type(uint).max);

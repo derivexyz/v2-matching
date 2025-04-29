@@ -91,8 +91,6 @@ contract CoveredCallTSA is CollateralManagementTSA {
     BaseTSA.BaseTSAInitParams memory initParams,
     CCTSAInitParams memory ccInitParams
   ) external reinitializer(5) {
-    __BaseTSA_init(initialOwner, initParams);
-
     CCTSAStorage storage $ = _getCCTSAStorage();
 
     $.depositModule = ccInitParams.depositModule;
@@ -100,6 +98,9 @@ contract CoveredCallTSA is CollateralManagementTSA {
     $.tradeModule = ccInitParams.tradeModule;
     $.optionAsset = ccInitParams.optionAsset;
     $.baseFeed = ccInitParams.baseFeed;
+
+    // Must set baseFeed before initialising BaseTSA
+    __BaseTSA_init(initialOwner, initParams);
 
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 

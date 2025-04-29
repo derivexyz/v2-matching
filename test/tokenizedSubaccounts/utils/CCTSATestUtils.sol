@@ -46,6 +46,8 @@ contract CCTSATestUtils is TSATestUtils {
 
     tsaImplementation = new CoveredCallTSA();
 
+    console.log("baseFeed: ", address(baseFeed));
+
     proxyAdmin.upgradeAndCall(
       ITransparentUpgradeableProxy(address(proxy)),
       address(tsaImplementation),

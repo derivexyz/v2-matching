@@ -123,8 +123,6 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     BaseTSA.BaseTSAInitParams memory initParams,
     LBTSAInitParams memory lbInitParams
   ) external reinitializer(5) {
-    __BaseTSA_init(initialOwner, initParams);
-
     LBTSAStorage storage $ = _getLBTSAStorage();
 
     $.depositModule = lbInitParams.depositModule;
@@ -132,6 +130,8 @@ contract LeveragedBasisTSA is CollateralManagementTSA {
     $.tradeModule = lbInitParams.tradeModule;
     $.baseFeed = lbInitParams.baseFeed;
     $.perpAsset = lbInitParams.perpAsset;
+
+    __BaseTSA_init(initialOwner, initParams);
 
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 

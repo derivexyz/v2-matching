@@ -86,16 +86,15 @@ contract GeneralisedTSA is EmptyTSA {
     BaseTSA.BaseTSAInitParams memory initParams,
     GTSAInitParams memory lbInitParams
   ) external reinitializer(2) {
-    __BaseTSA_init(initialOwner, initParams);
-
     GTSAStorage storage $ = _getGTSAStorage();
 
     $.baseFeed = lbInitParams.baseFeed;
-
     $.depositModule = lbInitParams.depositModule;
     $.withdrawalModule = lbInitParams.withdrawalModule;
     $.tradeModule = lbInitParams.tradeModule;
     $.rfqModule = lbInitParams.rfqModule;
+
+    __BaseTSA_init(initialOwner, initParams);
 
     BaseTSAAddresses memory tsaAddresses = getBaseTSAAddresses();
 
