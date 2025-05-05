@@ -74,6 +74,8 @@ contract GeneralisedTSA_Tests is GTSATestUtils {
 
     // Check deposit asset approval to the deposit module
     vm.assertEq(markets[MARKET].erc20.allowance(address(gtsa), address(depositModule)), type(uint).max);
+
+    gtsa.setGTSAParams(0.002e18, 0.05e18);
   }
 
   //## Admin Function Tests
@@ -119,32 +121,213 @@ contract GeneralisedTSA_Tests is GTSATestUtils {
   //- Verify successful trade with enabled asset
   //- Verify trade with non-enabled asset fails
   //- Verify trade when EMA mark loss exceeds threshold fails
+  //
+  //## EMA Logic Tests
+  //- Test mark loss calculation when share price increases
+  //- Test mark loss calculation when share price decreases
+  //- Verify action succeeds when EMA loss is below target
+  //- Verify action succeeds when current EMA loss <= previous EMA loss (allows recovery)
+  //- Verify action fails when EMA loss exceeds target and is increasing
+  function test_GTSA_tradeActions() external {
+    _depositToTSA(100 * MARKET_UNIT);
+    _executeDeposit(50 * MARKET_UNIT);
+    // Verify successful trade with wrapped deposit asset
+
+    _tradeSpot(-0.2e18, MARKET_REF_SPOT);
+    ISubAccounts.AssetBalance[] memory assetBalances = subAccounts.getAccountBalances(tsa.subAccount());
+
+    vm.assertEq(assetBalances.length, 2);
+
+    // cannot trade perp until the asset is enabled
+    (IActionVerifier.Action[] memory actions, bytes[] memory signatures, bytes memory actionData) =
+      _getPerpTradeData(-0.2e18, MARKET_REF_SPOT);
+
+    vm.prank(signer);
+    vm.expectRevert(GeneralisedTSA.GT_InvalidTradeAsset.selector);
+    tsa.signActionData(actions[0], "");
+
+    // After enabling the asset, can sign the action/execute the trade
+    gtsa.enableAsset(address(markets[MARKET].perp));
+
+    vm.prank(signer);
+    tsa.signActionData(actions[0], "");
+
+    _verifyAndMatch(actions, signatures, actionData);
+
+    assetBalances = subAccounts.getAccountBalances(tsa.subAccount());
+    vm.assertEq(assetBalances.length, 3);
+
+    // Trade will fail if EMA mark loss exceeds threshold
+
+    // Lose about 10% of the vaults value by burning
+    markets[MARKET].erc20.burn(address(tsa), 10 * MARKET_UNIT);
+
+    // can just sign the previous action to verify it fails
+    vm.prank(signer);
+    vm.expectRevert(GeneralisedTSA.GT_MarkLossTooHigh.selector);
+    tsa.signActionData(actions[0], "");
+
+    // Check the mark loss
+    // doesnt update because the above reverted
+    (int markLossEma, uint markLossLastTs) = gtsa.getEmaValues();
+    vm.assertEq(markLossEma, 0);
+
+    // but can be prodded to be updated
+    gtsa.updateEMA();
+    (markLossEma, markLossLastTs) = gtsa.getEmaValues();
+    vm.assertEq(markLossEma, 0.1e18);
+
+    // now we can wait to decay this, 0.002 would decay approx 50% every 1hr
+
+    vm.warp(block.timestamp + 1 hours);
+    gtsa.updateEMA();
+    (markLossEma, markLossLastTs) = gtsa.getEmaValues();
+    vm.assertApproxEqRel(markLossEma, 0.05e18, 0.1e18); // within 10%
+
+    // We don't accept "recovery" like we did with mark loss in the LevBasisTSA, since this would be too easily
+    // manipulable (updateEMA, donate a tiny amount, trade, repeat...)
+    vm.expectRevert(GeneralisedTSA.GT_MarkLossTooHigh.selector);
+    vm.prank(signer);
+    tsa.signActionData(actions[0], "");
+
+    // since the threshold is 2%, we can trade after 2 more hours! (signature passes)
+    vm.warp(block.timestamp + 2 hours);
+    vm.prank(signer);
+    tsa.signActionData(actions[0], "");
+  }
 
   //### RFQ Action Tests
   //- Verify valid RFQ action with extraData = 0
   //- Verify valid RFQ action with matching orderHash
   //- Verify RFQ action with mismatched orderHash fails
   //- Verify RFQ action with non-enabled assets fails
+
+  function test_GTSA_rfqMaker() external {
+    _depositToTSA(100 * MARKET_UNIT);
+    _executeDeposit(50 * MARKET_UNIT);
+
+    (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) = _setupRfq(
+      10e18,
+      MARKET_REF_SPOT / 10,
+      block.timestamp + 1 weeks,
+      MARKET_REF_SPOT,
+      MARKET_REF_SPOT / 20,
+      MARKET_REF_SPOT * 12 / 10,
+      true
+    );
+
+    (IActionVerifier.Action[] memory actions, bytes[] memory signatures) =
+      _getRfqAsMakerSignaturesAndActions(makerOrder, takerOrder);
+
+    vm.prank(signer);
+    vm.expectRevert(GeneralisedTSA.GT_InvalidTradeAsset.selector);
+    tsa.signActionData(actions[0], "");
+
+    // Enable the asset
+    gtsa.enableAsset(address(markets[MARKET].option));
+
+    vm.prank(signer);
+    tsa.signActionData(actions[0], "");
+
+    // now verify we can execute the trade
+
+    IRfqModule.FillData memory fill = IRfqModule.FillData({
+      makerAccount: tsaSubacc,
+      takerAccount: nonVaultSubacc,
+      makerFee: 0,
+      takerFee: 0,
+      managerData: bytes("")
+    });
+
+    _verifyAndMatch(actions, signatures, abi.encode(fill));
+  }
+
+  function test_GTSA_rfqTaker() external {
+    _depositToTSA(100 * MARKET_UNIT);
+    _executeDeposit(50 * MARKET_UNIT);
+
+    (IRfqModule.RfqOrder memory makerOrder, IRfqModule.TakerOrder memory takerOrder) = _setupRfq(
+      10e18,
+      MARKET_REF_SPOT / 10,
+      block.timestamp + 1 weeks,
+      MARKET_REF_SPOT,
+      MARKET_REF_SPOT / 20,
+      MARKET_REF_SPOT * 12 / 10,
+      true
+    );
+
+    IActionVerifier.Action memory takerAction = _createRfqAction(takerOrder);
+
+    vm.prank(signer);
+    vm.expectRevert(GeneralisedTSA.GT_InvalidTradeAsset.selector);
+    tsa.signActionData(takerAction, abi.encode(makerOrder.trades));
+
+    bytes32 orderHash = takerOrder.orderHash;
+    takerOrder.orderHash = bytes32(0);
+    takerAction.data = abi.encode(takerOrder);
+
+    vm.prank(signer);
+    vm.expectRevert(GeneralisedTSA.GT_TradeDataDoesNotMatchOrderHash.selector);
+    tsa.signActionData(takerAction, abi.encode(makerOrder.trades));
+
+    takerOrder.orderHash = orderHash;
+    takerAction.data = abi.encode(takerOrder);
+
+    // Enable the asset
+    gtsa.enableAsset(address(markets[MARKET].option));
+
+    vm.prank(signer);
+    tsa.signActionData(takerAction, abi.encode(makerOrder.trades));
+  }
+
   //
   //### Withdrawal Action Tests
   //- Verify withdrawal of wrapped deposit asset
   //- Verify withdrawal of non-wrapped deposit asset fails
   //- Verify withdrawal of non-enabled asset (dust removal scenario)
-  //
-  //## EMA Logic Tests
-  //- Verify EMA calculation with varying time intervals
-  //- Test decay factor with different time periods
-  //- Verify EMA updates correctly after multiple trades
-  //- Test mark loss calculation when share price increases
-  //- Test mark loss calculation when share price decreases
-  //- Verify action succeeds when EMA loss is below target
-  //- Verify action succeeds when current EMA loss <= previous EMA loss (allows recovery)
-  //- Verify action fails when EMA loss exceeds target and is increasing
-  //
+
+  function test_GTSA_withdrawal() public {
+    _depositToTSA(100 * MARKET_UNIT);
+    _executeDeposit(50 * MARKET_UNIT);
+
+    // Verify withdrawal of wrapped deposit asset
+    _executeWithdrawal(50 * MARKET_UNIT);
+
+    // donate to subaccount
+    markets[NOT_MARKET].erc20.mint(address(this), 1e18);
+    markets[NOT_MARKET].erc20.approve(address(markets[NOT_MARKET].base), type(uint).max);
+    markets[NOT_MARKET].base.deposit(tsa.subAccount(), 1e18);
+
+    IActionVerifier.Action memory action = _createWithdrawalAction(0.5e18, address(markets[NOT_MARKET].base));
+
+    vm.prank(signer);
+    tsa.signActionData(action, "");
+
+    _submitToMatching(action);
+
+    gtsa.enableAsset(address(markets[NOT_MARKET].base));
+
+    // Verify withdrawal of enabled asset fails
+    vm.expectRevert(GeneralisedTSA.GT_InvalidWithdrawAsset.selector);
+    vm.prank(signer);
+    tsa.signActionData(action, "");
+  }
   //## View Function Tests
   //- Verify getAccountValue returns correct values with includePending=true/false
   //- Verify getBasePrice returns correct price from feed
   //- Verify lastSeenHash returns latest action hash
   //- Verify getLBTSAEmaValues returns current EMA state
   //- Verify getLBTSAAddresses returns correct module addresses
+
+  function _createRfqAction(IRfqModule.TakerOrder memory takerOrder) internal returns (IActionVerifier.Action memory) {
+    return IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++tsaNonce,
+      module: rfqModule,
+      data: abi.encode(takerOrder),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
+    });
+  }
 }

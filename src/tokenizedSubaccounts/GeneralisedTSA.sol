@@ -1,31 +1,32 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.20;
 
-import {IntLib} from "lyra-utils/math/IntLib.sol";
-import {FixedPointMathLib} from "lyra-utils/math/FixedPointMathLib.sol";
-import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
-import {Black76} from "lyra-utils/math/Black76.sol";
-import {SafeCast} from "openzeppelin/utils/math/SafeCast.sol";
-import {DecimalMath} from "lyra-utils/decimals/DecimalMath.sol";
-import {SignedDecimalMath} from "lyra-utils/decimals/SignedDecimalMath.sol";
-import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
-
-import {BaseTSA} from "./BaseOnChainSigningTSA.sol";
-import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
-import {IOptionAsset} from "v2-core/src/interfaces/IOptionAsset.sol";
-import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
-import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
-import {IDepositModule} from "../interfaces/IDepositModule.sol";
-import {IWithdrawalModule} from "../interfaces/IWithdrawalModule.sol";
-import {IMatching} from "../interfaces/IMatching.sol";
-import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
-
+import "forge-std/console.sol";
 import {
   StandardManager, IStandardManager, IVolFeed, IForwardFeed
 } from "v2-core/src/risk-managers/StandardManager.sol";
-import {ITradeModule} from "../interfaces/ITradeModule.sol";
+import {BaseTSA} from "./BaseOnChainSigningTSA.sol";
+import {Black76} from "lyra-utils/math/Black76.sol";
+import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
+import {DecimalMath} from "lyra-utils/decimals/DecimalMath.sol";
 import {EmptyTSA} from "./EmptyTSA.sol";
+import {FixedPointMathLib} from "lyra-utils/math/FixedPointMathLib.sol";
+
+import {IDepositModule} from "../interfaces/IDepositModule.sol";
+import {IMatching} from "../interfaces/IMatching.sol";
+import {IOptionAsset} from "v2-core/src/interfaces/IOptionAsset.sol";
+import {IPerpAsset} from "v2-core/src/interfaces/IPerpAsset.sol";
 import {IRfqModule} from "../interfaces/IRfqModule.sol";
+import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
+import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
+import {ITradeModule} from "../interfaces/ITradeModule.sol";
+import {IWithdrawalModule} from "../interfaces/IWithdrawalModule.sol";
+
+import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
+import {IntLib} from "lyra-utils/math/IntLib.sol";
+import {OptionEncoding} from "lyra-utils/encoding/OptionEncoding.sol";
+import {SafeCast} from "openzeppelin/utils/math/SafeCast.sol";
+import {SignedDecimalMath} from "lyra-utils/decimals/SignedDecimalMath.sol";
 
 /// @title GeneralisedTSA
 /// @notice A TSA that allows the owner/signer to trade assets freely, with limited guardrails
@@ -113,6 +114,8 @@ contract GeneralisedTSA is EmptyTSA {
     $.emaDecayFactor = emaDecayFactor;
     $.markLossEmaTarget = markLossEmaTarget;
 
+    $.lastSeenSharePrice = this.getSharesValue(1e18);
+
     emit GTSAParamsSet(emaDecayFactor, markLossEmaTarget);
   }
 
@@ -120,6 +123,7 @@ contract GeneralisedTSA is EmptyTSA {
     GTSAStorage storage $ = _getGTSAStorage();
     $.markLossLastTs = block.timestamp;
     $.markLossEma = 0;
+    $.lastSeenSharePrice = this.getSharesValue(1e18);
   }
 
   function enableAsset(address asset) external onlyOwner {
@@ -127,6 +131,17 @@ contract GeneralisedTSA is EmptyTSA {
     $.enabledAssets[asset] = true;
 
     emit AssetEnabled(asset);
+  }
+
+  ////////////
+  // Keeper //
+  ////////////
+
+  /// @dev This function is called by the keeper to update the EMA and mark loss values
+  /// This is required as the EMA is not updated when the actions are reverted - so could get into a state where if the
+  /// share price drops below a certain point, the EMA would never be able to recover
+  function updateEMA() external returns (int, int) {
+    return _updateEma();
   }
 
   ///////////////////////
@@ -195,9 +210,10 @@ contract GeneralisedTSA is EmptyTSA {
 
     for (uint i = 0; i < makerTrades.length; i++) {
       IRfqModule.TradeData memory makerTrade = makerTrades[i];
-      if (makerTrade.asset != address(tsaAddresses.wrappedDepositAsset) || !$.enabledAssets[makerTrade.asset]) {
-        revert GT_InvalidTradeAsset();
-      }
+      require(
+        makerTrade.asset == address(tsaAddresses.wrappedDepositAsset) || $.enabledAssets[makerTrade.asset],
+        GT_InvalidTradeAsset()
+      );
     }
 
     _verifyEmaMarkLoss();
@@ -209,32 +225,38 @@ contract GeneralisedTSA is EmptyTSA {
     IWithdrawalModule.WithdrawalData memory withdrawData = abi.decode(action.data, (IWithdrawalModule.WithdrawalData));
 
     require(
-      withdrawData.asset == address(tsaAddresses.wrappedDepositAsset)
-        || withdrawData.asset != address(tsaAddresses.cash) || !$.enabledAssets[withdrawData.asset], // If the asset is not enabled, we can withdraw it - remove dust
+      withdrawData.asset != address(tsaAddresses.cash)
+        && (withdrawData.asset == address(tsaAddresses.wrappedDepositAsset) || !$.enabledAssets[withdrawData.asset]), // If the asset is not enabled, we can withdraw it - to remove dust
       GT_InvalidWithdrawAsset()
     );
-
-    if (withdrawData.asset != address(tsaAddresses.wrappedDepositAsset)) {
-      revert ETSA_InvalidAsset();
-    }
 
     // Note; no restriction to borrow when withdrawing. So a USDC based vault could swap for ETH and then allow
     // withdrawals of USDC (that borrow against the ETH)
   }
 
   function _verifyEmaMarkLoss() internal {
+    (int preMarkLossEma, int emaLoss) = _updateEma();
+    // TODO: should we have the "recovery" check? Since that will almost constantly trigger when we only look at share
+    // price/it is gameable by donating to the pool - `|| emaLoss <= preMarkLossEma`
+    require(emaLoss <= int(_getGTSAStorage().markLossEmaTarget), GT_MarkLossTooHigh());
+  }
+
+  function _updateEma() internal returns (int preMarkLossEma, int emaLoss) {
     GTSAStorage storage $ = _getGTSAStorage();
 
     uint currentSharePrice = this.getSharesValue(1e18);
     uint lastSharePrice = $.lastSeenSharePrice;
 
-    int markLossPercent = int(currentSharePrice) - int(lastSharePrice);
+    // Positive value == loss
+    int markLossPercent = (int(lastSharePrice) - int(currentSharePrice)) * 1e18 / int(lastSharePrice);
 
     int preMarkLossEma = _decayAndFetchEma();
     int emaLoss = preMarkLossEma + markLossPercent;
-    $.markLossEma = emaLoss;
 
-    require(emaLoss <= int($.markLossEmaTarget) || emaLoss <= preMarkLossEma, GT_MarkLossTooHigh());
+    $.markLossEma = emaLoss;
+    $.lastSeenSharePrice = currentSharePrice;
+
+    return (preMarkLossEma, emaLoss);
   }
 
   function _decayAndFetchEma() internal returns (int newEma) {

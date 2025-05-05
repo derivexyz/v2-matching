@@ -409,6 +409,12 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
 
     uint lastSnapshotTime = $.lastPerfSnapshotTime;
 
+    if ($.tsaParams.performanceFee == 0 || $.tsaParams.feeRecipient == address(0) || lastSnapshotTime == 0) {
+      $.lastPerfSnapshotTime = block.timestamp;
+      $.lastPerfSnapshotValue = _getSharePrice();
+      return;
+    }
+
     if (block.timestamp >= lastSnapshotTime + $.tsaParams.performanceFeeWindow) {
       address feeRecipient = $.tsaParams.feeRecipient;
       (uint perfFee, uint sharePrice) = _getPerfFee();
@@ -465,7 +471,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     }
 
     if (sharePrice > $.lastPerfSnapshotValue) {
-      uint perfFee = (sharePrice - $.lastPerfSnapshotValue) * $.tsaParams.performanceFee / sharePrice;
+      perfFee = (sharePrice - $.lastPerfSnapshotValue) * $.tsaParams.performanceFee / sharePrice;
       return (perfFee, sharePrice);
     }
     return (0, sharePrice);
