@@ -97,7 +97,8 @@ contract UpgradeLBTSA is UtilBase {
         manager: ILiquidatableManager(_getCoreContract("srm")),
         matching: IMatching(_getMatchingContract("matching", "matching")),
         symbol: string.concat("b", marketName),
-        name: string.concat("Basis traded ", marketName)
+        name: string.concat("Basis traded ", marketName),
+        initialParams: defaultLbtsaTSAParams
       }),
       LeveragedBasisTSA.LBTSAInitParams({
         baseFeed: ISpotFeed(_getV2CoreContract(marketName, "spotFeed")),
@@ -110,7 +111,7 @@ contract UpgradeLBTSA is UtilBase {
 
     LeveragedBasisTSA(address(proxy)).setSubmitter(0x47E946f9027B0e7E0117afa482AF4C4053C53b40, true);
 //
-//    LeveragedBasisTSA(address(proxy)).setLBTSAParams(defaultLbtsaTSAParams);
+//    LeveragedBasisTSA(address(proxy)).setLBTSAParams();
 //    LeveragedBasisTSA(address(proxy)).setCollateralManagementParams(defaultCollateralManagementParams);
 ////    proxyAdmin.transferOwnership(0xB176A44D819372A38cee878fB0603AEd4d26C5a5);
 
@@ -137,7 +138,8 @@ contract UpgradeLBTSA is UtilBase {
         manager: ILiquidatableManager(_getCoreContract("srm")),
         matching: IMatching(_getMatchingContract("matching", "matching")),
         symbol: string.concat("b", marketName),
-        name: string.concat("Basis traded ", marketName)
+        name: string.concat("Basis traded ", marketName),
+        initialParams: defaultLbtsaTSAParams
       }),
       LeveragedBasisTSA.LBTSAInitParams({
         baseFeed: ISpotFeed(_getV2CoreContract(marketName, "spotFeed")),
@@ -152,7 +154,7 @@ contract UpgradeLBTSA is UtilBase {
 
 //    console.log("implementation: ", address(implementation));
 
-//    LeveragedBasisTSA(address(proxy)).setLBTSAParams(defaultLbtsaTSAParams);
+//    LeveragedBasisTSA(address(proxy)).setLBTSAParams();
 //    LeveragedBasisTSA(address(proxy)).setCollateralManagementParams(defaultCollateralManagementParams);
 //    proxyAdmin.transferOwnership(0xB176A44D819372A38cee878fB0603AEd4d26C5a5);
 

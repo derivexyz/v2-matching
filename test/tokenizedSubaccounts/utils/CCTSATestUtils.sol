@@ -46,6 +46,8 @@ contract CCTSATestUtils is TSATestUtils {
 
     tsaImplementation = new CoveredCallTSA();
 
+    console.log("baseFeed: ", address(baseFeed));
+
     proxyAdmin.upgradeAndCall(
       ITransparentUpgradeableProxy(address(proxy)),
       address(tsaImplementation),
@@ -60,7 +62,17 @@ contract CCTSATestUtils is TSATestUtils {
           manager: srm,
           matching: matching,
           symbol: "Tokenised SubAccount",
-          name: "TSA"
+          name: "TSA",
+          initialParams: BaseTSA.TSAParams({
+            depositCap: 10000e18,
+            minDepositValue: 1e18,
+            depositScale: 1e18,
+            withdrawScale: 1e18,
+            managementFee: 0,
+            feeRecipient: address(0),
+            performanceFeeWindow: 1 weeks,
+            performanceFee: 0
+          })
         }),
         CoveredCallTSA.CCTSAInitParams({
           baseFeed: baseFeed,
@@ -78,17 +90,6 @@ contract CCTSATestUtils is TSATestUtils {
   }
 
   function setupCCTSA() internal {
-    tsa.setTSAParams(
-      BaseTSA.TSAParams({
-        depositCap: 10000e18,
-        minDepositValue: 1e18,
-        depositScale: 1e18,
-        withdrawScale: 1e18,
-        managementFee: 0,
-        feeRecipient: address(0)
-      })
-    );
-
     CoveredCallTSA(address(tsa)).setCCTSAParams(defaultCCTSAParams);
     CoveredCallTSA(address(tsa)).setCollateralManagementParams(defaultCollateralManagementParams);
 

@@ -19,14 +19,14 @@ contract CCTSA_BaseTSA_FeesTests is CCTSATestUtils {
 
   function testFeeCollection() public {
     // - check params are as expected for a fresh deploy
-    assertEq(cctsa.lastFeeCollected(), block.timestamp);
+    assertEq(_getLastFeeCollected(), block.timestamp);
 
     // - check params are set correctly when a deposit comes through
     vm.warp(block.timestamp + 1 hours);
 
-    assertEq(cctsa.lastFeeCollected(), block.timestamp - 1 hours);
+    assertEq(_getLastFeeCollected(), block.timestamp - 1 hours);
     _depositToTSA(1e18);
-    assertEq(cctsa.lastFeeCollected(), block.timestamp);
+    assertEq(_getLastFeeCollected(), block.timestamp);
 
     // - check no fee is collected when feeRecipient is the zero address
     CoveredCallTSA.TSAParams memory params = cctsa.getTSAParams();
@@ -38,7 +38,7 @@ contract CCTSA_BaseTSA_FeesTests is CCTSATestUtils {
     vm.warp(block.timestamp + 1 hours);
     cctsa.collectFee();
 
-    assertEq(cctsa.lastFeeCollected(), block.timestamp);
+    assertEq(_getLastFeeCollected(), block.timestamp);
     assertEq(cctsa.balanceOf(address(0)), 0);
 
     // - check no fee is collected when feeRate is 0
@@ -50,7 +50,7 @@ contract CCTSA_BaseTSA_FeesTests is CCTSATestUtils {
     vm.warp(block.timestamp + 1 hours);
     cctsa.collectFee();
 
-    assertEq(cctsa.lastFeeCollected(), block.timestamp);
+    assertEq(_getLastFeeCollected(), block.timestamp);
     assertEq(cctsa.balanceOf(address(alice)), 0);
 
     // - check fees are collected correctly
@@ -63,7 +63,7 @@ contract CCTSA_BaseTSA_FeesTests is CCTSATestUtils {
     vm.warp(block.timestamp + 365 days);
     cctsa.collectFee();
 
-    assertEq(cctsa.lastFeeCollected(), block.timestamp);
+    assertEq(_getLastFeeCollected(), block.timestamp);
     assertEq(cctsa.balanceOf(address(alice)), 0.01e18);
 
     // - check fees are collected correctly with pending withdrawals
@@ -74,7 +74,7 @@ contract CCTSA_BaseTSA_FeesTests is CCTSATestUtils {
     vm.warp(block.timestamp + 365 days);
     cctsa.collectFee();
 
-    assertEq(cctsa.lastFeeCollected(), block.timestamp);
+    assertEq(_getLastFeeCollected(), block.timestamp);
     // alice gets more than 1% as total supply is now 1.01 instead of 1
     assertEq(cctsa.balanceOf(address(alice)), 0.0201e18);
 
@@ -101,15 +101,20 @@ contract CCTSA_BaseTSA_FeesTests is CCTSATestUtils {
 
     cctsa.setTSAParams(params);
 
-    assertEq(cctsa.lastFeeCollected(), block.timestamp);
+    assertEq(_getLastFeeCollected(), block.timestamp);
 
     // Collecing fee with 0 total supply still updates timestamp
     vm.warp(block.timestamp + 1);
     cctsa.collectFee();
-    assertEq(cctsa.lastFeeCollected(), block.timestamp);
+    assertEq(_getLastFeeCollected(), block.timestamp);
   }
 
   function testFeeCollectionWithDifferentDecimals() public {
     // TODO
+  }
+
+  function _getLastFeeCollected() internal view returns (uint) {
+    (uint lastFeeCollected,,) = cctsa.getFeeValues();
+    return lastFeeCollected;
   }
 }

@@ -28,6 +28,7 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     IMatching matching;
     string symbol;
     string name;
+    TSAParams initialParams;
   }
 
   struct BaseTSAAddresses {
@@ -51,6 +52,9 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     uint withdrawScale;
     uint managementFee;
     address feeRecipient;
+    // Performance fee
+    uint performanceFee;
+    uint performanceFeeWindow;
   }
 
   /// @dev A withdrawal is considered complete when amountShares is 0. They can be partially completed.
@@ -92,6 +96,9 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     uint totalPendingWithdrawals;
     /// @dev Last time the fee was collected
     uint lastFeeCollected;
+    // Performance fee
+    uint lastPerfSnapshotTime;
+    uint lastPerfSnapshotValue;
   }
 
   // keccak256(abi.encode(uint256(keccak256("lyra.storage.BaseTSA")) - 1)) & ~bytes32(uint256(0xff))
@@ -123,6 +130,8 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     $.depositAsset = $.wrappedDepositAsset.wrappedAsset();
     $.matching = initParams.matching;
 
+    _setTSAParams(initParams.initialParams);
+
     if ($.subAccount == 0) {
       $.subAccount = $.subAccounts.createAccountWithApproval(address(this), address($.matching), $.manager);
       $.matching.depositSubAccount($.subAccount);
@@ -138,13 +147,19 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
   ///////////
 
   function setTSAParams(TSAParams memory _params) external onlyOwner {
-    _collectFee();
+    _setTSAParams(_params);
+  }
+
+  function _setTSAParams(TSAParams memory _params) internal {
+    _collectFees();
 
     uint scaleRatio = _params.depositScale * 1e18 / _params.withdrawScale;
 
-    if (_params.managementFee > 0.02e18 || scaleRatio > 1.12e18 || scaleRatio < 0.9e18) {
-      revert BTSA_InvalidParams();
-    }
+    require(
+      _params.managementFee <= 0.2e18 && scaleRatio <= 1.12e18 && scaleRatio >= 0.9e18 && _params.performanceFee <= 1e18
+        && _params.performanceFeeWindow > 0,
+      BTSA_InvalidParams()
+    );
 
     _getBaseTSAStorage().tsaParams = _params;
 
@@ -203,13 +218,13 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
   }
 
   function processDeposit(uint depositId) external onlyShareKeeper checkBlocked {
-    _collectFee();
+    _collectFees();
     _processDeposit(depositId);
   }
 
   /// @notice Process a number of deposit requests.
   function processDeposits(uint[] memory depositIds) external onlyShareKeeper checkBlocked {
-    _collectFee();
+    _collectFees();
     for (uint i = 0; i < depositIds.length; ++i) {
       _processDeposit(depositIds[i]);
     }
@@ -284,7 +299,8 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
   function processWithdrawalRequests(uint limit) external checkBlocked onlyShareKeeper nonReentrant {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
 
-    _collectFee();
+    _collectFees();
+    (uint perfFee, uint sharePrice) = _getPerfFee();
 
     for (uint i = 0; i < limit; ++i) {
       if ($.queuedWithdrawalHead >= $.nextQueuedWithdrawalId) {
@@ -294,7 +310,9 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
       WithdrawalRequest storage request = $.queuedWithdrawals[$.queuedWithdrawalHead];
 
       uint totalBalance = $.depositAsset.balanceOf(address(this)) - $.totalPendingDeposits;
-
+      if (perfFee > 0) {
+        totalBalance = totalBalance * 1e18 / (1e18 - perfFee);
+      }
       uint requiredAmount = _getSharesToWithdrawAmount(request.amountShares);
 
       if (totalBalance == 0) {
@@ -308,24 +326,30 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
         uint finalShareAmount = request.amountShares * difference / requiredAmount;
         uint sharesRedeemed = request.amountShares - finalShareAmount;
 
+        uint finalWithdrawAmount = _collectWithdrawalPerfFee(sharesRedeemed, withdrawAmount, perfFee, sharePrice);
+
         $.totalPendingWithdrawals -= sharesRedeemed;
         request.amountShares = finalShareAmount;
-        request.assetsReceived += withdrawAmount;
+        request.assetsReceived += finalWithdrawAmount;
 
-        emit WithdrawalProcessed($.queuedWithdrawalHead, request.beneficiary, false, sharesRedeemed, withdrawAmount);
+        emit WithdrawalProcessed(
+          $.queuedWithdrawalHead, request.beneficiary, false, sharesRedeemed, finalWithdrawAmount
+        );
 
-        $.depositAsset.transfer(request.beneficiary, withdrawAmount);
+        $.depositAsset.transfer(request.beneficiary, finalWithdrawAmount);
         break;
       } else {
         uint sharesRedeemed = request.amountShares;
 
+        uint finalWithdrawAmount = _collectWithdrawalPerfFee(sharesRedeemed, requiredAmount, perfFee, sharePrice);
+
         $.totalPendingWithdrawals -= sharesRedeemed;
         request.amountShares = 0;
-        request.assetsReceived += requiredAmount;
+        request.assetsReceived += finalWithdrawAmount;
 
-        emit WithdrawalProcessed($.queuedWithdrawalHead, request.beneficiary, true, sharesRedeemed, requiredAmount);
+        emit WithdrawalProcessed($.queuedWithdrawalHead, request.beneficiary, true, sharesRedeemed, finalWithdrawAmount);
 
-        $.depositAsset.transfer(request.beneficiary, requiredAmount);
+        $.depositAsset.transfer(request.beneficiary, finalWithdrawAmount);
       }
       $.queuedWithdrawalHead++;
     }
@@ -346,16 +370,17 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
 
   /// @notice Public function to trigger fee collection
   function collectFee() external {
-    _collectFee();
+    _collectFees();
+  }
+
+  function _collectFees() internal {
+    _collectManagementFee();
+    _collectPerformanceFee();
   }
 
   /// @dev Must be called before totalSupply is modified to keep amount charged fair
-  function _collectFee() internal {
+  function _collectManagementFee() internal {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
-
-    if ($.lastFeeCollected == block.timestamp) {
-      return;
-    }
 
     if ($.tsaParams.managementFee == 0 || $.tsaParams.feeRecipient == address(0)) {
       $.lastFeeCollected = block.timestamp;
@@ -376,7 +401,80 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
 
     $.lastFeeCollected = block.timestamp;
 
-    emit FeeCollected($.tsaParams.feeRecipient, amountCollected, block.timestamp, totalShares);
+    emit ManagementFeeCollected($.tsaParams.feeRecipient, amountCollected, totalShares);
+  }
+
+  function _collectPerformanceFee() internal {
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    uint lastSnapshotTime = $.lastPerfSnapshotTime;
+
+    if ($.tsaParams.performanceFee == 0 || $.tsaParams.feeRecipient == address(0) || lastSnapshotTime == 0) {
+      $.lastPerfSnapshotTime = block.timestamp;
+      $.lastPerfSnapshotValue = _getSharePrice();
+      return;
+    }
+
+    if (block.timestamp >= lastSnapshotTime + $.tsaParams.performanceFeeWindow) {
+      address feeRecipient = $.tsaParams.feeRecipient;
+      (uint perfFee, uint sharePrice) = _getPerfFee();
+
+      uint amountCollected = 0;
+      if (perfFee > 0) {
+        amountCollected = this.totalSupply() * perfFee / (1e18 - perfFee);
+        _mint(feeRecipient, amountCollected);
+      }
+
+      // Get new share price after fee collection
+      sharePrice = _getSharePrice();
+
+      emit PerformanceFeeCollected(
+        feeRecipient, amountCollected, this.totalSupply(), sharePrice, $.lastPerfSnapshotValue, lastSnapshotTime
+      );
+
+      $.lastPerfSnapshotTime = block.timestamp;
+      $.lastPerfSnapshotValue = sharePrice;
+    }
+  }
+
+  function _collectWithdrawalPerfFee(uint sharesBurnt, uint withdrawAmount, uint perfFee, uint currentSharePrice)
+    internal
+    returns (uint finalWithdrawAmount)
+  {
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    if (perfFee > 0) {
+      address feeRecipient = $.tsaParams.feeRecipient;
+      uint feeSharesMinted = sharesBurnt * perfFee / 1e18;
+
+      _mint(feeRecipient, feeSharesMinted);
+
+      emit WithdrawPerformanceFeeCollected(
+        feeRecipient, sharesBurnt, feeSharesMinted, withdrawAmount, currentSharePrice, $.lastPerfSnapshotValue
+      );
+
+      return withdrawAmount * (1e18 - perfFee) / 1e18;
+    }
+    return withdrawAmount;
+  }
+
+  function _getPerfFee() internal view returns (uint perfFee, uint sharePrice) {
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+    sharePrice = _getSharePrice();
+
+    if ($.tsaParams.performanceFee == 0 || $.tsaParams.feeRecipient == address(0)) {
+      return (0, sharePrice);
+    }
+
+    if ($.lastPerfSnapshotTime == 0) {
+      return (0, sharePrice);
+    }
+
+    if (sharePrice > $.lastPerfSnapshotValue) {
+      perfFee = (sharePrice - $.lastPerfSnapshotValue) * $.tsaParams.performanceFee / sharePrice;
+      return (perfFee, sharePrice);
+    }
+    return (0, sharePrice);
   }
 
   /////////////////////////////
@@ -457,8 +555,13 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     return _isBlocked();
   }
 
-  function lastFeeCollected() public view returns (uint) {
-    return _getBaseTSAStorage().lastFeeCollected;
+  function getFeeValues()
+    public
+    view
+    returns (uint lastManagementFeeTime, uint lastPerfSnapshotTime, uint lastPerfSnapshotValue)
+  {
+    BaseTSAStorage storage $ = _getBaseTSAStorage();
+    return ($.lastFeeCollected, $.lastPerfSnapshotTime, $.lastPerfSnapshotValue);
   }
 
   ///////////////
@@ -504,7 +607,28 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
     uint indexed withdrawalId, address indexed beneficiary, bool complete, uint sharesProcessed, uint amountReceived
   );
 
-  event FeeCollected(address indexed recipient, uint amount, uint timestamp, uint totalSupply);
+  event ManagementFeeCollected(address indexed recipient, uint amount, uint totalSupply);
+  event PerformanceFeeCollected(
+    address indexed recipient,
+    uint amount,
+    uint totalSupply,
+    uint newSnapshotSharePrice,
+    uint lastPerfSnapshotValue,
+    uint lastPerfSnapshotTime
+  );
+
+  event WithdrawPerformanceFeeCollected(
+    address indexed feeRecipient,
+    uint sharesBurnt,
+    uint feeSharesMinted,
+    uint withdrawAmount,
+    uint currentSharePrice,
+    uint lastPerfSnapshotValue
+  );
+
+  ////////////
+  // Errors //
+  ////////////
 
   error BTSA_InvalidParams();
   error BTSA_MustReceiveShares();

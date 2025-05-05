@@ -29,7 +29,7 @@ contract CCTSA_BaseTSA_Admin is CCTSATestUtils {
 
     BaseTSA.TSAParams memory params = cctsa.getTSAParams();
 
-    params.managementFee = 0.02e18 + 1;
+    params.managementFee = 0.2e18 + 1;
 
     vm.expectRevert(BaseTSA.BTSA_InvalidParams.selector);
     cctsa.setTSAParams(params);

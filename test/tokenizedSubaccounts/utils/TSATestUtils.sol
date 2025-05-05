@@ -30,6 +30,8 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   using SignedMath for int;
 
   string public MARKET = "wbtc";
+  string public NOT_MARKET = "weth";
+
   uint public MARKET_UNIT;
   uint public MARKET_REF_SPOT;
 
@@ -49,6 +51,12 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
 
   BaseOnChainSigningTSA public tsa;
   uint public tsaSubacc;
+
+  constructor() {
+    require(
+      keccak256(abi.encode(MARKET)) != keccak256(abi.encode(NOT_MARKET)), "MARKET and NOT_MARKET must be different"
+    );
+  }
 
   function setUp() public virtual {
     _setupIntegrationTestComplete();
@@ -149,23 +157,22 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
           manager: srm,
           matching: matching,
           symbol: "Tokenised SubAccount",
-          name: "TSA"
+          name: "TSA",
+          initialParams: BaseTSA.TSAParams({
+            depositCap: type(uint).max,
+            minDepositValue: 0,
+            depositScale: 1e18,
+            withdrawScale: 1e18,
+            managementFee: 0,
+            feeRecipient: address(0),
+            performanceFeeWindow: 1 weeks,
+            performanceFee: 0
+          })
         })
       )
     );
 
     mockTsa = MockTSA(address(proxy));
-
-    mockTsa.setTSAParams(
-      BaseTSA.TSAParams({
-        depositCap: type(uint).max,
-        minDepositValue: 0,
-        depositScale: 1e18,
-        withdrawScale: 1e18,
-        managementFee: 0,
-        feeRecipient: address(0)
-      })
-    );
 
     mockTsa.setShareKeeper(address(this), true);
 
@@ -399,7 +406,10 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
     return action;
   }
 
-  function _tradePerp(int amount, uint price) internal {
+  function _getPerpTradeData(int amount, uint price)
+    internal
+    returns (IActionVerifier.Action[] memory, bytes[] memory, bytes memory)
+  {
     bytes memory tradeMaker = abi.encode(
       ITradeModule.TradeData({
         asset: address(markets[MARKET].perp),
@@ -446,10 +456,17 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
       nonVaultPk
     );
 
+    return (actions, signatures, _createMatchedTrade(tsaSubacc, nonVaultSubacc, amount.abs(), int(price), 0, 0));
+  }
+
+  function _tradePerp(int amount, uint price) internal {
+    (IActionVerifier.Action[] memory actions, bytes[] memory signatures, bytes memory actionData) =
+      _getPerpTradeData(amount, price);
+
     vm.prank(signer);
     tsa.signActionData(actions[0], "");
 
-    _verifyAndMatch(actions, signatures, _createMatchedTrade(tsaSubacc, nonVaultSubacc, amount.abs(), int(price), 0, 0));
+    _verifyAndMatch(actions, signatures, actionData);
   }
 
   function _createDepositAction(uint amount) internal returns (IActionVerifier.Action memory) {
@@ -477,7 +494,11 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   }
 
   function _createWithdrawalAction(uint amount) internal returns (IActionVerifier.Action memory) {
-    bytes memory withdrawalData = _encodeWithdrawData(amount, address(markets[MARKET].base));
+    return _createWithdrawalAction(amount, address(markets[MARKET].base));
+  }
+
+  function _createWithdrawalAction(uint amount, address asset) internal returns (IActionVerifier.Action memory) {
+    bytes memory withdrawalData = _encodeWithdrawData(amount, asset);
 
     IActionVerifier.Action memory action = IActionVerifier.Action({
       subaccountId: tsaSubacc,
@@ -587,14 +608,36 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   ) internal {
     (IRfqModule.RfqOrder memory order, IRfqModule.TakerOrder memory takerOrder) =
       _setupRfq(amount, price, expiry, strike, price2, strike2, isCallSpread);
+    (IActionVerifier.Action[] memory actions, bytes[] memory signatures) =
+      _getRfqAsTakerSignaturesAndActions(order, takerOrder);
+
+    vm.prank(signer);
+    tsa.signActionData(actions[1], abi.encode(order.trades));
+
+    IRfqModule.FillData memory fill = IRfqModule.FillData({
+      makerAccount: nonVaultSubacc,
+      takerAccount: tsaSubacc,
+      makerFee: 0,
+      takerFee: 0,
+      managerData: bytes("")
+    });
+
+    _verifyAndMatch(actions, signatures, abi.encode(fill));
+  }
+
+  function _getRfqAsTakerSignaturesAndActions(
+    IRfqModule.RfqOrder memory makerOrder,
+    IRfqModule.TakerOrder memory takerOrder
+  ) internal returns (IActionVerifier.Action[] memory, bytes[] memory) {
     IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
     bytes[] memory signatures = new bytes[](2);
+
     // maker order
     (actions[0], signatures[0]) = _createActionAndSign(
       nonVaultSubacc,
       ++nonVaultNonce,
       address(rfqModule),
-      abi.encode(order),
+      abi.encode(makerOrder),
       block.timestamp + 1 days,
       nonVaultAddr,
       nonVaultAddr,
@@ -611,18 +654,41 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
       owner: address(tsa),
       signer: address(tsa)
     });
-    vm.prank(signer);
-    tsa.signActionData(actions[1], abi.encode(order.trades));
 
-    IRfqModule.FillData memory fill = IRfqModule.FillData({
-      makerAccount: nonVaultSubacc,
-      takerAccount: tsaSubacc,
-      makerFee: 0,
-      takerFee: 0,
-      managerData: bytes("")
+    return (actions, signatures);
+  }
+
+  function _getRfqAsMakerSignaturesAndActions(
+    IRfqModule.RfqOrder memory makerOrder,
+    IRfqModule.TakerOrder memory takerOrder
+  ) internal returns (IActionVerifier.Action[] memory, bytes[] memory) {
+    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
+    bytes[] memory signatures = new bytes[](2);
+
+    // maker order
+    actions[0] = IActionVerifier.Action({
+      subaccountId: tsaSubacc,
+      nonce: ++tsaNonce,
+      module: rfqModule,
+      data: abi.encode(makerOrder),
+      expiry: block.timestamp + 8 minutes,
+      owner: address(tsa),
+      signer: address(tsa)
     });
 
-    _verifyAndMatch(actions, signatures, abi.encode(fill));
+    // taker order
+    (actions[1], signatures[1]) = _createActionAndSign(
+      nonVaultSubacc,
+      ++nonVaultNonce,
+      address(rfqModule),
+      abi.encode(takerOrder),
+      block.timestamp + 1 days,
+      nonVaultAddr,
+      nonVaultAddr,
+      nonVaultPk
+    );
+
+    return (actions, signatures);
   }
 
   function _tradeRfqAsMaker(
@@ -636,29 +702,10 @@ contract TSATestUtils is IntegrationTestBase, MatchingHelpers {
   ) internal {
     (IRfqModule.RfqOrder memory order, IRfqModule.TakerOrder memory takerOrder) =
       _setupRfq(amount, price, expiry, strike, price2, strike2, isCallSpread);
-    IActionVerifier.Action[] memory actions = new IActionVerifier.Action[](2);
-    bytes[] memory signatures = new bytes[](2);
 
-    actions[0] = IActionVerifier.Action({
-      subaccountId: tsaSubacc,
-      nonce: ++tsaNonce,
-      module: rfqModule,
-      data: abi.encode(order),
-      expiry: block.timestamp + 8 minutes,
-      owner: address(tsa),
-      signer: address(tsa)
-    });
+    (IActionVerifier.Action[] memory actions, bytes[] memory signatures) =
+      _getRfqAsMakerSignaturesAndActions(order, takerOrder);
 
-    (actions[1], signatures[1]) = _createActionAndSign(
-      nonVaultSubacc,
-      ++nonVaultNonce,
-      address(rfqModule),
-      abi.encode(takerOrder),
-      block.timestamp + 1 days,
-      nonVaultAddr,
-      nonVaultAddr,
-      nonVaultPk
-    );
     vm.prank(signer);
     tsa.signActionData(actions[0], "");
 
