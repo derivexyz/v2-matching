@@ -10,8 +10,14 @@ echo "Chain Id:" $chainId
 address=$(cast wallet address "$PRIVATE_KEY")
 echo "Deployer address:" $address
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Change to the script's directory
+cd "$SCRIPT_DIR"
+
 # Deploy v2-core repos
-cd ./lib/v2-core
+cd ../lib/v2-core
 
 # Gives this account 10000 ethers to start with <3
 if [[ "$ETH_RPC_URL" =~ .*local.* ]]; then
@@ -40,19 +46,19 @@ MARKET_NAME=DOGE forge script scripts/deploy-perp-only-market.s.sol --rpc-url $E
 
 # Copy previous outputs to deployments folder
 cd ../../
-cp lib/v2-core/deployments/$chainId/core.json deployments/$chainId/core.json
-cp lib/v2-core/deployments/$chainId/ETH.json deployments/$chainId/ETH.json
-cp lib/v2-core/deployments/$chainId/ETH_2.json deployments/$chainId/ETH_2.json
-cp lib/v2-core/deployments/$chainId/BTC.json deployments/$chainId/BTC.json
-cp lib/v2-core/deployments/$chainId/BTC_2.json deployments/$chainId/BTC_2.json
-cp lib/v2-core/deployments/$chainId/USDT.json deployments/$chainId/USDT.json
-cp lib/v2-core/deployments/$chainId/SNX.json deployments/$chainId/SNX.json
-cp lib/v2-core/deployments/$chainId/WSTETH.json deployments/$chainId/WSTETH.json
-cp lib/v2-core/deployments/$chainId/strands.json deployments/$chainId/strands.json
-cp lib/v2-core/deployments/$chainId/SFP.json deployments/$chainId/SFP.json
-cp lib/v2-core/deployments/$chainId/SOL.json deployments/$chainId/SOL.json
-cp lib/v2-core/deployments/$chainId/DOGE.json deployments/$chainId/DOGE.json
-cp lib/v2-core/deployments/$chainId/shared.json deployments/$chainId/shared.json
+#cp lib/v2-core/deployments/$chainId/core.json deployments/$chainId/core.json
+#cp lib/v2-core/deployments/$chainId/ETH.json deployments/$chainId/ETH.json
+#cp lib/v2-core/deployments/$chainId/ETH_2.json deployments/$chainId/ETH_2.json
+#cp lib/v2-core/deployments/$chainId/BTC.json deployments/$chainId/BTC.json
+#cp lib/v2-core/deployments/$chainId/BTC_2.json deployments/$chainId/BTC_2.json
+#cp lib/v2-core/deployments/$chainId/USDT.json deployments/$chainId/USDT.json
+#cp lib/v2-core/deployments/$chainId/SNX.json deployments/$chainId/SNX.json
+#cp lib/v2-core/deployments/$chainId/WSTETH.json deployments/$chainId/WSTETH.json
+#cp lib/v2-core/deployments/$chainId/strands.json deployments/$chainId/strands.json
+#cp lib/v2-core/deployments/$chainId/SFP.json deployments/$chainId/SFP.json
+#cp lib/v2-core/deployments/$chainId/SOL.json deployments/$chainId/SOL.json
+#cp lib/v2-core/deployments/$chainId/DOGE.json deployments/$chainId/DOGE.json
+#cp lib/v2-core/deployments/$chainId/shared.json deployments/$chainId/shared.json
 
 echo "Deployed core contracts"
 

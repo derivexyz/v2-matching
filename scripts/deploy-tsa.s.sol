@@ -142,7 +142,7 @@ contract DeployTSA is Utils {
     vm.serializeAddress(objKey, "shareHandler", address(shareHandler));
     vm.serializeAddress(objKey, "proxyAdmin", address(proxyAdmin));
     vm.serializeAddress(objKey, "implementation", address(lrtcctsaImplementation));
-    string memory finalObj = vm.serializeAddress(objKey, "DNWETH", address(proxy));
+    string memory finalObj = vm.serializeAddress(objKey, "token", address(proxy));
 
     // build path
     _writeToDeployments("tsa", finalObj);
@@ -225,7 +225,7 @@ contract DeployTSA is Utils {
 
     vm.serializeAddress(objKey, "proxyAdmin", address(proxyAdmin));
     vm.serializeAddress(objKey, "implementation", address(lrtpptsaImplementation));
-    string memory finalObj = vm.serializeAddress(objKey, "DNWETH", address(proxy));
+    string memory finalObj = vm.serializeAddress(objKey, "token", address(proxy));
 
     // build path
     _writeToDeployments("tsa", finalObj);
