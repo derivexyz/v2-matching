@@ -5,4 +5,5 @@ import "./IMatching.sol";
 
 interface IAtomicSigner {
   function signActionViaPermit(IMatching.Action memory action, bytes memory extraData, bytes memory signerSig) external;
+  function postTradeHook(IMatching.Action memory action, bytes memory extraData) external;
 }

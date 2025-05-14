@@ -7,7 +7,7 @@ import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
 import {ERC20Upgradeable} from "openzeppelin-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {IERC20Metadata} from "openzeppelin/token/ERC20/extensions/IERC20Metadata.sol";
 import {ILiquidatableManager} from "v2-core/src/interfaces/ILiquidatableManager.sol";
-import {IMatching} from "../interfaces/IMatching.sol";
+import {IMatching} from "../../interfaces/IMatching.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IWrappedERC20Asset} from "v2-core/src/interfaces/IWrappedERC20Asset.sol";
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
@@ -309,19 +309,19 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
 
       WithdrawalRequest storage request = $.queuedWithdrawals[$.queuedWithdrawalHead];
 
-      uint totalBalance = $.depositAsset.balanceOf(address(this)) - $.totalPendingDeposits;
+      uint maxWithdrawableBalance = $.depositAsset.balanceOf(address(this)) - $.totalPendingDeposits;
       if (perfFee > 0) {
-        totalBalance = totalBalance * 1e18 / (1e18 - perfFee);
+        maxWithdrawableBalance = maxWithdrawableBalance * 1e18 / (1e18 - perfFee);
       }
       uint requiredAmount = _getSharesToWithdrawAmount(request.amountShares);
 
-      if (totalBalance == 0) {
+      if (maxWithdrawableBalance == 0) {
         break;
       }
 
-      if (totalBalance < requiredAmount) {
+      if (maxWithdrawableBalance < requiredAmount) {
         // withdraw a portion
-        uint withdrawAmount = totalBalance;
+        uint withdrawAmount = maxWithdrawableBalance;
         uint difference = requiredAmount - withdrawAmount;
         uint finalShareAmount = request.amountShares * difference / requiredAmount;
         uint sharesRedeemed = request.amountShares - finalShareAmount;
@@ -381,6 +381,10 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
   /// @dev Must be called before totalSupply is modified to keep amount charged fair
   function _collectManagementFee() internal {
     BaseTSAStorage storage $ = _getBaseTSAStorage();
+
+    if ($.lastFeeCollected == block.timestamp) {
+      return;
+    }
 
     if ($.tsaParams.managementFee == 0 || $.tsaParams.feeRecipient == address(0)) {
       $.lastFeeCollected = block.timestamp;
@@ -447,6 +451,8 @@ abstract contract BaseTSA is ERC20Upgradeable, Ownable2StepUpgradeable, Reentran
       address feeRecipient = $.tsaParams.feeRecipient;
       uint feeSharesMinted = sharesBurnt * perfFee / 1e18;
 
+      // we avoid diluting the pool by minting the same amount of shares as the "extra" amount burnt by the user
+      // withdrawing/by the amount of shares valued at the withdrawal that is withheld
       _mint(feeRecipient, feeSharesMinted);
 
       emit WithdrawPerformanceFeeCollected(

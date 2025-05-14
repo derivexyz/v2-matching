@@ -9,7 +9,7 @@ import {DecimalMath} from "lyra-utils/decimals/DecimalMath.sol";
 import {SignedDecimalMath} from "lyra-utils/decimals/SignedDecimalMath.sol";
 import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 
-import {BaseOnChainSigningTSA, BaseTSA} from "./BaseOnChainSigningTSA.sol";
+import {BaseOnChainSigningTSA, BaseTSA} from "./shared/BaseOnChainSigningTSA.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IOptionAsset} from "v2-core/src/interfaces/IOptionAsset.sol";
 import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
@@ -21,7 +21,7 @@ import {IMatching} from "../interfaces/IMatching.sol";
 import {
   StandardManager, IStandardManager, IVolFeed, IForwardFeed
 } from "v2-core/src/risk-managers/StandardManager.sol";
-import "./CollateralManagementTSA.sol";
+import "./shared/CollateralManagementTSA.sol";
 
 /// @title CoveredCallTSA
 /// @notice TSA that accepts any deposited collateral, and sells covered calls on it. Assumes options sold are

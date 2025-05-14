@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "forge-std/console2.sol";
 import {Utils} from "./utils.sol";
 import "../src/periphery/LyraSettlementUtils.sol";
-import {BaseTSA} from "../src/tokenizedSubaccounts/BaseTSA.sol";
+import {BaseTSA} from "../src/tokenizedSubaccounts/shared/BaseTSA.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {CashAsset} from "v2-core/src/assets/CashAsset.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";

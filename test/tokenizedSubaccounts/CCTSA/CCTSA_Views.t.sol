@@ -1,7 +1,7 @@
 pragma solidity ^0.8.18;
 
 import "../utils/CCTSATestUtils.sol";
-import {EmptyTSA} from "src/tokenizedSubaccounts/EmptyTSA.sol";
+import {EmptyTSA} from "../../../src/tokenizedSubaccounts/shared/EmptyTSA.sol";
 /*
 Account Value
 - correctly calculates the account value when there is no ongoing liquidation.

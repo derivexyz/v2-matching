@@ -35,6 +35,16 @@ contract AtomicSigningExecutor {
       }
     }
     matching.verifyAndMatch(actions, signatures, actionData);
+
+    // Post-trade hook. Allows signer to update state internally and revert if they don't like the trade
+    for (uint i = 0; i < actions.length; i++) {
+      AtomicAction memory atomicAction = atomicActionData[i];
+      if (atomicAction.isAtomic) {
+        // Call the signer of the action
+        IAtomicSigner signer = IAtomicSigner(actions[i].signer);
+        signer.postTradeHook(actions[i], atomicAction.extraData);
+      }
+    }
   }
 
   modifier onlyTradeExecutor() {

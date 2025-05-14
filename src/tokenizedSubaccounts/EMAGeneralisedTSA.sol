@@ -30,8 +30,8 @@ import {SignedDecimalMath} from "lyra-utils/decimals/SignedDecimalMath.sol";
 
 /// @title GeneralisedTSA
 /// @notice A TSA that allows the owner/signer to trade assets freely, with limited guardrails
-/// TODO: EMA using share price instead of mark loss, that way its way more general
-contract GeneralisedTSA is EmptyTSA {
+/// EMA using share price instead of mark loss, that way its way more general
+contract EMAGeneralisedTSA is EmptyTSA {
   using IntLib for int;
   using SafeCast for int;
   using SafeCast for uint;
@@ -59,7 +59,13 @@ contract GeneralisedTSA is EmptyTSA {
     bytes32 lastSeenHash;
     // This vault can only actively trade whatever assets are enabled. Cash and deposit asset are always enabled.
     mapping(address => bool) enabledAssets;
-    bool rfqEnabled;
+    // EMA
+    uint lastSeenSharePrice;
+    uint markLossLastTs;
+    int markLossEma;
+    // EMA params
+    uint markLossEmaTarget;
+    uint emaDecayFactor;
   }
 
   // keccak256(abi.encode(uint256(keccak256("lyra.storage.GeneralisedTSA")) - 1)) & ~bytes32(uint256(0xff))
@@ -99,10 +105,25 @@ contract GeneralisedTSA is EmptyTSA {
   ///////////
   // Admin //
   ///////////
-  function setGTSAParams(bool rfqEnabled) external onlyOwner {
-    _getGTSAStorage().rfqEnabled = rfqEnabled;
+  function setGTSAParams(uint emaDecayFactor, uint markLossEmaTarget) external onlyOwner {
+    // Decay factor must be non-zero
+    require(emaDecayFactor != 0 && markLossEmaTarget < 0.5e18, GT_InvalidParams());
 
-    emit GTSAParamsSet(rfqEnabled);
+    GTSAStorage storage $ = _getGTSAStorage();
+
+    $.emaDecayFactor = emaDecayFactor;
+    $.markLossEmaTarget = markLossEmaTarget;
+
+    $.lastSeenSharePrice = this.getSharesValue(1e18);
+
+    emit GTSAParamsSet(emaDecayFactor, markLossEmaTarget);
+  }
+
+  function resetDecay() external onlyOwner {
+    GTSAStorage storage $ = _getGTSAStorage();
+    $.markLossLastTs = block.timestamp;
+    $.markLossEma = 0;
+    $.lastSeenSharePrice = this.getSharesValue(1e18);
   }
 
   function enableAsset(address asset) external onlyOwner {
@@ -110,6 +131,25 @@ contract GeneralisedTSA is EmptyTSA {
     $.enabledAssets[asset] = true;
 
     emit AssetEnabled(asset);
+  }
+
+  ////////////
+  // Keeper //
+  ////////////
+
+  /// @dev This function is called by the keeper to update the EMA and mark loss values
+  /// This is required as the EMA is not updated when the actions are reverted - so could get into a state where if the
+  /// share price drops below a certain point, the EMA would never be able to recover
+  function updateEMA() external returns (int, int) {
+    return _updateEma();
+  }
+
+  /////////////////////
+  // Post-trade hook //
+  /////////////////////
+
+  function postTradeHook(IMatching.Action memory /*action*/, bytes memory /*extraData*/) external override onlySubmitters {
+    _verifyEmaMarkLoss();
   }
 
   ///////////////////////
@@ -153,6 +193,8 @@ contract GeneralisedTSA is EmptyTSA {
       tradeData.asset == address(tsaAddresses.wrappedDepositAsset) || $.enabledAssets[tradeData.asset],
       GT_InvalidTradeAsset()
     );
+
+    _verifyEmaMarkLoss();
   }
 
   function _verifyRfqAction(
@@ -181,6 +223,8 @@ contract GeneralisedTSA is EmptyTSA {
         GT_InvalidTradeAsset()
       );
     }
+
+    _verifyEmaMarkLoss();
   }
 
   function _verifyWithdrawalAction(IMatching.Action memory action, BaseTSAAddresses memory tsaAddresses) internal view {
@@ -196,6 +240,42 @@ contract GeneralisedTSA is EmptyTSA {
 
     // Note; no restriction to borrow when withdrawing. So a USDC based vault could swap for ETH and then allow
     // withdrawals of USDC (that borrow against the ETH)
+  }
+
+  function _verifyEmaMarkLoss() internal {
+    (int preMarkLossEma, int emaLoss) = _updateEma();
+    // Note: no "recovery" check. Since that will almost constantly trigger when we only look at share
+    // price/it is gameable/skippable by donating to the pool after each trade
+    require(emaLoss <= int(_getGTSAStorage().markLossEmaTarget), GT_MarkLossTooHigh());
+  }
+
+  function _updateEma() internal returns (int preMarkLossEma, int emaLoss) {
+    GTSAStorage storage $ = _getGTSAStorage();
+
+    uint currentSharePrice = this.getSharesValue(1e18);
+    uint lastSharePrice = $.lastSeenSharePrice;
+
+    // Positive value == loss
+    int markLossPercent = (int(lastSharePrice) - int(currentSharePrice)) * 1e18 / int(lastSharePrice);
+
+    int preMarkLossEma = _decayAndFetchEma();
+    int emaLoss = preMarkLossEma + markLossPercent;
+
+    $.markLossEma = emaLoss;
+    $.lastSeenSharePrice = currentSharePrice;
+
+    return (preMarkLossEma, emaLoss);
+  }
+
+  function _decayAndFetchEma() internal returns (int newEma) {
+    GTSAStorage storage $ = _getGTSAStorage();
+
+    uint dt = block.timestamp - $.markLossLastTs;
+    uint decay = FixedPointMathLib.exp(-int($.emaDecayFactor * dt));
+    $.markLossEma = $.markLossEma.multiplyDecimal(int(decay));
+    $.markLossLastTs = block.timestamp;
+
+    return $.markLossEma;
   }
 
   ///////////////////
@@ -222,6 +302,10 @@ contract GeneralisedTSA is EmptyTSA {
     return _getGTSAStorage().lastSeenHash;
   }
 
+  function getEmaValues() public view returns (int markLossEma, uint markLossLastTs) {
+    return (_getGTSAStorage().markLossEma, _getGTSAStorage().markLossLastTs);
+  }
+
   function getGTSAAddresses()
     public
     view
@@ -234,11 +318,13 @@ contract GeneralisedTSA is EmptyTSA {
   ///////////////////
   // Events/Errors //
   ///////////////////
-  event GTSAParamsSet(bool rfqEnabled);
+  event GTSAParamsSet(uint emaDecayFactor, uint markLossEmaTarget);
   event AssetEnabled(address indexed asset);
 
   error GT_TradeDataDoesNotMatchOrderHash();
   error GT_InvalidWithdrawAsset();
   error GT_InvalidTradeAsset();
+  error GT_InvalidParams();
   error GT_InvalidModule();
+  error GT_MarkLossTooHigh();
 }

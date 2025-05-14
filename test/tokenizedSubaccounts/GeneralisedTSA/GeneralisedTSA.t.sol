@@ -1,10 +1,10 @@
 import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
-import "../utils/GTSATestUtils.sol";
+import "../utils/EGTSATestUtils.sol";
 
-//# Test Cases for GeneralisedTSA
+//# Test Cases for EMAGeneralisedTSA
 
-contract GeneralisedTSA_Tests is GTSATestUtils {
+contract EMAGeneralisedTSA_Tests is EGTSATestUtils {
   using SignedMath for int;
 
   function setUp() public override {
@@ -62,7 +62,7 @@ contract GeneralisedTSA_Tests is GTSATestUtils {
             performanceFee: 0
           })
         }),
-        GeneralisedTSA.GTSAInitParams({
+        EMAGeneralisedTSA.GTSAInitParams({
           baseFeed: markets[MARKET].spotFeed,
           depositModule: depositModule,
           withdrawalModule: withdrawalModule,
@@ -93,10 +93,10 @@ contract GeneralisedTSA_Tests is GTSATestUtils {
     vm.assertEq(markLossLastTs, 0);
 
     // Set invalid EMA parameters and verify revert
-    vm.expectRevert(GeneralisedTSA.GT_InvalidParams.selector);
+    vm.expectRevert(EMAGeneralisedTSA.GT_InvalidParams.selector);
     gtsa.setGTSAParams(0, 0.02e18);
 
-    vm.expectRevert(GeneralisedTSA.GT_InvalidParams.selector);
+    vm.expectRevert(EMAGeneralisedTSA.GT_InvalidParams.selector);
     gtsa.setGTSAParams(0.0002e18, 0.6e18);
 
     // Reset decay parameters
@@ -143,7 +143,7 @@ contract GeneralisedTSA_Tests is GTSATestUtils {
       _getPerpTradeData(-0.2e18, MARKET_REF_SPOT);
 
     vm.prank(signer);
-    vm.expectRevert(GeneralisedTSA.GT_InvalidTradeAsset.selector);
+    vm.expectRevert(EMAGeneralisedTSA.GT_InvalidTradeAsset.selector);
     tsa.signActionData(actions[0], "");
 
     // After enabling the asset, can sign the action/execute the trade
@@ -164,7 +164,7 @@ contract GeneralisedTSA_Tests is GTSATestUtils {
 
     // can just sign the previous action to verify it fails
     vm.prank(signer);
-    vm.expectRevert(GeneralisedTSA.GT_MarkLossTooHigh.selector);
+    vm.expectRevert(EMAGeneralisedTSA.GT_MarkLossTooHigh.selector);
     tsa.signActionData(actions[0], "");
 
     // Check the mark loss
@@ -186,7 +186,7 @@ contract GeneralisedTSA_Tests is GTSATestUtils {
 
     // We don't accept "recovery" like we did with mark loss in the LevBasisTSA, since this would be too easily
     // manipulable (updateEMA, donate a tiny amount, trade, repeat...)
-    vm.expectRevert(GeneralisedTSA.GT_MarkLossTooHigh.selector);
+    vm.expectRevert(EMAGeneralisedTSA.GT_MarkLossTooHigh.selector);
     vm.prank(signer);
     tsa.signActionData(actions[0], "");
 
@@ -220,7 +220,7 @@ contract GeneralisedTSA_Tests is GTSATestUtils {
       _getRfqAsMakerSignaturesAndActions(makerOrder, takerOrder);
 
     vm.prank(signer);
-    vm.expectRevert(GeneralisedTSA.GT_InvalidTradeAsset.selector);
+    vm.expectRevert(EMAGeneralisedTSA.GT_InvalidTradeAsset.selector);
     tsa.signActionData(actions[0], "");
 
     // Enable the asset
@@ -259,7 +259,7 @@ contract GeneralisedTSA_Tests is GTSATestUtils {
     IActionVerifier.Action memory takerAction = _createRfqAction(takerOrder);
 
     vm.prank(signer);
-    vm.expectRevert(GeneralisedTSA.GT_InvalidTradeAsset.selector);
+    vm.expectRevert(EMAGeneralisedTSA.GT_InvalidTradeAsset.selector);
     tsa.signActionData(takerAction, abi.encode(makerOrder.trades));
 
     bytes32 orderHash = takerOrder.orderHash;
@@ -267,7 +267,7 @@ contract GeneralisedTSA_Tests is GTSATestUtils {
     takerAction.data = abi.encode(takerOrder);
 
     vm.prank(signer);
-    vm.expectRevert(GeneralisedTSA.GT_TradeDataDoesNotMatchOrderHash.selector);
+    vm.expectRevert(EMAGeneralisedTSA.GT_TradeDataDoesNotMatchOrderHash.selector);
     tsa.signActionData(takerAction, abi.encode(makerOrder.trades));
 
     takerOrder.orderHash = orderHash;
@@ -308,7 +308,7 @@ contract GeneralisedTSA_Tests is GTSATestUtils {
     gtsa.enableAsset(address(markets[NOT_MARKET].base));
 
     // Verify withdrawal of enabled asset fails
-    vm.expectRevert(GeneralisedTSA.GT_InvalidWithdrawAsset.selector);
+    vm.expectRevert(EMAGeneralisedTSA.GT_InvalidWithdrawAsset.selector);
     vm.prank(signer);
     tsa.signActionData(action, "");
   }

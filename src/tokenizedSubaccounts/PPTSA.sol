@@ -9,7 +9,7 @@ import {DecimalMath} from "lyra-utils/decimals/DecimalMath.sol";
 import {SignedDecimalMath} from "lyra-utils/decimals/SignedDecimalMath.sol";
 import {ConvertDecimals} from "lyra-utils/decimals/ConvertDecimals.sol";
 
-import {BaseTSA} from "./BaseOnChainSigningTSA.sol";
+import {BaseTSA} from "./shared/BaseOnChainSigningTSA.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IOptionAsset} from "v2-core/src/interfaces/IOptionAsset.sol";
 import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
@@ -22,7 +22,7 @@ import {
   StandardManager, IStandardManager, IVolFeed, IForwardFeed
 } from "v2-core/src/risk-managers/StandardManager.sol";
 import {ITradeModule} from "../interfaces/ITradeModule.sol";
-import {CollateralManagementTSA} from "./CollateralManagementTSA.sol";
+import {CollateralManagementTSA} from "./shared/CollateralManagementTSA.sol";
 
 /// @title PrincipalProtectedTSA
 contract PrincipalProtectedTSA is CollateralManagementTSA {

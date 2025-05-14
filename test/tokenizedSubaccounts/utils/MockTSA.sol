@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity ^0.8.18;
 
-import "../../../src/tokenizedSubaccounts/BaseOnChainSigningTSA.sol";
+import "../../../src/tokenizedSubaccounts/shared/BaseOnChainSigningTSA.sol";
 
 /// @title MockTSA
 contract MockTSA is BaseOnChainSigningTSA {

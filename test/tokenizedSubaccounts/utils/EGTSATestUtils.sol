@@ -3,17 +3,17 @@ pragma solidity ^0.8.18;
 
 import {PublicLBTSA} from "./PublicLBTSA.sol";
 import "./TSATestUtils.sol";
-import {GeneralisedTSA} from "../../../src/tokenizedSubaccounts/GeneralisedTSA.sol";
+import {EMAGeneralisedTSA} from "../../../src/tokenizedSubaccounts/EMAGeneralisedTSA.sol";
 
-contract GTSATestUtils is TSATestUtils {
+contract EGTSATestUtils is TSATestUtils {
   using SignedMath for int;
 
-  GeneralisedTSA public tsaImplementation;
+  EMAGeneralisedTSA public tsaImplementation;
 
-  GeneralisedTSA internal gtsa;
+  EMAGeneralisedTSA internal gtsa;
 
   function upgradeToGTSA() internal {
-    tsaImplementation = new GeneralisedTSA();
+    tsaImplementation = new EMAGeneralisedTSA();
 
     BaseTSA.BaseTSAInitParams memory initParams = BaseTSA.BaseTSAInitParams({
       subAccounts: subAccounts,
@@ -36,7 +36,7 @@ contract GTSATestUtils is TSATestUtils {
       })
     });
 
-    GeneralisedTSA.GTSAInitParams memory gInitParams = GeneralisedTSA.GTSAInitParams({
+    EMAGeneralisedTSA.GTSAInitParams memory gInitParams = EMAGeneralisedTSA.GTSAInitParams({
       baseFeed: markets[MARKET].spotFeed,
       depositModule: depositModule,
       withdrawalModule: withdrawalModule,
@@ -50,13 +50,13 @@ contract GTSATestUtils is TSATestUtils {
       abi.encodeWithSelector(tsaImplementation.initialize.selector, address(this), initParams, gInitParams)
     );
 
-    gtsa = GeneralisedTSA(address(proxy));
+    gtsa = EMAGeneralisedTSA(address(proxy));
     tsa = BaseOnChainSigningTSA(address(proxy));
     tsaSubacc = gtsa.subAccount();
   }
 
   function setupGTSA() internal {
-    GeneralisedTSA(address(tsa)).setGTSAParams(0.0002e18, 0.02e18);
+    EMAGeneralisedTSA(address(tsa)).setGTSAParams(0.0002e18, 0.02e18);
 
     tsa.setShareKeeper(address(this), true);
 

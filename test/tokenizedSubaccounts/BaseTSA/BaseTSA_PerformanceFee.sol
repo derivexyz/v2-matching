@@ -1,4 +1,4 @@
-import "../../../src/tokenizedSubaccounts/BaseTSA.sol";
+import "../../../src/tokenizedSubaccounts/shared/BaseTSA.sol";
 import "../utils/CCTSATestUtils.sol";
 
 contract CCTSA_BaseTSA_PerformanceFeesTests is CCTSATestUtils {

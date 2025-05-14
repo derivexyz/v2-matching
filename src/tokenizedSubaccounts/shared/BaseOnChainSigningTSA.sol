@@ -109,6 +109,10 @@ abstract contract BaseOnChainSigningTSA is BaseTSA {
     );
   }
 
+  function postTradeHook(IMatching.Action memory /*action*/, bytes memory /*extraData*/) external virtual onlySubmitters {
+    // No-op
+  }
+
   ////////////////
   // Validation //
   ////////////////

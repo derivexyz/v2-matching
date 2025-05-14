@@ -8,9 +8,9 @@ import {DecimalMath} from "lyra-utils/decimals/DecimalMath.sol";
 import {SignedDecimalMath} from "lyra-utils/decimals/SignedDecimalMath.sol";
 
 import {BaseOnChainSigningTSA} from "./BaseOnChainSigningTSA.sol";
-import {ITradeModule} from "../interfaces/ITradeModule.sol";
-import {IMatching} from "../interfaces/IMatching.sol";
-import "../interfaces/IDepositModule.sol";
+import {ITradeModule} from "../../interfaces/ITradeModule.sol";
+import {IMatching} from "../../interfaces/IMatching.sol";
+import {IDepositModule} from "../../interfaces/IDepositModule.sol";
 
 abstract contract EmptyTSA is BaseOnChainSigningTSA {
   using IntLib for int;
