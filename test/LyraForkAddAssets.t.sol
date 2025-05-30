@@ -16,7 +16,7 @@ import {PositionTracking} from "v2-core/src/assets/utils/PositionTracking.sol";
 import {WLWrappedERC20Asset} from "v2-core/src/assets/WLWrappedERC20Asset.sol";
 
 contract LyraForkAddAssetsTest is ForkBase {
-  string[] private markets = ["DRV"];
+  string[] private markets = ["OLAS"];
 
   function setUp() external {}
 
@@ -30,15 +30,6 @@ contract LyraForkAddAssetsTest is ForkBase {
     PMRM ethPMRM = PMRM(_getV2CoreContract("ETH", "pmrm"));
     PMRM btcPMRM = PMRM(_getV2CoreContract("BTC", "pmrm"));
 
-    // OP
-
-    (
-      ,
-      ,
-      IStandardManager.OracleContingencyParams memory oracleContingencyParams,
-      IStandardManager.BaseMarginParams memory baseMarginParams
-    ) = Config.getSRMParams("OP");
-
     for (uint i = 0; i < markets.length; i++) {
       console.log("market:", markets[i]);
 
@@ -47,7 +38,8 @@ contract LyraForkAddAssetsTest is ForkBase {
 
       console.log("market ID for market:", marketId);
 
-      (,, oracleContingencyParams, baseMarginParams) = Config.getSRMParams(markets[i]);
+      (,, IStandardManager.OracleContingencyParams memory oracleContingencyParams,
+        IStandardManager.BaseMarginParams memory baseMarginParams) = Config.getSRMParams(markets[i]);
 
       _call(
         address(srm),

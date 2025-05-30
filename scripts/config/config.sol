@@ -360,6 +360,11 @@ library Config {
         marginFactor: 0,
         IMScale: 0
       });
+    } else if (keccak256(abi.encodePacked(market)) == keccak256(abi.encodePacked("OLAS"))) {
+      baseMarginParams = IStandardManager.BaseMarginParams({
+        marginFactor: 0,
+        IMScale: 0
+      });
     } else if (keccak256(abi.encodePacked(market)) == keccak256(abi.encodePacked("SolvBTC"))) {
       baseMarginParams = IStandardManager.BaseMarginParams({
         marginFactor: 0.65e18,
@@ -542,6 +547,10 @@ library Config {
       perpCap = 0;
       optionCap = 0;
       baseCap = 500_000_000e18;
+    } else if (keccak256(abi.encodePacked(market)) == keccak256(abi.encodePacked("OLAS"))) {
+      perpCap = 0;
+      optionCap = 0;
+      baseCap = 500_000e18;
     } else if (keccak256(abi.encodePacked(market)) == keccak256(abi.encodePacked("SolvBTC"))) {
       perpCap = 0;
       optionCap = 0;
