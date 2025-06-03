@@ -44,17 +44,23 @@ contract LyraAuctionUtils {
       return (manager, mm, mtm, 0);
     }
 
-    try PMRM(manager).arrangePortfolio(subId) returns (IPMRM.Portfolio memory portfolio) {
-      (mm, mtm, worstScenario) =
-      PMRM(manager).lib().getMarginAndMarkToMarket(portfolio, false, PMRM(manager).getScenarios());
-      return (manager, mm, mtm, worstScenario);
-    } catch {
-      // Falling through to PMRM_2
+    {
+      bytes memory callData = abi.encodeWithSelector(PMRM(manager).arrangePortfolio.selector, subId);
+      (bool ok, bytes memory result) = manager.staticcall(callData);
+
+      if (ok) {
+        IPMRM.Portfolio memory p = abi.decode(result, (IPMRM.Portfolio));
+        (mm, mtm, worstScenario) =
+        PMRM(manager).lib().getMarginAndMarkToMarket(p, false, PMRM(manager).getScenarios());
+        return (manager, mm, mtm, worstScenario);
+      }
     }
 
-    IPMRM_2.Portfolio memory portfolio = PMRM_2(manager).arrangePortfolio(subId);
+    IPMRM_2.Portfolio memory p2 = PMRM_2(manager).arrangePortfolio(subId);
     (mm, mtm, worstScenario) =
-      PMRM_2(manager).lib().getMarginAndMarkToMarket(portfolio, false, PMRM_2(manager).getScenarios());
+    PMRM_2(manager).lib().getMarginAndMarkToMarket(p2, false, PMRM_2(manager).getScenarios());
+
+    return (manager, mm, mtm, worstScenario);
   }
 
   function startInsolventAuction(uint accountId, uint worstScenario) external {
