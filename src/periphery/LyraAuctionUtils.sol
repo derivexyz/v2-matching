@@ -7,6 +7,9 @@ import {IBaseManager} from "v2-core/src/interfaces/IBaseManager.sol";
 import {ISubAccounts} from "v2-core/src/interfaces/ISubAccounts.sol";
 import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
+import {IPMRM_2} from "v2-core/src/interfaces/IPMRM_2.sol";
+import {PMRM_2} from "v2-core/src/risk-managers/PMRM_2.sol";
+import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
 
 /**
  * @title LyraAuctionUtils
@@ -42,11 +45,18 @@ contract LyraAuctionUtils {
       return (manager, mm, mtm, 0);
     }
 
-    // Otherwise we assume it is a PMRM, so we need to work out the worst scenario by getting the portfolio and
-    // calculating margin in the lib
-    IPMRM.Portfolio memory portfolio = PMRM(manager).arrangePortfolio(subId);
-    (mm, mtm, worstScenario) =
-      PMRM(manager).lib().getMarginAndMarkToMarket(portfolio, false, PMRM(manager).getScenarios());
+    try PMRM_2(manager).collateralSpotFeeds(address(0)) returns (ISpotFeed) {
+      IPMRM_2.Portfolio memory p2 = PMRM_2(manager).arrangePortfolio(subId);
+      (mm, mtm, worstScenario) =
+        PMRM_2(manager).lib().getMarginAndMarkToMarket(p2, false, PMRM_2(manager).getScenarios());
+      return (manager, mm, mtm, worstScenario);
+    } catch {
+      // Fall back to PMRM
+      IPMRM.Portfolio memory p = PMRM(manager).arrangePortfolio(subId);
+      (mm, mtm, worstScenario) = PMRM(manager).lib().getMarginAndMarkToMarket(p, false, PMRM(manager).getScenarios());
+    }
+
+    return (manager, mm, mtm, worstScenario);
   }
 
   function startInsolventAuction(uint accountId, uint worstScenario) external {
