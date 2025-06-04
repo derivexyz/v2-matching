@@ -9,6 +9,8 @@ import {IAsset} from "v2-core/src/interfaces/IAsset.sol";
 import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
 import {IPMRM_2} from "v2-core/src/interfaces/IPMRM_2.sol";
 import {PMRM_2} from "v2-core/src/risk-managers/PMRM_2.sol";
+import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
+import "forge-std/console2.sol";
 
 /**
  * @title LyraAuctionUtils
@@ -44,21 +46,18 @@ contract LyraAuctionUtils {
       return (manager, mm, mtm, 0);
     }
 
-    {
-      bytes memory callData = abi.encodeWithSelector(PMRM(manager).arrangePortfolio.selector, subId);
-      (bool ok, bytes memory result) = manager.staticcall(callData);
-
-      if (ok) {
-        IPMRM.Portfolio memory p = abi.decode(result, (IPMRM.Portfolio));
-        (mm, mtm, worstScenario) =
-        PMRM(manager).lib().getMarginAndMarkToMarket(p, false, PMRM(manager).getScenarios());
-        return (manager, mm, mtm, worstScenario);
-      }
+    // Check if manager has collateralSpotFeeds mapping (unique to PMRM_2)
+    try PMRM_2(manager).collateralSpotFeeds(address(0)) returns (ISpotFeed) {
+      IPMRM_2.Portfolio memory p2 = PMRM_2(manager).arrangePortfolio(subId);
+      (mm, mtm, worstScenario) =
+      PMRM_2(manager).lib().getMarginAndMarkToMarket(p2, false, PMRM_2(manager).getScenarios());
+      return (manager, mm, mtm, worstScenario);
+    } catch {
+      // Fall back to PMRM
+      IPMRM.Portfolio memory p = PMRM(manager).arrangePortfolio(subId);
+      (mm, mtm, worstScenario) =
+      PMRM(manager).lib().getMarginAndMarkToMarket(p, false, PMRM(manager).getScenarios());
     }
-
-    IPMRM_2.Portfolio memory p2 = PMRM_2(manager).arrangePortfolio(subId);
-    (mm, mtm, worstScenario) =
-    PMRM_2(manager).lib().getMarginAndMarkToMarket(p2, false, PMRM_2(manager).getScenarios());
 
     return (manager, mm, mtm, worstScenario);
   }
