@@ -48,13 +48,12 @@ contract LyraAuctionUtils {
     try PMRM_2(manager).collateralSpotFeeds(address(0)) returns (ISpotFeed) {
       IPMRM_2.Portfolio memory p2 = PMRM_2(manager).arrangePortfolio(subId);
       (mm, mtm, worstScenario) =
-      PMRM_2(manager).lib().getMarginAndMarkToMarket(p2, false, PMRM_2(manager).getScenarios());
+        PMRM_2(manager).lib().getMarginAndMarkToMarket(p2, false, PMRM_2(manager).getScenarios());
       return (manager, mm, mtm, worstScenario);
     } catch {
       // Fall back to PMRM
       IPMRM.Portfolio memory p = PMRM(manager).arrangePortfolio(subId);
-      (mm, mtm, worstScenario) =
-      PMRM(manager).lib().getMarginAndMarkToMarket(p, false, PMRM(manager).getScenarios());
+      (mm, mtm, worstScenario) = PMRM(manager).lib().getMarginAndMarkToMarket(p, false, PMRM(manager).getScenarios());
     }
 
     return (manager, mm, mtm, worstScenario);
