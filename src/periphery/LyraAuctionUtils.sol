@@ -10,7 +10,6 @@ import {DutchAuction} from "v2-core/src/liquidation/DutchAuction.sol";
 import {IPMRM_2} from "v2-core/src/interfaces/IPMRM_2.sol";
 import {PMRM_2} from "v2-core/src/risk-managers/PMRM_2.sol";
 import {ISpotFeed} from "v2-core/src/interfaces/ISpotFeed.sol";
-import "forge-std/console2.sol";
 
 /**
  * @title LyraAuctionUtils
@@ -46,7 +45,6 @@ contract LyraAuctionUtils {
       return (manager, mm, mtm, 0);
     }
 
-    // Check if manager has collateralSpotFeeds mapping (unique to PMRM_2)
     try PMRM_2(manager).collateralSpotFeeds(address(0)) returns (ISpotFeed) {
       IPMRM_2.Portfolio memory p2 = PMRM_2(manager).arrangePortfolio(subId);
       (mm, mtm, worstScenario) =
