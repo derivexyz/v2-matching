@@ -291,6 +291,10 @@ library Config {
         mmPerpReq: 0.067e18,
         imPerpReq: 0.1e18
       });
+      baseMarginParams = IStandardManager.BaseMarginParams({
+        marginFactor: 0.74e18,
+        IMScale: 0.9e18
+      });
     } else if (keccak256(abi.encodePacked(market)) == keccak256(abi.encodePacked("OP"))) {
       perpMarginRequirements = IStandardManager.PerpMarginRequirements({
         mmPerpReq: 0.067e18,
