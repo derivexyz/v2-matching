@@ -22,7 +22,7 @@ import {TokenizedSubAccount} from "../src/tokenizedSubaccounts/TSA.sol";
 import "openzeppelin/proxy/transparent/ProxyAdmin.sol";
 import {TSAShareHandler} from "../src/tokenizedSubaccounts/TSAShareHandler.sol";
 import {Vm} from "forge-std/Vm.sol";
-import {FxToken} from "../src/FX/FXToken.sol";
+import {FXToken} from "../src/fx/FXToken.sol";
 import {WrappedERC20Asset} from "v2-core/src/assets/WrappedERC20Asset.sol";
 
 
@@ -37,7 +37,7 @@ contract DeployFXUSDC is Utils {
     address deployer = vm.addr(deployerPrivateKey);
     console2.log("deployer: ", deployer);
 
-    FxToken fxTokenImplementation = new FxToken();
+    FXToken fxTokenImplementation = new FXToken();
 
     TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
       address(fxTokenImplementation),
@@ -46,7 +46,7 @@ contract DeployFXUSDC is Utils {
     );
 
 
-    FxToken fxUSDC = FxToken(address(proxy));
+    FXToken fxUSDC = FXToken(address(proxy));
 
     console2.log("fxUSDC: ", address(fxUSDC));
     console2.log("fxUSDCImp: ", address(fxTokenImplementation));

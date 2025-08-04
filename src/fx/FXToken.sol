@@ -4,7 +4,7 @@ import {AccessControlUpgradeable} from "openzeppelin-upgradeable/access/AccessCo
 import {ERC20Upgradeable, Initializable} from "openzeppelin-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 
-contract FxToken is Initializable, ERC20Upgradeable, AccessControlUpgradeable {
+contract FXToken is Initializable, ERC20Upgradeable, AccessControlUpgradeable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER");
     bytes32 public constant BLOCK_MANAGER_ROLE = keccak256("BLOCK_MANAGER");
     // keccak256(abi.encode(uint256(keccak256("FxToken")) - 1)) & ~bytes32(uint256(0xff))
