@@ -46,19 +46,19 @@ MARKET_NAME=DOGE forge script scripts/deploy-perp-only-market.s.sol --rpc-url $E
 
 # Copy previous outputs to deployments folder
 cd ../../
-#cp lib/v2-core/deployments/$chainId/core.json deployments/$chainId/core.json
-#cp lib/v2-core/deployments/$chainId/ETH.json deployments/$chainId/ETH.json
-#cp lib/v2-core/deployments/$chainId/ETH_2.json deployments/$chainId/ETH_2.json
-#cp lib/v2-core/deployments/$chainId/BTC.json deployments/$chainId/BTC.json
-#cp lib/v2-core/deployments/$chainId/BTC_2.json deployments/$chainId/BTC_2.json
-#cp lib/v2-core/deployments/$chainId/USDT.json deployments/$chainId/USDT.json
-#cp lib/v2-core/deployments/$chainId/SNX.json deployments/$chainId/SNX.json
-#cp lib/v2-core/deployments/$chainId/WSTETH.json deployments/$chainId/WSTETH.json
-#cp lib/v2-core/deployments/$chainId/strands.json deployments/$chainId/strands.json
-#cp lib/v2-core/deployments/$chainId/SFP.json deployments/$chainId/SFP.json
-#cp lib/v2-core/deployments/$chainId/SOL.json deployments/$chainId/SOL.json
-#cp lib/v2-core/deployments/$chainId/DOGE.json deployments/$chainId/DOGE.json
-#cp lib/v2-core/deployments/$chainId/shared.json deployments/$chainId/shared.json
+cp lib/v2-core/deployments/$chainId/core.json deployments/$chainId/core.json
+cp lib/v2-core/deployments/$chainId/ETH.json deployments/$chainId/ETH.json
+cp lib/v2-core/deployments/$chainId/ETH_2.json deployments/$chainId/ETH_2.json
+cp lib/v2-core/deployments/$chainId/BTC.json deployments/$chainId/BTC.json
+cp lib/v2-core/deployments/$chainId/BTC_2.json deployments/$chainId/BTC_2.json
+cp lib/v2-core/deployments/$chainId/USDT.json deployments/$chainId/USDT.json
+cp lib/v2-core/deployments/$chainId/SNX.json deployments/$chainId/SNX.json
+cp lib/v2-core/deployments/$chainId/WSTETH.json deployments/$chainId/WSTETH.json
+cp lib/v2-core/deployments/$chainId/strands.json deployments/$chainId/strands.json
+cp lib/v2-core/deployments/$chainId/SFP.json deployments/$chainId/SFP.json
+cp lib/v2-core/deployments/$chainId/SOL.json deployments/$chainId/SOL.json
+cp lib/v2-core/deployments/$chainId/DOGE.json deployments/$chainId/DOGE.json
+cp lib/v2-core/deployments/$chainId/shared.json deployments/$chainId/shared.json
 
 echo "Deployed core contracts"
 

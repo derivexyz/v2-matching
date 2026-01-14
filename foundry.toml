@@ -24,3 +24,6 @@ quote_style = 'double'
 conduit_prod = "https://l2-prod-testnet-0eakp60405.t.conduit.xyz"
 conduit_staging = "https://l2-staging-9ns7v94tpj.t.conduit.xyz"
 sepolia = "https://sepolia.infura.io/v3/26251a7744c548a3adbc17880fc70764"
+
+[profile.CORE]
+src = "lib/v2-core/src"
