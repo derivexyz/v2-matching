@@ -32,7 +32,7 @@ contract DeployFXUSDC is Utils {
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
     vm.startBroadcast(deployerPrivateKey);
 
-    string name = vm.envString("TOKEN_NAME");
+    string memory name = vm.envString("TOKEN_NAME");
 
     address deployer = vm.addr(deployerPrivateKey);
     console2.log("deployer: ", deployer);

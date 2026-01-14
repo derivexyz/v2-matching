@@ -14,9 +14,9 @@ contract ForkBase is UtilBase, Test {
   }
 
   function _call(address target, bytes memory data) internal returns (bytes memory) {
-//    console.log(target);
-//    console.log(",0,");
-//    console.logBytes(data);
+    console.log(target);
+    console.log(",0,");
+    console.logBytes(data);
     (bool success, bytes memory result) = target.call(data);
     require(success, "call failed");
     return result;
