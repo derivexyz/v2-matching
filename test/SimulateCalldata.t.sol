@@ -15,8 +15,6 @@ import {MockSpotDiffFeed} from "v2-core/test/shared/mocks/MockSpotDiffFeed.sol";
 import "v2-core/src/feeds/LyraForwardFeed.sol";
 import {TradeModule} from "../src/modules/TradeModule.sol";
 import {WLWrappedERC20Asset} from "v2-core/src/assets/WLWrappedERC20Asset.sol";
-import {iOVM_CrossDomainMessenger} from
-  "v2-core/lib/chainlink/contracts/src/v0.8/vendor/@eth-optimism/contracts/v0.4.7/contracts/optimistic-ethereum/iOVM/bridge/messaging/iOVM_CrossDomainMessenger.sol";
 
 struct UserOperation {
   address sender;
